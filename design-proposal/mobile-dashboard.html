@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot - Mobile Dashboard Concept</title>
+    <style>
+      :root {
+        --bg: #eef1f6;
+        --surface: #ffffff;
+        --line: rgba(15, 23, 42, 0.09);
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #0a84ff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: var(--bg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 1rem;
+      }
+
+      .device {
+        width: min(100%, 390px);
+        border-radius: 2rem;
+        background: #d6dce8;
+        padding: 0.35rem;
+        box-shadow: 0 26px 70px rgba(15, 23, 42, 0.25);
+      }
+
+      .screen {
+        border-radius: 1.7rem;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 100% 0%, #eef4ff 0%, transparent 40%),
+          #f7f9fc;
+        border: 1px solid rgba(255, 255, 255, 0.9);
+      }
+
+      .status {
+        padding: 0.85rem 1rem 0.2rem;
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.74rem;
+        color: var(--muted);
+      }
+
+      .content {
+        padding: 0.8rem 0.85rem 1rem;
+        display: grid;
+        gap: 0.72rem;
+      }
+
+      .card {
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: var(--surface);
+        padding: 0.8rem;
+      }
+
+      .header h1 {
+        margin: 0;
+        font-size: 1.2rem;
+        letter-spacing: -0.02em;
+      }
+
+      .header p {
+        margin: 0.2rem 0 0;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+
+      .task-input {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.5rem;
+      }
+
+      .task-input input {
+        min-height: 2.55rem;
+        border: 1px solid var(--line);
+        border-radius: 0.8rem;
+        padding: 0 0.72rem;
+        font-size: 0.9rem;
+      }
+
+      .task-input button {
+        min-height: 2.55rem;
+        border: none;
+        border-radius: 0.8rem;
+        background: linear-gradient(180deg, #35a0ff 0%, #0078ff 100%);
+        color: #fff;
+        font-weight: 600;
+        padding: 0 0.86rem;
+      }
+
+      .task {
+        border: 1px solid var(--line);
+        border-radius: 0.78rem;
+        padding: 0.62rem;
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 0.56rem;
+        align-items: center;
+      }
+
+      .check {
+        width: 1rem;
+        height: 1rem;
+        border-radius: 999px;
+        border: 2px solid #cbd5e1;
+      }
+
+      .task span {
+        font-size: 0.88rem;
+      }
+
+      .timer {
+        text-align: center;
+      }
+
+      .timer strong {
+        font-size: 1.9rem;
+        letter-spacing: -0.03em;
+      }
+
+      .timer-actions {
+        margin-top: 0.6rem;
+        display: flex;
+        justify-content: center;
+        gap: 0.45rem;
+      }
+
+      .timer-actions button {
+        min-height: 2rem;
+        border-radius: 0.6rem;
+        border: 1px solid var(--line);
+        background: #fff;
+        padding: 0 0.7rem;
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="device">
+      <div class="screen">
+        <div class="status">
+          <span>9:41</span>
+          <span>TaskPilot</span>
+        </div>
+
+        <main class="content">
+          <section class="card header">
+            <h1>Good afternoon, Nicholas</h1>
+            <p>2 tasks left for today</p>
+          </section>
+
+          <section class="card">
+            <div class="task-input">
+              <input type="text" placeholder="Add task..." />
+              <button>Add</button>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="task">
+              <div class="check"></div>
+              <span>Read biology notes (chapter 4)</span>
+            </div>
+          </section>
+
+          <section class="card timer">
+            <p style="margin: 0; color: var(--muted); font-size: 0.84rem">Focus Session</p>
+            <strong>25:00</strong>
+            <div class="timer-actions">
+              <button style="background: var(--accent); color: #fff; border-color: transparent">Start</button>
+              <button>Pause</button>
+              <button>Reset</button>
+            </div>
+          </section>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

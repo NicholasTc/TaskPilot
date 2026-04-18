@@ -1,0 +1,982 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Dashboard v2</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ─── Design tokens ─── */
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --radius-sm: 0.55rem;
+        --radius-md: 0.85rem;
+        --radius-lg: 1.15rem;
+        --radius-xl: 1.4rem;
+        --transition: 220ms cubic-bezier(0.4, 0, 0.2, 1);
+
+        --priority-high: #ef4444;
+        --priority-high-soft: rgba(239, 68, 68, 0.10);
+        --priority-med: #f59e0b;
+        --priority-med-soft: rgba(245, 158, 11, 0.10);
+        --priority-low: #3b82f6;
+        --priority-low-soft: rgba(59, 130, 246, 0.10);
+        --priority-done: #10b981;
+        --priority-done-soft: rgba(16, 185, 129, 0.10);
+      }
+
+      /* ─── Light theme ─── */
+      [data-theme="light"] {
+        --bg: #f2f4f7;
+        --bg-gradient-a: rgba(219, 234, 254, 0.55);
+        --bg-gradient-b: rgba(237, 226, 254, 0.40);
+        --surface: rgba(255, 255, 255, 0.72);
+        --surface-solid: #ffffff;
+        --surface-hover: rgba(255, 255, 255, 0.92);
+        --line: rgba(15, 23, 42, 0.07);
+        --line-strong: rgba(15, 23, 42, 0.12);
+        --text: #0f172a;
+        --text-secondary: #475569;
+        --text-muted: #94a3b8;
+        --accent: #0a84ff;
+        --accent-soft: rgba(10, 132, 255, 0.10);
+        --shadow-card: 0 1px 3px rgba(15, 23, 42, 0.04), 0 8px 24px rgba(15, 23, 42, 0.06);
+        --shadow-card-hover: 0 4px 12px rgba(15, 23, 42, 0.06), 0 16px 40px rgba(15, 23, 42, 0.10);
+        --shadow-nav: 0 1px 2px rgba(15, 23, 42, 0.04), 0 4px 16px rgba(15, 23, 42, 0.06);
+        --blur: 16px;
+        --toggle-bg: #e2e8f0;
+        --toggle-knob: #ffffff;
+        --input-bg: #ffffff;
+        --task-bg: #ffffff;
+        --badge-bg: rgba(0, 0, 0, 0.04);
+      }
+
+      /* ─── Dark theme ─── */
+      [data-theme="dark"] {
+        --bg: #0c0f14;
+        --bg-gradient-a: rgba(30, 58, 95, 0.30);
+        --bg-gradient-b: rgba(55, 30, 85, 0.25);
+        --surface: rgba(30, 34, 44, 0.72);
+        --surface-solid: #1a1e28;
+        --surface-hover: rgba(40, 44, 56, 0.85);
+        --line: rgba(255, 255, 255, 0.07);
+        --line-strong: rgba(255, 255, 255, 0.12);
+        --text: #f1f5f9;
+        --text-secondary: #94a3b8;
+        --text-muted: #64748b;
+        --accent: #3b9eff;
+        --accent-soft: rgba(59, 158, 255, 0.14);
+        --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.20), 0 8px 24px rgba(0, 0, 0, 0.28);
+        --shadow-card-hover: 0 4px 12px rgba(0, 0, 0, 0.24), 0 16px 40px rgba(0, 0, 0, 0.36);
+        --shadow-nav: 0 1px 2px rgba(0, 0, 0, 0.18), 0 4px 16px rgba(0, 0, 0, 0.22);
+        --blur: 20px;
+        --toggle-bg: #334155;
+        --toggle-knob: #f1f5f9;
+        --input-bg: rgba(255, 255, 255, 0.06);
+        --task-bg: rgba(255, 255, 255, 0.04);
+        --badge-bg: rgba(255, 255, 255, 0.06);
+
+        --priority-high-soft: rgba(239, 68, 68, 0.16);
+        --priority-med-soft: rgba(245, 158, 11, 0.14);
+        --priority-low-soft: rgba(59, 130, 246, 0.14);
+        --priority-done-soft: rgba(16, 185, 129, 0.14);
+      }
+
+      /* ─── Base ─── */
+      * { box-sizing: border-box; margin: 0; }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background:
+          radial-gradient(ellipse at 15% 0%, var(--bg-gradient-a), transparent 55%),
+          radial-gradient(ellipse at 85% 8%, var(--bg-gradient-b), transparent 50%),
+          var(--bg);
+        transition: background var(--transition), color var(--transition);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ─── Top nav ─── */
+      .topnav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+        box-shadow: var(--shadow-nav);
+        transition: background var(--transition), box-shadow var(--transition);
+      }
+
+      .topnav-inner {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 0 1.25rem;
+        height: 3.6rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        font-weight: 700;
+        font-size: 1.08rem;
+        letter-spacing: -0.02em;
+      }
+
+      .brand-icon {
+        width: 1.65rem;
+        height: 1.65rem;
+        border-radius: 0.42rem;
+        background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+        display: grid;
+        place-items: center;
+      }
+
+      .brand-icon svg {
+        width: 0.9rem;
+        height: 0.9rem;
+        fill: #fff;
+      }
+
+      .nav-center {
+        display: flex;
+        align-items: center;
+        gap: 0.15rem;
+      }
+
+      .nav-tab {
+        padding: 0.42rem 0.82rem;
+        border-radius: var(--radius-md);
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        transition: color var(--transition), background var(--transition);
+      }
+
+      .nav-tab:hover { color: var(--text-secondary); background: var(--badge-bg); }
+      .nav-tab.active { color: var(--text); background: var(--badge-bg); }
+
+      .nav-right {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+      }
+
+      .date-badge {
+        font-size: 0.82rem;
+        color: var(--text-muted);
+        padding: 0.32rem 0.7rem;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: var(--badge-bg);
+      }
+
+      /* ─── Theme toggle ─── */
+      .theme-toggle {
+        position: relative;
+        width: 2.6rem;
+        height: 1.5rem;
+        border-radius: 999px;
+        background: var(--toggle-bg);
+        border: none;
+        cursor: pointer;
+        transition: background var(--transition);
+        flex-shrink: 0;
+      }
+
+      .theme-toggle::after {
+        content: "";
+        position: absolute;
+        top: 0.18rem;
+        left: 0.18rem;
+        width: 1.14rem;
+        height: 1.14rem;
+        border-radius: 50%;
+        background: var(--toggle-knob);
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
+        transition: transform var(--transition);
+      }
+
+      [data-theme="dark"] .theme-toggle::after {
+        transform: translateX(1.1rem);
+      }
+
+      .theme-toggle svg {
+        position: absolute;
+        top: 50%;
+        width: 0.72rem;
+        height: 0.72rem;
+        transform: translateY(-50%);
+        transition: opacity var(--transition);
+      }
+
+      .sun-icon { left: 0.38rem; opacity: 1; fill: #f59e0b; }
+      .moon-icon { right: 0.38rem; opacity: 0.45; fill: #94a3b8; }
+      [data-theme="dark"] .sun-icon { opacity: 0.4; }
+      [data-theme="dark"] .moon-icon { opacity: 1; fill: #c4b5fd; }
+
+      .avatar {
+        width: 1.85rem;
+        height: 1.85rem;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #818cf8, #c084fc);
+        border: 2px solid var(--line);
+        flex-shrink: 0;
+      }
+
+      /* ─── Shell ─── */
+      .shell {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 1.15rem 1.25rem 3rem;
+      }
+
+      /* ─── Greeting ─── */
+      .greeting {
+        margin-bottom: 1.1rem;
+      }
+
+      .greeting h1 {
+        font-size: 1.65rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .greeting p {
+        margin-top: 0.3rem;
+        color: var(--text-secondary);
+        font-size: 0.95rem;
+      }
+
+      .stat-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.7rem;
+        flex-wrap: wrap;
+      }
+
+      .stat {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+        font-weight: 500;
+        padding: 0.3rem 0.62rem;
+        border-radius: 999px;
+      }
+
+      .stat-dot {
+        width: 0.42rem;
+        height: 0.42rem;
+        border-radius: 50%;
+      }
+
+      .stat--high { background: var(--priority-high-soft); color: var(--priority-high); }
+      .stat--high .stat-dot { background: var(--priority-high); }
+      .stat--med { background: var(--priority-med-soft); color: var(--priority-med); }
+      .stat--med .stat-dot { background: var(--priority-med); }
+      .stat--low { background: var(--priority-low-soft); color: var(--priority-low); }
+      .stat--low .stat-dot { background: var(--priority-low); }
+      .stat--done { background: var(--priority-done-soft); color: var(--priority-done); }
+      .stat--done .stat-dot { background: var(--priority-done); }
+
+      /* ─── Main grid ─── */
+      .main-grid {
+        display: grid;
+        grid-template-columns: 1fr 340px;
+        gap: 1rem;
+        align-items: start;
+      }
+
+      @media (max-width: 960px) {
+        .main-grid { grid-template-columns: 1fr; }
+      }
+
+      /* ─── Card base ─── */
+      .card {
+        background: var(--surface);
+        backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        border: 1px solid var(--line);
+        border-radius: var(--radius-xl);
+        box-shadow: var(--shadow-card);
+        transition: background var(--transition), box-shadow var(--transition), border-color var(--transition);
+      }
+
+      .card-header {
+        padding: 0.9rem 1rem 0;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .card-title {
+        font-size: 0.92rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      .card-badge {
+        font-size: 0.74rem;
+        font-weight: 500;
+        color: var(--text-muted);
+        background: var(--badge-bg);
+        padding: 0.2rem 0.52rem;
+        border-radius: 999px;
+      }
+
+      .card-body { padding: 0.7rem 1rem 1rem; }
+
+      /* ─── Task input ─── */
+      .task-input {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.55rem;
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .task-input input {
+        font-family: var(--font);
+        min-height: 2.6rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--input-bg);
+        color: var(--text);
+        padding: 0 0.8rem;
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color var(--transition), box-shadow var(--transition);
+      }
+
+      .task-input input::placeholder { color: var(--text-muted); }
+
+      .task-input input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+
+      .btn-add {
+        min-height: 2.6rem;
+        border: none;
+        border-radius: var(--radius-md);
+        background: linear-gradient(180deg, #4da0ff 0%, #0a84ff 100%);
+        color: #fff;
+        font-family: var(--font);
+        font-weight: 600;
+        font-size: 0.88rem;
+        padding: 0 1rem;
+        cursor: pointer;
+        transition: opacity var(--transition), transform 120ms ease;
+      }
+
+      .btn-add:hover { opacity: 0.9; }
+      .btn-add:active { transform: scale(0.97); }
+
+      /* ─── Priority group ─── */
+      .priority-group {
+        padding: 0.65rem 1rem;
+      }
+
+      .priority-group + .priority-group {
+        border-top: 1px solid var(--line);
+      }
+
+      .group-label {
+        display: flex;
+        align-items: center;
+        gap: 0.45rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .group-dot {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 50%;
+      }
+
+      .group-label span {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: var(--text-muted);
+      }
+
+      .group-count {
+        margin-left: auto;
+        font-size: 0.72rem;
+        color: var(--text-muted);
+      }
+
+      /* ─── Task row ─── */
+      .task-row {
+        display: grid;
+        grid-template-columns: auto 3px 1fr auto;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.58rem 0.65rem;
+        border-radius: var(--radius-md);
+        background: var(--task-bg);
+        border: 1px solid var(--line);
+        margin-bottom: 0.45rem;
+        transition: box-shadow var(--transition), border-color var(--transition);
+        cursor: default;
+      }
+
+      .task-row:last-child { margin-bottom: 0; }
+
+      .task-row:hover {
+        border-color: var(--line-strong);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+      }
+
+      .task-check {
+        width: 1.15rem;
+        height: 1.15rem;
+        border-radius: 50%;
+        border: 2px solid var(--line-strong);
+        background: transparent;
+        cursor: pointer;
+        transition: border-color var(--transition), background var(--transition);
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+        padding: 0;
+      }
+
+      .task-check svg {
+        width: 0.6rem;
+        height: 0.6rem;
+        fill: #fff;
+        opacity: 0;
+        transition: opacity var(--transition);
+      }
+
+      .task-check.done {
+        border-color: var(--priority-done);
+        background: var(--priority-done);
+      }
+
+      .task-check.done svg { opacity: 1; }
+
+      .priority-bar {
+        width: 3px;
+        height: 1.3rem;
+        border-radius: 999px;
+      }
+
+      .task-content { min-width: 0; }
+
+      .task-name {
+        font-size: 0.9rem;
+        font-weight: 500;
+        line-height: 1.35;
+        transition: color var(--transition);
+      }
+
+      .task-name.done {
+        text-decoration: line-through;
+        color: var(--text-muted);
+      }
+
+      .task-meta {
+        font-size: 0.76rem;
+        color: var(--text-muted);
+        margin-top: 0.12rem;
+      }
+
+      .task-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.3rem;
+        opacity: 0;
+        transition: opacity var(--transition);
+      }
+
+      .task-row:hover .task-actions { opacity: 1; }
+
+      .icon-btn {
+        width: 1.65rem;
+        height: 1.65rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        background: var(--surface-solid);
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: border-color var(--transition);
+      }
+
+      .icon-btn:hover { border-color: var(--line-strong); }
+
+      .icon-btn svg {
+        width: 0.72rem;
+        height: 0.72rem;
+        fill: var(--text-muted);
+      }
+
+      .icon-btn.danger:hover { border-color: var(--priority-high); }
+      .icon-btn.danger:hover svg { fill: var(--priority-high); }
+
+      /* ─── Right column ─── */
+      .right-stack {
+        display: grid;
+        gap: 1rem;
+      }
+
+      /* ─── Timer ─── */
+      .timer-display {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 1.4rem 1rem 1.2rem;
+      }
+
+      .timer-ring {
+        position: relative;
+        width: 9.5rem;
+        height: 9.5rem;
+      }
+
+      .timer-ring svg {
+        width: 100%;
+        height: 100%;
+        transform: rotate(-90deg);
+      }
+
+      .ring-bg {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 5;
+      }
+
+      .ring-progress {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-dasharray: 264;
+        stroke-dashoffset: 22;
+        transition: stroke-dashoffset 1s linear;
+      }
+
+      .timer-value {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 2.2rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+
+      .timer-label {
+        margin-top: 0.6rem;
+        font-size: 0.82rem;
+        color: var(--text-muted);
+      }
+
+      .timer-controls {
+        margin-top: 0.85rem;
+        display: flex;
+        gap: 0.45rem;
+      }
+
+      .btn-timer {
+        font-family: var(--font);
+        min-height: 2.25rem;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--line);
+        background: var(--surface-solid);
+        color: var(--text);
+        font-weight: 500;
+        font-size: 0.82rem;
+        padding: 0 0.85rem;
+        cursor: pointer;
+        transition: border-color var(--transition), background var(--transition);
+      }
+
+      .btn-timer:hover { border-color: var(--line-strong); }
+
+      .btn-timer.primary {
+        border-color: transparent;
+        background: linear-gradient(180deg, #4da0ff 0%, #0a84ff 100%);
+        color: #fff;
+      }
+
+      /* ─── Reminders ─── */
+      .reminder-list { display: grid; gap: 0.45rem; }
+
+      .reminder-row {
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.55rem 0.6rem;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-md);
+        background: var(--task-bg);
+        transition: border-color var(--transition);
+      }
+
+      .reminder-row:hover { border-color: var(--line-strong); }
+
+      .reminder-dot {
+        width: 0.45rem;
+        height: 0.45rem;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+
+      .reminder-text {
+        font-size: 0.88rem;
+        font-weight: 500;
+      }
+
+      .reminder-time {
+        font-size: 0.76rem;
+        color: var(--text-muted);
+        white-space: nowrap;
+      }
+
+      /* ─── Progress card ─── */
+      .progress-visual {
+        display: flex;
+        align-items: center;
+        gap: 0.85rem;
+        padding: 0.2rem 0;
+      }
+
+      .progress-bar-track {
+        flex: 1;
+        height: 0.42rem;
+        border-radius: 999px;
+        background: var(--line);
+        overflow: hidden;
+      }
+
+      .progress-bar-fill {
+        height: 100%;
+        border-radius: 999px;
+        background: linear-gradient(90deg, var(--priority-done), #34d399);
+        transition: width 600ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      .progress-pct {
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: var(--priority-done);
+        min-width: 2.2rem;
+        text-align: right;
+      }
+
+      /* ─── Animations ─── */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      .animate-in {
+        animation: fadeUp 400ms cubic-bezier(0.4, 0, 0.2, 1) both;
+      }
+
+      .delay-1 { animation-delay: 60ms; }
+      .delay-2 { animation-delay: 120ms; }
+      .delay-3 { animation-delay: 180ms; }
+      .delay-4 { animation-delay: 240ms; }
+    </style>
+  </head>
+  <body>
+    <!-- ━━━ Top Navigation ━━━ -->
+    <nav class="topnav">
+      <div class="topnav-inner">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg viewBox="0 0 16 16"><path d="M3 2.5A1.5 1.5 0 0 1 4.5 1h7A1.5 1.5 0 0 1 13 2.5v11a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-11zM5.5 4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0 2.5a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0 2.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3z"/></svg>
+          </div>
+          TaskPilot
+        </div>
+
+        <div class="nav-center">
+          <button class="nav-tab active">Dashboard</button>
+          <button class="nav-tab">Tasks</button>
+          <button class="nav-tab">Timer</button>
+          <button class="nav-tab">Reminders</button>
+        </div>
+
+        <div class="nav-right">
+          <span class="date-badge">Wed, Apr 15</span>
+          <button class="theme-toggle" onclick="toggleTheme()" aria-label="Toggle theme">
+            <svg class="sun-icon" viewBox="0 0 16 16"><path d="M8 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 1zm0 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-1a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm5.657-8.157a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 1 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0zM3.757 11.243a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 1 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0zM15 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 15 8zM3.5 8a.5.5 0 0 1-.5.5H2a.5.5 0 0 1 0-1h1a.5.5 0 0 1 .5.5zm9.743 3.243a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 .707-.707l.707.707a.5.5 0 0 1 0 .707zM4.464 4.464a.5.5 0 0 1-.707 0l-.707-.707a.5.5 0 0 1 .707-.707l.707.707a.5.5 0 0 1 0 .707z"/></svg>
+            <svg class="moon-icon" viewBox="0 0 16 16"><path d="M6 .278a.768.768 0 0 1 .08.858A7.06 7.06 0 0 0 5.5 4c0 3.866 3.134 7 7 7a7.06 7.06 0 0 0 2.864-.58.768.768 0 0 1 .858.08c.29.29.2.78-.168.96A8.5 8.5 0 1 1 5.04.11c.18-.368.67-.458.96-.168z"/></svg>
+          </button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ━━━ Content ━━━ -->
+    <main class="shell">
+      <!-- Greeting -->
+      <section class="greeting animate-in">
+        <h1>Good afternoon, Nicholas</h1>
+        <p>Here's your focus for today. Stay on track.</p>
+        <div class="stat-row">
+          <span class="stat stat--high"><span class="stat-dot"></span>2 High</span>
+          <span class="stat stat--med"><span class="stat-dot"></span>1 Medium</span>
+          <span class="stat stat--low"><span class="stat-dot"></span>2 Low</span>
+          <span class="stat stat--done"><span class="stat-dot"></span>1 Done</span>
+        </div>
+      </section>
+
+      <!-- Main two-column grid -->
+      <div class="main-grid">
+        <!-- ─── Left: Tasks ─── -->
+        <section class="card animate-in delay-1">
+          <div class="task-input">
+            <input type="text" placeholder="Add a new task..." />
+            <button class="btn-add">Add Task</button>
+          </div>
+
+          <!-- High Priority -->
+          <div class="priority-group">
+            <div class="group-label">
+              <div class="group-dot" style="background: var(--priority-high)"></div>
+              <span>High Priority</span>
+              <span class="group-count">2</span>
+            </div>
+
+            <article class="task-row">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="priority-bar" style="background: var(--priority-high)"></div>
+              <div class="task-content">
+                <div class="task-name">Finish TypeScript assignment</div>
+                <div class="task-meta">Due today</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn" title="Edit">
+                  <svg viewBox="0 0 16 16"><path d="M12.146.854a.5.5 0 0 1 .708 0l2.292 2.292a.5.5 0 0 1 0 .708l-9.5 9.5a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l9.5-9.5zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zM10.5 3.207l-8 8-.818 2.046 2.046-.818 8-8L10.5 3.207z"/></svg>
+                </button>
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </article>
+
+            <article class="task-row">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="priority-bar" style="background: var(--priority-high)"></div>
+              <div class="task-content">
+                <div class="task-name">Submit lab report</div>
+                <div class="task-meta">Due tomorrow &middot; 11:59 PM</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn" title="Edit">
+                  <svg viewBox="0 0 16 16"><path d="M12.146.854a.5.5 0 0 1 .708 0l2.292 2.292a.5.5 0 0 1 0 .708l-9.5 9.5a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l9.5-9.5zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zM10.5 3.207l-8 8-.818 2.046 2.046-.818 8-8L10.5 3.207z"/></svg>
+                </button>
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <!-- Medium Priority -->
+          <div class="priority-group">
+            <div class="group-label">
+              <div class="group-dot" style="background: var(--priority-med)"></div>
+              <span>Medium Priority</span>
+              <span class="group-count">1</span>
+            </div>
+
+            <article class="task-row">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="priority-bar" style="background: var(--priority-med)"></div>
+              <div class="task-content">
+                <div class="task-name">Review math notes for quiz</div>
+                <div class="task-meta">Quiz on Friday</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn" title="Edit">
+                  <svg viewBox="0 0 16 16"><path d="M12.146.854a.5.5 0 0 1 .708 0l2.292 2.292a.5.5 0 0 1 0 .708l-9.5 9.5a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l9.5-9.5zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zM10.5 3.207l-8 8-.818 2.046 2.046-.818 8-8L10.5 3.207z"/></svg>
+                </button>
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <!-- Low Priority -->
+          <div class="priority-group">
+            <div class="group-label">
+              <div class="group-dot" style="background: var(--priority-low)"></div>
+              <span>Low Priority</span>
+              <span class="group-count">2</span>
+            </div>
+
+            <article class="task-row">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="priority-bar" style="background: var(--priority-low)"></div>
+              <div class="task-content">
+                <div class="task-name">Organize desktop files</div>
+                <div class="task-meta">No due date</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn" title="Edit">
+                  <svg viewBox="0 0 16 16"><path d="M12.146.854a.5.5 0 0 1 .708 0l2.292 2.292a.5.5 0 0 1 0 .708l-9.5 9.5a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l9.5-9.5zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zM10.5 3.207l-8 8-.818 2.046 2.046-.818 8-8L10.5 3.207z"/></svg>
+                </button>
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </article>
+
+            <article class="task-row">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="priority-bar" style="background: var(--priority-low)"></div>
+              <div class="task-content">
+                <div class="task-name">Read 20 pages of biology textbook</div>
+                <div class="task-meta">Chapter 7</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn" title="Edit">
+                  <svg viewBox="0 0 16 16"><path d="M12.146.854a.5.5 0 0 1 .708 0l2.292 2.292a.5.5 0 0 1 0 .708l-9.5 9.5a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168l9.5-9.5zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207 11.207 2.5zM10.5 3.207l-8 8-.818 2.046 2.046-.818 8-8L10.5 3.207z"/></svg>
+                </button>
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </article>
+          </div>
+
+          <!-- Completed -->
+          <div class="priority-group">
+            <div class="group-label">
+              <div class="group-dot" style="background: var(--priority-done)"></div>
+              <span>Completed</span>
+              <span class="group-count">1</span>
+            </div>
+
+            <article class="task-row" style="opacity: 0.65;">
+              <button class="task-check done">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="priority-bar" style="background: var(--priority-done)"></div>
+              <div class="task-content">
+                <div class="task-name done">Prepare project status report</div>
+                <div class="task-meta">Completed 2h ago</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- ─── Right column ─── -->
+        <div class="right-stack">
+          <!-- Today's Progress -->
+          <section class="card animate-in delay-2">
+            <div class="card-header">
+              <span class="card-title">Today's Progress</span>
+              <span class="card-badge">1 / 6</span>
+            </div>
+            <div class="card-body">
+              <div class="progress-visual">
+                <div class="progress-bar-track">
+                  <div class="progress-bar-fill" style="width: 17%"></div>
+                </div>
+                <span class="progress-pct">17%</span>
+              </div>
+            </div>
+          </section>
+
+          <!-- Focus Timer -->
+          <section class="card animate-in delay-3">
+            <div class="card-header">
+              <span class="card-title">Focus Session</span>
+              <span class="card-badge">Pomodoro</span>
+            </div>
+            <div class="timer-display">
+              <div class="timer-ring">
+                <svg viewBox="0 0 100 100">
+                  <circle class="ring-bg" cx="50" cy="50" r="42" />
+                  <circle class="ring-progress" cx="50" cy="50" r="42" />
+                </svg>
+                <div class="timer-value">24:58</div>
+              </div>
+              <span class="timer-label">Stay focused — you're doing great</span>
+              <div class="timer-controls">
+                <button class="btn-timer primary">Start</button>
+                <button class="btn-timer">Pause</button>
+                <button class="btn-timer">Reset</button>
+              </div>
+            </div>
+          </section>
+
+          <!-- Reminders -->
+          <section class="card animate-in delay-4">
+            <div class="card-header">
+              <span class="card-title">Reminders</span>
+              <span class="card-badge">2 upcoming</span>
+            </div>
+            <div class="card-body">
+              <div class="reminder-list">
+                <article class="reminder-row">
+                  <div class="reminder-dot" style="background: var(--priority-high)"></div>
+                  <span class="reminder-text">Group meeting</span>
+                  <span class="reminder-time">Today, 6 PM</span>
+                </article>
+                <article class="reminder-row">
+                  <div class="reminder-dot" style="background: var(--priority-med)"></div>
+                  <span class="reminder-text">Submit lab report</span>
+                  <span class="reminder-time">Tomorrow, 10 AM</span>
+                </article>
+                <article class="reminder-row">
+                  <div class="reminder-dot"></div>
+                  <span class="reminder-text">Office hours — Prof. Lee</span>
+                  <span class="reminder-time">Thu, 2 PM</span>
+                </article>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    </main>
+
+    <script>
+      function toggleTheme() {
+        const html = document.documentElement;
+        html.dataset.theme = html.dataset.theme === "light" ? "dark" : "light";
+      }
+    </script>
+  </body>
+</html>

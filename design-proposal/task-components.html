@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot - Task Component Proposal</title>
+    <style>
+      :root {
+        --bg: #f7f8fa;
+        --surface: #ffffff;
+        --line: rgba(15, 23, 42, 0.09);
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #0a84ff;
+        --accent-soft: rgba(10, 132, 255, 0.12);
+        --success: #16a34a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+      }
+
+      .shell {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 2.2rem 1rem 3rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 2rem;
+        letter-spacing: -0.03em;
+      }
+
+      .sub {
+        margin-top: 0.7rem;
+        color: var(--muted);
+      }
+
+      .stack {
+        margin-top: 1rem;
+        display: grid;
+        gap: 1rem;
+      }
+
+      .panel {
+        border: 1px solid var(--line);
+        border-radius: 1rem;
+        background: var(--surface);
+        padding: 1rem;
+      }
+
+      .panel h2 {
+        margin: 0 0 0.8rem;
+        font-size: 1rem;
+      }
+
+      .task-input {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.65rem;
+      }
+
+      .task-input input {
+        min-height: 2.8rem;
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        padding: 0 0.85rem;
+        font-size: 0.95rem;
+      }
+
+      .task-input input:focus {
+        border-color: rgba(10, 132, 255, 0.55);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+        outline: none;
+      }
+
+      .btn {
+        min-height: 2.8rem;
+        border: none;
+        border-radius: 0.9rem;
+        background: linear-gradient(180deg, #36a0ff 0%, #0078ff 100%);
+        color: #fff;
+        font-weight: 600;
+        padding: 0 1rem;
+      }
+
+      .list {
+        display: grid;
+        gap: 0.65rem;
+      }
+
+      .task {
+        border: 1px solid var(--line);
+        border-radius: 0.9rem;
+        padding: 0.75rem 0.8rem;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        align-items: center;
+        gap: 0.72rem;
+      }
+
+      .check {
+        width: 1.1rem;
+        height: 1.1rem;
+        border-radius: 999px;
+        border: 2px solid #cdd5e1;
+      }
+
+      .check.done {
+        border-color: var(--success);
+        background: var(--success);
+        box-shadow: inset 0 0 0 3px #fff;
+      }
+
+      .title {
+        font-size: 0.95rem;
+      }
+
+      .title.done {
+        text-decoration: line-through;
+        color: var(--muted);
+      }
+
+      .del {
+        border: 1px solid var(--line);
+        border-radius: 0.65rem;
+        background: #fff;
+        min-height: 2rem;
+        padding: 0 0.64rem;
+        color: #b42318;
+        font-size: 0.82rem;
+      }
+
+      .empty {
+        border: 1px dashed #cbd5e1;
+        border-radius: 0.85rem;
+        padding: 1.35rem 1rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <h1>Task Components</h1>
+      <p class="sub">Reference states for Phase 1 and future interaction phases.</p>
+
+      <section class="stack">
+        <article class="panel">
+          <h2>Input state</h2>
+          <div class="task-input">
+            <input type="text" placeholder="Add task (ex: revise chemistry chapter 3)" />
+            <button class="btn">Add</button>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>List states</h2>
+          <div class="list">
+            <div class="task">
+              <div class="check"></div>
+              <div class="title">Plan history essay draft</div>
+              <button class="del">Delete</button>
+            </div>
+
+            <div class="task">
+              <div class="check done"></div>
+              <div class="title done">Review notes from lecture</div>
+              <button class="del">Delete</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel">
+          <h2>Empty state</h2>
+          <div class="empty">No tasks yet. Add one to get started.</div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

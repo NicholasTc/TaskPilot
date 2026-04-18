@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Home</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ─────────────────── Tokens ─────────────────── */
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --r-sm: 0.5rem;
+        --r-md: 0.8rem;
+        --r-lg: 1.1rem;
+        --r-xl: 1.35rem;
+        --t: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+
+        --pri-high: #ef4444;
+        --pri-high-s: rgba(239,68,68,.10);
+        --pri-med: #f59e0b;
+        --pri-med-s: rgba(245,158,11,.10);
+        --pri-low: #3b82f6;
+        --pri-low-s: rgba(59,130,246,.10);
+        --pri-done: #10b981;
+        --pri-done-s: rgba(16,185,129,.10);
+      }
+
+      /* ─── Light ─── */
+      [data-theme="light"] {
+        --bg: #f2f4f7;
+        --grad-a: rgba(219,234,254,.50);
+        --grad-b: rgba(237,226,254,.35);
+        --surface: rgba(255,255,255,.72);
+        --surface-solid: #fff;
+        --surface-raised: rgba(255,255,255,.92);
+        --line: rgba(15,23,42,.07);
+        --line-s: rgba(15,23,42,.12);
+        --text: #0f172a;
+        --text-2: #475569;
+        --text-m: #94a3b8;
+        --accent: #0a84ff;
+        --accent-s: rgba(10,132,255,.10);
+        --shadow: 0 1px 3px rgba(15,23,42,.04), 0 8px 24px rgba(15,23,42,.06);
+        --shadow-h: 0 4px 12px rgba(15,23,42,.06), 0 20px 48px rgba(15,23,42,.10);
+        --blur: 16px;
+        --toggle-bg: #e2e8f0;
+        --toggle-knob: #fff;
+        --bar-empty: #e8ecf1;
+        --streak-bg: linear-gradient(135deg, #fef3c7, #fde68a);
+        --streak-text: #92400e;
+        --focus-bg: linear-gradient(135deg, #ede9fe, #ddd6fe);
+        --focus-text: #5b21b6;
+        --tasks-bg: linear-gradient(135deg, #dbeafe, #bfdbfe);
+        --tasks-text: #1e40af;
+        --today-bg: linear-gradient(135deg, #d1fae5, #a7f3d0);
+        --today-text: #065f46;
+      }
+
+      /* ─── Dark ─── */
+      [data-theme="dark"] {
+        --bg: #0c0f14;
+        --grad-a: rgba(30,58,95,.28);
+        --grad-b: rgba(55,30,85,.22);
+        --surface: rgba(30,34,44,.72);
+        --surface-solid: #1a1e28;
+        --surface-raised: rgba(40,44,56,.85);
+        --line: rgba(255,255,255,.07);
+        --line-s: rgba(255,255,255,.12);
+        --text: #f1f5f9;
+        --text-2: #94a3b8;
+        --text-m: #64748b;
+        --accent: #3b9eff;
+        --accent-s: rgba(59,158,255,.14);
+        --shadow: 0 1px 3px rgba(0,0,0,.20), 0 8px 24px rgba(0,0,0,.28);
+        --shadow-h: 0 4px 12px rgba(0,0,0,.24), 0 20px 48px rgba(0,0,0,.36);
+        --blur: 20px;
+        --toggle-bg: #334155;
+        --toggle-knob: #f1f5f9;
+        --bar-empty: rgba(255,255,255,.08);
+        --streak-bg: linear-gradient(135deg, rgba(251,191,36,.18), rgba(245,158,11,.12));
+        --streak-text: #fbbf24;
+        --focus-bg: linear-gradient(135deg, rgba(139,92,246,.18), rgba(124,58,237,.12));
+        --focus-text: #c4b5fd;
+        --tasks-bg: linear-gradient(135deg, rgba(59,130,246,.18), rgba(37,99,235,.12));
+        --tasks-text: #93c5fd;
+        --today-bg: linear-gradient(135deg, rgba(16,185,129,.18), rgba(5,150,105,.12));
+        --today-text: #6ee7b7;
+        --pri-high-s: rgba(239,68,68,.16);
+        --pri-med-s: rgba(245,158,11,.14);
+        --pri-low-s: rgba(59,130,246,.14);
+        --pri-done-s: rgba(16,185,129,.14);
+      }
+
+      /* ─────────────────── Reset ─────────────────── */
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background:
+          radial-gradient(ellipse at 12% 0%, var(--grad-a), transparent 55%),
+          radial-gradient(ellipse at 88% 6%, var(--grad-b), transparent 48%),
+          var(--bg);
+        -webkit-font-smoothing: antialiased;
+        transition: background var(--t), color var(--t);
+      }
+
+      /* ─────────────────── Nav ─────────────────── */
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        background: var(--surface);
+        border-bottom: 1px solid var(--line);
+        transition: background var(--t);
+      }
+      .nav-inner {
+        max-width: 1220px; margin: 0 auto;
+        padding: 0 1.25rem; height: 3.5rem;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .brand { display: flex; align-items: center; gap: .5rem; font-weight: 700; font-size: 1.06rem; letter-spacing: -.02em; }
+      .brand-icon { width: 1.6rem; height: 1.6rem; border-radius: .4rem; background: linear-gradient(135deg,#3b82f6,#8b5cf6); display: grid; place-items: center; }
+      .brand-icon svg { width: .85rem; height: .85rem; fill: #fff; }
+      .nav-tabs { display: flex; gap: .12rem; }
+      .nav-tab { padding: .38rem .78rem; border-radius: var(--r-md); font-size: .86rem; font-weight: 500; color: var(--text-m); border: none; background: transparent; cursor: pointer; transition: color var(--t), background var(--t); }
+      .nav-tab:hover { color: var(--text-2); background: rgba(0,0,0,.04); }
+      [data-theme="dark"] .nav-tab:hover { background: rgba(255,255,255,.06); }
+      .nav-tab.active { color: var(--text); background: rgba(0,0,0,.05); }
+      [data-theme="dark"] .nav-tab.active { background: rgba(255,255,255,.08); }
+      .nav-r { display: flex; align-items: center; gap: .7rem; }
+      .date-pill { font-size: .8rem; color: var(--text-m); padding: .28rem .65rem; border: 1px solid var(--line); border-radius: 999px; }
+      .toggle { position: relative; width: 2.5rem; height: 1.42rem; border-radius: 999px; background: var(--toggle-bg); border: none; cursor: pointer; transition: background var(--t); flex-shrink: 0; }
+      .toggle::after { content: ""; position: absolute; top: .16rem; left: .16rem; width: 1.1rem; height: 1.1rem; border-radius: 50%; background: var(--toggle-knob); box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform var(--t); }
+      [data-theme="dark"] .toggle::after { transform: translateX(1.08rem); }
+      .toggle .ic { position: absolute; top: 50%; width: .68rem; height: .68rem; transform: translateY(-50%); transition: opacity var(--t); }
+      .ic-sun { left: .36rem; fill: #f59e0b; opacity: 1; }
+      .ic-moon { right: .36rem; fill: #94a3b8; opacity: .4; }
+      [data-theme="dark"] .ic-sun { opacity: .35; }
+      [data-theme="dark"] .ic-moon { opacity: 1; fill: #c4b5fd; }
+      .avatar { width: 1.8rem; height: 1.8rem; border-radius: 50%; background: linear-gradient(135deg,#818cf8,#c084fc); border: 2px solid var(--line); flex-shrink: 0; }
+
+      /* ─────────────────── Shell ─────────────────── */
+      .shell { max-width: 1220px; margin: 0 auto; padding: 1.15rem 1.25rem 3rem; }
+
+      /* ─────────────────── Hero greeting ─────────────────── */
+      .hero { margin-bottom: 1.2rem; }
+      .hero h1 { font-size: 1.85rem; font-weight: 800; letter-spacing: -.035em; line-height: 1.2; }
+      .hero p { margin-top: .3rem; color: var(--text-2); font-size: .95rem; }
+
+      /* ─────────────────── Stat strip ─────────────────── */
+      .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-bottom: 1.1rem; }
+      @media (max-width: 780px) { .stats { grid-template-columns: repeat(2, 1fr); } }
+
+      .stat-card {
+        border-radius: var(--r-xl); padding: 1rem 1.1rem;
+        border: 1px solid var(--line);
+        backdrop-filter: blur(var(--blur));
+        transition: transform 160ms ease, box-shadow var(--t);
+        cursor: default;
+      }
+      .stat-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-h); }
+      .stat-card .label { font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; opacity: .8; }
+      .stat-card .val { font-size: 1.7rem; font-weight: 800; letter-spacing: -.03em; margin-top: .2rem; }
+      .stat-card .sub { font-size: .78rem; margin-top: .15rem; opacity: .7; }
+
+      .sc-tasks { background: var(--tasks-bg); color: var(--tasks-text); }
+      .sc-done { background: var(--today-bg); color: var(--today-text); }
+      .sc-focus { background: var(--focus-bg); color: var(--focus-text); }
+      .sc-streak { background: var(--streak-bg); color: var(--streak-text); }
+
+      /* ─────────────────── Main grid ─────────────────── */
+      .grid { display: grid; grid-template-columns: 1fr 360px; gap: 1rem; align-items: start; }
+      @media (max-width: 980px) { .grid { grid-template-columns: 1fr; } }
+
+      /* ─────────────────── Card ─────────────────── */
+      .card {
+        background: var(--surface); backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        border: 1px solid var(--line); border-radius: var(--r-xl);
+        box-shadow: var(--shadow);
+        transition: background var(--t), box-shadow var(--t), border-color var(--t);
+      }
+      .card-h { padding: .85rem 1rem 0; display: flex; align-items: center; justify-content: space-between; }
+      .card-t { font-size: .9rem; font-weight: 600; letter-spacing: -.01em; }
+      .card-badge { font-size: .72rem; font-weight: 500; color: var(--text-m); background: rgba(0,0,0,.04); padding: .18rem .5rem; border-radius: 999px; }
+      [data-theme="dark"] .card-badge { background: rgba(255,255,255,.06); }
+      .card-b { padding: .7rem 1rem 1rem; }
+
+      /* ─────────────────── Week-at-a-glance ─────────────────── */
+      .week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: .4rem; margin-top: .55rem; }
+      .day-col { text-align: center; }
+      .day-label { font-size: .68rem; font-weight: 600; color: var(--text-m); text-transform: uppercase; letter-spacing: .03em; margin-bottom: .4rem; }
+      .day-bar-wrap {
+        height: 5.5rem; background: var(--bar-empty); border-radius: var(--r-sm);
+        display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden;
+        position: relative;
+      }
+      .day-bar {
+        border-radius: var(--r-sm); transition: height 600ms cubic-bezier(.4,0,.2,1);
+        min-height: 4px;
+      }
+      .day-count { font-size: .72rem; font-weight: 600; margin-top: .3rem; color: var(--text-2); }
+
+      .day-col.today .day-label { color: var(--accent); }
+      .day-col.today .day-bar-wrap { border: 1.5px solid var(--accent); background: var(--accent-s); }
+
+      /* ─────────────────── Upcoming deadlines ─────────────────── */
+      .deadline-list { display: grid; gap: .45rem; }
+
+      .dl-row {
+        display: grid; grid-template-columns: auto 3px 1fr auto;
+        align-items: center; gap: .6rem;
+        padding: .55rem .6rem; border: 1px solid var(--line);
+        border-radius: var(--r-md); background: var(--surface-solid);
+        transition: border-color var(--t), box-shadow var(--t);
+      }
+      .dl-row:hover { border-color: var(--line-s); box-shadow: 0 2px 8px rgba(0,0,0,.04); }
+
+      .dl-check {
+        width: 1.05rem; height: 1.05rem; border-radius: 50%;
+        border: 2px solid var(--line-s); background: transparent; padding: 0; cursor: pointer;
+      }
+      .dl-bar { width: 3px; height: 1.2rem; border-radius: 999px; }
+      .dl-content {}
+      .dl-name { font-size: .88rem; font-weight: 500; }
+      .dl-meta { font-size: .74rem; color: var(--text-m); margin-top: .08rem; }
+      .dl-due {
+        font-size: .72rem; font-weight: 500; padding: .2rem .5rem;
+        border-radius: 999px; white-space: nowrap;
+      }
+      .due-today { background: var(--pri-high-s); color: var(--pri-high); }
+      .due-soon { background: var(--pri-med-s); color: var(--pri-med); }
+      .due-later { background: var(--pri-low-s); color: var(--pri-low); }
+
+      /* ─────────────────── Recent activity ─────────────────── */
+      .activity-list { display: grid; gap: .1rem; }
+      .act-row {
+        display: flex; align-items: flex-start; gap: .6rem;
+        padding: .5rem .2rem;
+        border-bottom: 1px solid var(--line);
+      }
+      .act-row:last-child { border-bottom: none; }
+      .act-icon {
+        width: 1.6rem; height: 1.6rem; border-radius: 50%;
+        display: grid; place-items: center; flex-shrink: 0; margin-top: .08rem;
+      }
+      .act-icon svg { width: .72rem; height: .72rem; }
+      .act-icon.completed { background: var(--pri-done-s); }
+      .act-icon.completed svg { fill: var(--pri-done); }
+      .act-icon.added { background: var(--pri-low-s); }
+      .act-icon.added svg { fill: var(--pri-low); }
+      .act-icon.timer { background: var(--focus-bg); }
+      .act-icon.timer svg { fill: var(--focus-text); }
+      .act-text { font-size: .86rem; line-height: 1.4; }
+      .act-text strong { font-weight: 600; }
+      .act-time { font-size: .74rem; color: var(--text-m); }
+
+      /* ─────────────────── Quick-jump today ─────────────────── */
+      .today-card {
+        background: var(--surface); backdrop-filter: blur(var(--blur));
+        border: 1px solid var(--line); border-radius: var(--r-xl);
+        box-shadow: var(--shadow); padding: 1rem;
+        display: flex; flex-direction: column; gap: .65rem;
+        transition: background var(--t), box-shadow var(--t), border-color var(--t), transform 160ms ease;
+        cursor: pointer;
+      }
+      .today-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-h); }
+      .today-top { display: flex; align-items: center; justify-content: space-between; }
+      .today-label { font-size: .74rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--text-m); }
+      .today-arrow {
+        width: 1.5rem; height: 1.5rem; border-radius: 50%;
+        background: var(--accent-s); display: grid; place-items: center;
+      }
+      .today-arrow svg { width: .7rem; height: .7rem; fill: var(--accent); }
+      .today-h { font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em; }
+      .today-tasks { display: flex; gap: .4rem; flex-wrap: wrap; }
+      .today-pill {
+        font-size: .76rem; font-weight: 500;
+        padding: .22rem .55rem; border-radius: 999px;
+      }
+      .today-progress { display: flex; align-items: center; gap: .65rem; }
+      .tp-track { flex: 1; height: .38rem; border-radius: 999px; background: var(--bar-empty); overflow: hidden; }
+      .tp-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--pri-done), #34d399); }
+      .tp-pct { font-size: .78rem; font-weight: 600; color: var(--pri-done); min-width: 2rem; text-align: right; }
+
+      /* ─────────────────── Right stack ─────────────────── */
+      .r-stack { display: grid; gap: 1rem; }
+
+      /* ─────────────────── Productivity ring ─────────────────── */
+      .prod-center { display: flex; flex-direction: column; align-items: center; padding: .6rem 0 .2rem; }
+      .prod-ring { position: relative; width: 7.5rem; height: 7.5rem; }
+      .prod-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+      .ring-bg { fill: none; stroke: var(--bar-empty); stroke-width: 7; }
+      .ring-fill { fill: none; stroke-width: 7; stroke-linecap: round; stroke-dasharray: 226; transition: stroke-dashoffset 800ms cubic-bezier(.4,0,.2,1); }
+      .ring-a { stroke: var(--pri-done); stroke-dashoffset: 80; }
+      .prod-val { position: absolute; inset: 0; display: grid; place-items: center; }
+      .prod-pct { font-size: 1.5rem; font-weight: 800; letter-spacing: -.03em; }
+      .prod-sub { font-size: .7rem; color: var(--text-m); }
+      .prod-legend { display: flex; gap: .75rem; margin-top: .6rem; }
+      .leg-item { display: flex; align-items: center; gap: .3rem; font-size: .74rem; color: var(--text-2); }
+      .leg-dot { width: .4rem; height: .4rem; border-radius: 50%; }
+
+      /* ─────────────────── Animations ─────────────────── */
+      @keyframes up { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+      .anim { animation: up 420ms cubic-bezier(.4,0,.2,1) both; }
+      .d1 { animation-delay: 50ms; }
+      .d2 { animation-delay: 100ms; }
+      .d3 { animation-delay: 150ms; }
+      .d4 { animation-delay: 200ms; }
+      .d5 { animation-delay: 250ms; }
+      .d6 { animation-delay: 300ms; }
+      .d7 { animation-delay: 350ms; }
+    </style>
+  </head>
+  <body>
+    <!-- ━━━ Nav ━━━ -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">
+          <div class="brand-icon"><svg viewBox="0 0 16 16"><path d="M3 2.5A1.5 1.5 0 0 1 4.5 1h7A1.5 1.5 0 0 1 13 2.5v11a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 3 13.5v-11zM5.5 4a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0 2.5a.5.5 0 0 0 0 1h5a.5.5 0 0 0 0-1h-5zm0 2.5a.5.5 0 0 0 0 1h3a.5.5 0 0 0 0-1h-3z"/></svg></div>
+          TaskPilot
+        </div>
+        <div class="nav-tabs">
+          <button class="nav-tab active">Home</button>
+          <button class="nav-tab">Today</button>
+          <button class="nav-tab">Tasks</button>
+          <button class="nav-tab">Timer</button>
+          <button class="nav-tab">Reminders</button>
+        </div>
+        <div class="nav-r">
+          <span class="date-pill">Wed, Apr 15</span>
+          <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'" aria-label="Toggle theme">
+            <svg class="ic ic-sun" viewBox="0 0 16 16"><path d="M8 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-1 0v-1A.5.5 0 0 1 8 1zm0 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0-1a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm5.657-8.157a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 1 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0zM3.757 11.243a.5.5 0 0 1 0 .707l-.707.707a.5.5 0 1 1-.707-.707l.707-.707a.5.5 0 0 1 .707 0zM15 8a.5.5 0 0 1-.5.5h-1a.5.5 0 0 1 0-1h1A.5.5 0 0 1 15 8zM3.5 8a.5.5 0 0 1-.5.5H2a.5.5 0 0 1 0-1h1a.5.5 0 0 1 .5.5z"/></svg>
+            <svg class="ic ic-moon" viewBox="0 0 16 16"><path d="M6 .278a.768.768 0 0 1 .08.858A7.06 7.06 0 0 0 5.5 4c0 3.866 3.134 7 7 7a7.06 7.06 0 0 0 2.864-.58.768.768 0 0 1 .858.08c.29.29.2.78-.168.96A8.5 8.5 0 1 1 5.04.11c.18-.368.67-.458.96-.168z"/></svg>
+          </button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ━━━ Content ━━━ -->
+    <main class="shell">
+
+      <!-- Hero -->
+      <section class="hero anim">
+        <h1>Welcome back, Nicholas.</h1>
+        <p>Your week at a glance — April 13 to April 19, 2026</p>
+      </section>
+
+      <!-- Stat cards -->
+      <section class="stats">
+        <div class="stat-card sc-tasks anim d1">
+          <div class="label">Open Tasks</div>
+          <div class="val">12</div>
+          <div class="sub">across 3 days</div>
+        </div>
+        <div class="stat-card sc-done anim d2">
+          <div class="label">Completed</div>
+          <div class="val">8</div>
+          <div class="sub">this week</div>
+        </div>
+        <div class="stat-card sc-focus anim d3">
+          <div class="label">Focus Time</div>
+          <div class="val">4.5h</div>
+          <div class="sub">+1.2h vs last week</div>
+        </div>
+        <div class="stat-card sc-streak anim d4">
+          <div class="label">Streak</div>
+          <div class="val">7 days</div>
+          <div class="sub">Personal best!</div>
+        </div>
+      </section>
+
+      <!-- Main grid -->
+      <div class="grid">
+        <!-- ─── Left ─── -->
+        <div style="display:grid;gap:1rem;">
+
+          <!-- Week at a glance -->
+          <section class="card anim d3">
+            <div class="card-h">
+              <span class="card-t">This Week</span>
+              <span class="card-badge">April 13 – 19</span>
+            </div>
+            <div class="card-b">
+              <div class="week-grid">
+                <div class="day-col">
+                  <div class="day-label">Mon</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:100%; background: var(--pri-done);"></div>
+                  </div>
+                  <div class="day-count">4/4</div>
+                </div>
+                <div class="day-col">
+                  <div class="day-label">Tue</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:60%; background: linear-gradient(0deg, var(--pri-done) 60%, var(--pri-med) 60%);"></div>
+                  </div>
+                  <div class="day-count">3/5</div>
+                </div>
+                <div class="day-col today">
+                  <div class="day-label">Wed</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:17%; background: var(--pri-done);"></div>
+                  </div>
+                  <div class="day-count">1/6</div>
+                </div>
+                <div class="day-col">
+                  <div class="day-label">Thu</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:0%; background: var(--bar-empty);"></div>
+                  </div>
+                  <div class="day-count">0/3</div>
+                </div>
+                <div class="day-col">
+                  <div class="day-label">Fri</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:0%; background: var(--bar-empty);"></div>
+                  </div>
+                  <div class="day-count">0/2</div>
+                </div>
+                <div class="day-col">
+                  <div class="day-label">Sat</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:0%; background: var(--bar-empty);"></div>
+                  </div>
+                  <div class="day-count">—</div>
+                </div>
+                <div class="day-col">
+                  <div class="day-label">Sun</div>
+                  <div class="day-bar-wrap">
+                    <div class="day-bar" style="height:0%; background: var(--bar-empty);"></div>
+                  </div>
+                  <div class="day-count">—</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Upcoming deadlines -->
+          <section class="card anim d4">
+            <div class="card-h">
+              <span class="card-t">Upcoming Deadlines</span>
+              <span class="card-badge">5 tasks</span>
+            </div>
+            <div class="card-b">
+              <div class="deadline-list">
+                <article class="dl-row">
+                  <button class="dl-check"></button>
+                  <div class="dl-bar" style="background:var(--pri-high)"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Finish TypeScript assignment</div>
+                    <div class="dl-meta">High priority</div>
+                  </div>
+                  <span class="dl-due due-today">Today</span>
+                </article>
+                <article class="dl-row">
+                  <button class="dl-check"></button>
+                  <div class="dl-bar" style="background:var(--pri-high)"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Submit lab report</div>
+                    <div class="dl-meta">High priority &middot; 11:59 PM</div>
+                  </div>
+                  <span class="dl-due due-soon">Tomorrow</span>
+                </article>
+                <article class="dl-row">
+                  <button class="dl-check"></button>
+                  <div class="dl-bar" style="background:var(--pri-med)"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Review math notes for quiz</div>
+                    <div class="dl-meta">Medium priority</div>
+                  </div>
+                  <span class="dl-due due-soon">Friday</span>
+                </article>
+                <article class="dl-row">
+                  <button class="dl-check"></button>
+                  <div class="dl-bar" style="background:var(--pri-low)"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Read 20 pages of biology textbook</div>
+                    <div class="dl-meta">Low priority &middot; Chapter 7</div>
+                  </div>
+                  <span class="dl-due due-later">Next Mon</span>
+                </article>
+                <article class="dl-row">
+                  <button class="dl-check"></button>
+                  <div class="dl-bar" style="background:var(--pri-low)"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Prepare presentation slides</div>
+                    <div class="dl-meta">Low priority</div>
+                  </div>
+                  <span class="dl-due due-later">Next Wed</span>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <!-- Recent activity -->
+          <section class="card anim d5">
+            <div class="card-h">
+              <span class="card-t">Recent Activity</span>
+              <span class="card-badge">Today</span>
+            </div>
+            <div class="card-b">
+              <div class="activity-list">
+                <div class="act-row">
+                  <div class="act-icon completed">
+                    <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                  </div>
+                  <div>
+                    <div class="act-text">Completed <strong>Prepare project status report</strong></div>
+                    <div class="act-time">2 hours ago</div>
+                  </div>
+                </div>
+                <div class="act-row">
+                  <div class="act-icon timer">
+                    <svg viewBox="0 0 16 16"><path d="M8 3.5a.5.5 0 0 0-1 0V8a.5.5 0 0 0 .252.434l3.5 2a.5.5 0 0 0 .496-.868L8 7.71V3.5z"/><path d="M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16zm7-8A7 7 0 1 1 1 8a7 7 0 0 1 14 0z"/></svg>
+                  </div>
+                  <div>
+                    <div class="act-text">Finished a <strong>25-min focus session</strong></div>
+                    <div class="act-time">3 hours ago</div>
+                  </div>
+                </div>
+                <div class="act-row">
+                  <div class="act-icon added">
+                    <svg viewBox="0 0 16 16"><path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4z"/></svg>
+                  </div>
+                  <div>
+                    <div class="act-text">Added <strong>Submit lab report</strong> to High Priority</div>
+                    <div class="act-time">5 hours ago</div>
+                  </div>
+                </div>
+                <div class="act-row">
+                  <div class="act-icon completed">
+                    <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                  </div>
+                  <div>
+                    <div class="act-text">Completed <strong>Email professor about extension</strong></div>
+                    <div class="act-time">Yesterday</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ─── Right ─── -->
+        <div class="r-stack">
+
+          <!-- Jump to Today -->
+          <div class="today-card anim d2" onclick="void(0)">
+            <div class="today-top">
+              <span class="today-label">Today — Wednesday</span>
+              <div class="today-arrow">
+                <svg viewBox="0 0 16 16"><path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/></svg>
+              </div>
+            </div>
+            <div class="today-h">5 tasks remaining</div>
+            <div class="today-tasks">
+              <span class="today-pill" style="background:var(--pri-high-s);color:var(--pri-high)">2 High</span>
+              <span class="today-pill" style="background:var(--pri-med-s);color:var(--pri-med)">1 Med</span>
+              <span class="today-pill" style="background:var(--pri-low-s);color:var(--pri-low)">2 Low</span>
+            </div>
+            <div class="today-progress">
+              <div class="tp-track"><div class="tp-fill" style="width:17%"></div></div>
+              <span class="tp-pct">17%</span>
+            </div>
+          </div>
+
+          <!-- Weekly completion ring -->
+          <section class="card anim d5">
+            <div class="card-h">
+              <span class="card-t">Weekly Completion</span>
+              <span class="card-badge">65%</span>
+            </div>
+            <div class="card-b">
+              <div class="prod-center">
+                <div class="prod-ring">
+                  <svg viewBox="0 0 100 100">
+                    <circle class="ring-bg" cx="50" cy="50" r="36" />
+                    <circle class="ring-fill ring-a" cx="50" cy="50" r="36" />
+                  </svg>
+                  <div class="prod-val">
+                    <div>
+                      <div class="prod-pct">65%</div>
+                      <div class="prod-sub">8 of 12 done</div>
+                    </div>
+                  </div>
+                </div>
+                <div class="prod-legend">
+                  <span class="leg-item"><span class="leg-dot" style="background:var(--pri-done)"></span> Done</span>
+                  <span class="leg-item"><span class="leg-dot" style="background:var(--pri-high)"></span> High</span>
+                  <span class="leg-item"><span class="leg-dot" style="background:var(--pri-med)"></span> Med</span>
+                  <span class="leg-item"><span class="leg-dot" style="background:var(--pri-low)"></span> Low</span>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- Reminders -->
+          <section class="card anim d6">
+            <div class="card-h">
+              <span class="card-t">Upcoming Reminders</span>
+              <span class="card-badge">3</span>
+            </div>
+            <div class="card-b">
+              <div class="deadline-list">
+                <article class="dl-row">
+                  <div style="width:.45rem;height:.45rem;border-radius:50%;background:var(--pri-high);flex-shrink:0"></div>
+                  <div class="dl-bar" style="background:transparent;width:0"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Group meeting</div>
+                    <div class="dl-meta">Study room B</div>
+                  </div>
+                  <span class="dl-due due-today">6 PM</span>
+                </article>
+                <article class="dl-row">
+                  <div style="width:.45rem;height:.45rem;border-radius:50%;background:var(--pri-med);flex-shrink:0"></div>
+                  <div class="dl-bar" style="background:transparent;width:0"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Office hours — Prof. Lee</div>
+                    <div class="dl-meta">Building C, Room 204</div>
+                  </div>
+                  <span class="dl-due due-soon">Thu, 2 PM</span>
+                </article>
+                <article class="dl-row">
+                  <div style="width:.45rem;height:.45rem;border-radius:50%;background:var(--pri-low);flex-shrink:0"></div>
+                  <div class="dl-bar" style="background:transparent;width:0"></div>
+                  <div class="dl-content">
+                    <div class="dl-name">Dentist appointment</div>
+                    <div class="dl-meta">Downtown clinic</div>
+                  </div>
+                  <span class="dl-due due-later">Sat, 10 AM</span>
+                </article>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+
+    </main>
+  </body>
+</html>

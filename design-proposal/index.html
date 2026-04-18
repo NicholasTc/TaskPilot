@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot Design Proposal</title>
+    <style>
+      :root {
+        --bg: #f5f6f8;
+        --surface: rgba(255, 255, 255, 0.85);
+        --line: rgba(15, 23, 42, 0.08);
+        --text: #0f172a;
+        --muted: #64748b;
+        --accent: #0a84ff;
+        --accent-soft: rgba(10, 132, 255, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 0%, #eaf3ff 0%, transparent 45%),
+          radial-gradient(circle at 90% 10%, #f2edff 0%, transparent 38%),
+          var(--bg);
+      }
+
+      .shell {
+        max-width: 1040px;
+        margin: 0 auto;
+        padding: 3.5rem 1.2rem 4rem;
+      }
+
+      .hero {
+        text-align: center;
+        margin-bottom: 2.3rem;
+      }
+
+      .tag {
+        display: inline-block;
+        border: 1px solid var(--line);
+        background: var(--surface);
+        border-radius: 999px;
+        padding: 0.35rem 0.8rem;
+        font-size: 0.82rem;
+        color: var(--muted);
+        margin-bottom: 1rem;
+      }
+
+      h1 {
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        margin: 0;
+        letter-spacing: -0.03em;
+      }
+
+      .hero p {
+        margin: 1rem auto 0;
+        max-width: 680px;
+        line-height: 1.6;
+        color: var(--muted);
+        font-size: 1.04rem;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 1rem;
+      }
+
+      .card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 1.2rem;
+        padding: 1.1rem;
+        backdrop-filter: blur(8px);
+        transition: transform 170ms ease, box-shadow 170ms ease;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+      }
+
+      .card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 16px 40px rgba(15, 23, 42, 0.09);
+      }
+
+      .card h2 {
+        margin: 0.15rem 0 0.5rem;
+        font-size: 1.2rem;
+        letter-spacing: -0.01em;
+      }
+
+      .card p {
+        margin: 0 0 0.75rem;
+        color: var(--muted);
+        line-height: 1.55;
+        font-size: 0.95rem;
+      }
+
+      .link {
+        display: inline-block;
+        font-size: 0.88rem;
+        color: var(--accent);
+        background: var(--accent-soft);
+        padding: 0.3rem 0.66rem;
+        border-radius: 999px;
+      }
+
+      footer {
+        margin-top: 1.6rem;
+        text-align: center;
+        color: var(--muted);
+        font-size: 0.84rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <span class="tag">TaskPilot - UI Concept Pack</span>
+        <h1>Minimal productivity, built for daily speed.</h1>
+        <p>
+          This proposal explores a 2026-style visual direction inspired by Apple's clean
+          language: soft depth, calm spacing, high contrast readability, and low-friction
+          interactions.
+        </p>
+      </section>
+
+      <section class="grid">
+        <a class="card" href="./dashboard.html">
+          <h2>Dashboard Concept</h2>
+          <p>
+            Primary desktop view with task workflow, timer card, reminder preview, and clear
+            information hierarchy.
+          </p>
+          <span class="link">Open mockup</span>
+        </a>
+
+        <a class="card" href="./task-components.html">
+          <h2>Task Components</h2>
+          <p>
+            Detailed component states for task inputs, normal/completed cards, quick actions,
+            and empty-state handling.
+          </p>
+          <span class="link">Open mockup</span>
+        </a>
+
+        <a class="card" href="./mobile-dashboard.html">
+          <h2>Mobile Layout</h2>
+          <p>
+            One-hand-friendly mobile version using compact cards, large tap targets, and simple
+            focus paths for students.
+          </p>
+          <span class="link">Open mockup</span>
+        </a>
+      </section>
+
+      <footer>Open each HTML file in a browser for visual review.</footer>
+    </main>
+  </body>
+</html>

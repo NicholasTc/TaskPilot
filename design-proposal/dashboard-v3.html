@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Dashboard v3 (Step 1: Layout Restructure)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --radius: 12px;
+        --transition: 180ms ease;
+      }
+
+      [data-theme="light"] {
+        --bg: #f5f5f7;
+        --surface: rgba(255,255,255,.80);
+        --surface-solid: #ffffff;
+        --line: rgba(0,0,0,.06);
+        --line-hover: rgba(0,0,0,.10);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-soft: rgba(0,122,255,.08);
+        --done: #34c759;
+        --done-soft: rgba(52,199,89,.08);
+        --danger: #ff3b30;
+        --shadow: 0 0 0 1px var(--line), 0 2px 8px rgba(0,0,0,.04);
+        --blur: 16px;
+        --toggle-bg: #e5e5ea;
+        --toggle-knob: #fff;
+        --input-bg: #fff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #000000;
+        --surface: rgba(28,28,30,.80);
+        --surface-solid: #1c1c1e;
+        --line: rgba(255,255,255,.08);
+        --line-hover: rgba(255,255,255,.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #48484a;
+        --accent: #0a84ff;
+        --accent-soft: rgba(10,132,255,.12);
+        --done: #30d158;
+        --done-soft: rgba(48,209,88,.12);
+        --danger: #ff453a;
+        --shadow: 0 0 0 1px var(--line);
+        --blur: 20px;
+        --toggle-bg: #39393d;
+        --toggle-knob: #f5f5f7;
+        --input-bg: rgba(255,255,255,.06);
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        transition: background var(--transition), color var(--transition);
+      }
+
+      /* ─── Nav ─── */
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 960px; margin: 0 auto;
+        padding: 0 24px; height: 52px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .brand { font-weight: 700; font-size: 1rem; letter-spacing: -.02em; }
+      .nav-tabs { display: flex; gap: 2px; }
+      .nav-tab {
+        padding: 6px 14px; border-radius: 8px;
+        font-size: .85rem; font-weight: 500; color: var(--text-2);
+        border: none; background: transparent; cursor: pointer;
+        transition: color var(--transition), background var(--transition);
+      }
+      .nav-tab:hover { color: var(--text); }
+      .nav-tab.active { color: var(--text); background: var(--accent-soft); }
+      .nav-r { display: flex; align-items: center; gap: 12px; }
+      .toggle {
+        position: relative; width: 40px; height: 24px;
+        border-radius: 999px; background: var(--toggle-bg);
+        border: none; cursor: pointer; transition: background var(--transition);
+      }
+      .toggle::after {
+        content: ""; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: var(--toggle-knob);
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        transition: transform var(--transition);
+      }
+      [data-theme="dark"] .toggle::after { transform: translateX(16px); }
+      .avatar {
+        width: 28px; height: 28px; border-radius: 50%;
+        background: linear-gradient(135deg,#007aff,#5856d6);
+      }
+
+      /* ─── Shell ─── */
+      .shell { max-width: 960px; margin: 0 auto; padding: 24px 24px 64px; }
+
+      /* ─── Greeting + inline progress ─── */
+      .top {
+        display: flex; align-items: flex-end; justify-content: space-between;
+        margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+      }
+      .greeting h1 {
+        font-size: 1.5rem; font-weight: 700; letter-spacing: -.03em;
+        line-height: 1.2;
+      }
+      .greeting p {
+        margin-top: 4px; color: var(--text-2); font-size: .9rem;
+      }
+      .progress-inline {
+        display: flex; align-items: center; gap: 10px;
+        padding-bottom: 4px;
+      }
+      .progress-track {
+        width: 120px; height: 4px; border-radius: 999px;
+        background: var(--line); overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%; border-radius: 999px;
+        background: var(--done);
+        transition: width 500ms ease;
+      }
+      .progress-label {
+        font-size: .78rem; font-weight: 500; color: var(--text-2);
+        white-space: nowrap;
+      }
+
+      /* ─── Two-column layout ─── */
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 280px;
+        gap: 24px;
+        align-items: start;
+      }
+      @media (max-width: 800px) {
+        .layout { grid-template-columns: 1fr; }
+      }
+
+      /* ─── Primary: Task area ─── */
+      .task-area {}
+
+      .task-input {
+        display: flex; gap: 8px;
+        margin-bottom: 24px;
+      }
+      .task-input input {
+        flex: 1; min-height: 44px;
+        border: 1px solid var(--line); border-radius: var(--radius);
+        background: var(--input-bg); color: var(--text);
+        padding: 0 16px; font-family: var(--font); font-size: .92rem;
+        outline: none;
+        transition: border-color var(--transition), box-shadow var(--transition);
+      }
+      .task-input input::placeholder { color: var(--text-3); }
+      .task-input input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+      .btn-add {
+        min-height: 44px; padding: 0 20px;
+        border: none; border-radius: var(--radius);
+        background: var(--accent); color: #fff;
+        font-family: var(--font); font-weight: 600; font-size: .88rem;
+        cursor: pointer;
+        transition: opacity var(--transition);
+      }
+      .btn-add:hover { opacity: .88; }
+      .btn-add:active { opacity: .76; }
+
+      .section-title {
+        font-size: .78rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: 8px;
+      }
+
+      /* ─── Task list (flat, no card wrapper) ─── */
+      .task-list { display: flex; flex-direction: column; }
+
+      .task {
+        display: flex; align-items: center; gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        transition: background var(--transition);
+      }
+      .task:last-child { border-bottom: none; }
+
+      .task-check {
+        width: 20px; height: 20px; border-radius: 50%;
+        border: 2px solid var(--text-3); background: transparent;
+        cursor: pointer; flex-shrink: 0; padding: 0;
+        display: grid; place-items: center;
+        transition: border-color var(--transition), background var(--transition);
+      }
+      .task-check svg {
+        width: 10px; height: 10px; fill: #fff; opacity: 0;
+        transition: opacity var(--transition);
+      }
+      .task-check.done { border-color: var(--done); background: var(--done); }
+      .task-check.done svg { opacity: 1; }
+
+      .task-body { flex: 1; min-width: 0; }
+      .task-name {
+        font-size: .92rem; font-weight: 500; line-height: 1.4;
+      }
+      .task-name.done {
+        text-decoration: line-through; color: var(--text-3);
+      }
+      .task-meta {
+        font-size: .78rem; color: var(--text-3); margin-top: 1px;
+      }
+
+      .task-actions {
+        display: flex; gap: 4px;
+        opacity: 0; transition: opacity var(--transition);
+      }
+      .task:hover .task-actions { opacity: 1; }
+
+      .icon-btn {
+        width: 28px; height: 28px; border-radius: 6px;
+        border: 1px solid transparent; background: transparent;
+        cursor: pointer; display: grid; place-items: center;
+        transition: background var(--transition), border-color var(--transition);
+      }
+      .icon-btn:hover { background: var(--line); }
+      .icon-btn svg { width: 14px; height: 14px; fill: var(--text-3); }
+      .icon-btn.danger:hover svg { fill: var(--danger); }
+
+      .completed-section { margin-top: 24px; }
+      .completed-section .task { opacity: .55; }
+
+      /* ─── Secondary: Sidebar ─── */
+      .sidebar { display: flex; flex-direction: column; gap: 20px; }
+
+      .side-section {}
+      .side-title {
+        font-size: .78rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: 12px;
+      }
+
+      /* ─── Timer (compact) ─── */
+      .timer-box {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 20px;
+        text-align: center;
+      }
+      .timer-time {
+        font-size: 2.4rem; font-weight: 700; letter-spacing: -.03em;
+        line-height: 1;
+      }
+      .timer-label {
+        font-size: .8rem; color: var(--text-3); margin-top: 4px;
+      }
+      .timer-btns {
+        display: flex; justify-content: center; gap: 6px;
+        margin-top: 16px;
+      }
+      .btn-timer {
+        font-family: var(--font); min-height: 32px;
+        padding: 0 14px; border-radius: 8px;
+        font-size: .82rem; font-weight: 500; cursor: pointer;
+        border: 1px solid var(--line); background: var(--surface-solid);
+        color: var(--text);
+        transition: background var(--transition), border-color var(--transition);
+      }
+      .btn-timer:hover { border-color: var(--line-hover); }
+      .btn-timer.primary {
+        background: var(--accent); color: #fff; border-color: transparent;
+      }
+      .btn-timer.primary:hover { opacity: .88; }
+
+      /* ─── Reminders (minimal) ─── */
+      .reminder-list { display: flex; flex-direction: column; }
+
+      .reminder {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .reminder:last-child { border-bottom: none; }
+      .reminder-name { font-size: .88rem; font-weight: 500; }
+      .reminder-time { font-size: .78rem; color: var(--text-3); white-space: nowrap; }
+
+      /* ─── Animations ─── */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeIn 350ms ease both; }
+      .d1 { animation-delay: 40ms; }
+      .d2 { animation-delay: 80ms; }
+      .d3 { animation-delay: 120ms; }
+    </style>
+  </head>
+  <body>
+
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">TaskPilot</div>
+        <div class="nav-tabs">
+          <button class="nav-tab active">Today</button>
+          <button class="nav-tab">Upcoming</button>
+          <button class="nav-tab">Insights</button>
+        </div>
+        <div class="nav-r">
+          <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'" aria-label="Toggle theme"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+
+      <!-- Greeting + subtle progress -->
+      <div class="top anim">
+        <div class="greeting">
+          <h1>Good afternoon, Nicholas</h1>
+          <p>Wednesday, April 15</p>
+        </div>
+        <div class="progress-inline">
+          <div class="progress-track">
+            <div class="progress-fill" style="width: 17%"></div>
+          </div>
+          <span class="progress-label">1 of 6 done</span>
+        </div>
+      </div>
+
+      <div class="layout">
+
+        <!-- ─── Primary: Tasks ─── -->
+        <div class="task-area anim d1">
+
+          <!-- Input — the primary action -->
+          <div class="task-input">
+            <input type="text" placeholder="Add a task..." autofocus />
+            <button class="btn-add">Add</button>
+          </div>
+
+          <div class="section-title">To do</div>
+          <div class="task-list">
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Finish TypeScript assignment</div>
+                <div class="task-meta">Due today</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Submit lab report</div>
+                <div class="task-meta">Due tomorrow, 11:59 PM</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Review math notes for quiz</div>
+                <div class="task-meta">Friday</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Organize desktop files</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Read 20 pages of biology textbook</div>
+                <div class="task-meta">Chapter 7</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Completed (visually de-emphasized) -->
+          <div class="completed-section">
+            <div class="section-title">Completed</div>
+            <div class="task-list">
+              <div class="task">
+                <button class="task-check done">
+                  <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                </button>
+                <div class="task-body">
+                  <div class="task-name done">Prepare project status report</div>
+                  <div class="task-meta">Completed 2h ago</div>
+                </div>
+                <div class="task-actions">
+                  <button class="icon-btn danger" title="Delete">
+                    <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Secondary: Sidebar ─── -->
+        <aside class="sidebar anim d2">
+
+          <div class="side-section">
+            <div class="side-title">Focus timer</div>
+            <div class="timer-box">
+              <div class="timer-time">25:00</div>
+              <div class="timer-label">Pomodoro</div>
+              <div class="timer-btns">
+                <button class="btn-timer primary">Start</button>
+                <button class="btn-timer">Pause</button>
+                <button class="btn-timer">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-section">
+            <div class="side-title">Reminders</div>
+            <div class="reminder-list">
+              <div class="reminder">
+                <span class="reminder-name">Group meeting</span>
+                <span class="reminder-time">Today, 6 PM</span>
+              </div>
+              <div class="reminder">
+                <span class="reminder-name">Office hours — Prof. Lee</span>
+                <span class="reminder-time">Thu, 2 PM</span>
+              </div>
+              <div class="reminder">
+                <span class="reminder-name">Dentist</span>
+                <span class="reminder-time">Sat, 10 AM</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </main>
+
+  </body>
+</html>

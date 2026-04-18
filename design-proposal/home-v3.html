@@ -1,0 +1,550 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Home v3 (Refined)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      /* ─────────────── Design tokens (matches dashboard-v4) ─────────────── */
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+        --r-md: 10px;
+        --r-lg: 14px;
+        --r-xl: 18px;
+
+        --space-xs: 8px;
+        --space-sm: 12px;
+        --space-md: 16px;
+        --space-lg: 24px;
+        --space-xl: 40px;
+        --space-2xl: 56px;
+
+        --t-fast: 120ms ease;
+        --t: 200ms cubic-bezier(.4, 0, .2, 1);
+      }
+
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface-solid: #ffffff;
+        --surface: rgba(255, 255, 255, .82);
+        --surface-hover: #f8f9fb;
+        --line: rgba(0, 0, 0, .06);
+        --line-strong: rgba(0, 0, 0, .10);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0, 122, 255, .08);
+        --done: #34c759;
+        --done-soft: rgba(52, 199, 89, .10);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .04);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .05);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, .06), 0 12px 32px rgba(0, 0, 0, .08);
+        --blur: 16px;
+        --toggle-bg: #e5e5ea;
+        --toggle-knob: #fff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #000;
+        --surface-solid: #1c1c1e;
+        --surface: rgba(28, 28, 30, .82);
+        --surface-hover: #2c2c2e;
+        --line: rgba(255, 255, 255, .08);
+        --line-strong: rgba(255, 255, 255, .14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10, 132, 255, .14);
+        --done: #30d158;
+        --done-soft: rgba(48, 209, 88, .14);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, .2), 0 4px 16px rgba(0, 0, 0, .3);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .4);
+        --blur: 20px;
+        --toggle-bg: #39393d;
+        --toggle-knob: #f5f5f7;
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        transition: background var(--t), color var(--t);
+      }
+
+      /* ─────────────── Nav ─────────────── */
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1040px; margin: 0 auto;
+        padding: 0 var(--space-lg); height: 56px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .brand { font-weight: 700; font-size: 1rem; letter-spacing: -.02em; }
+      .nav-tabs { display: flex; gap: 2px; }
+      .nav-tab {
+        padding: 6px 14px; border-radius: var(--r-md);
+        font-size: .86rem; font-weight: 500; color: var(--text-2);
+        font-family: var(--font);
+        border: none; background: transparent; cursor: pointer;
+        transition: color var(--t), background var(--t);
+      }
+      .nav-tab:hover { color: var(--text); background: var(--surface-hover); }
+      .nav-tab.active { color: var(--accent); background: var(--accent-soft); }
+      .nav-r { display: flex; align-items: center; gap: var(--space-sm); }
+
+      .toggle {
+        position: relative; width: 40px; height: 24px;
+        border-radius: 999px; background: var(--toggle-bg);
+        border: none; cursor: pointer; transition: background var(--t);
+      }
+      .toggle::after {
+        content: ""; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: var(--toggle-knob);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+        transition: transform var(--t);
+      }
+      [data-theme="dark"] .toggle::after { transform: translateX(16px); }
+      .avatar {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+
+      /* ─────────────── Shell ─────────────── */
+      .shell {
+        max-width: 1040px; margin: 0 auto;
+        padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+      }
+
+      /* ─────────────── Greeting ─────────────── */
+      .greeting {
+        margin-bottom: var(--space-xl);
+      }
+      .greeting h1 {
+        font-size: 2.25rem; font-weight: 700; letter-spacing: -.035em;
+        line-height: 1.1;
+      }
+      .greeting .motivation {
+        margin-top: 10px;
+        color: var(--text-2); font-size: 1rem; font-weight: 400;
+      }
+
+      /* ─────────────── Today CTA (hero card) ─────────────── */
+      .today-cta {
+        display: flex; align-items: center; justify-content: space-between;
+        gap: var(--space-lg);
+        padding: var(--space-lg) var(--space-xl);
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-xl);
+        cursor: pointer;
+        margin-bottom: var(--space-xl);
+        box-shadow: var(--shadow-md);
+        transition: border-color var(--t), box-shadow var(--t), transform var(--t-fast);
+      }
+      .today-cta:hover {
+        border-color: var(--accent);
+        box-shadow: var(--shadow-lg), 0 0 0 4px var(--accent-soft);
+      }
+      .today-cta:active { transform: scale(.995); }
+
+      .today-left {}
+      .today-label {
+        font-size: .78rem; font-weight: 600; color: var(--accent);
+        text-transform: uppercase; letter-spacing: .04em;
+      }
+      .today-headline {
+        font-size: 1.5rem; font-weight: 700; letter-spacing: -.025em;
+        margin-top: 6px;
+      }
+      .today-sub {
+        font-size: .92rem; color: var(--text-2); margin-top: 4px;
+      }
+      .today-right {
+        display: flex; align-items: center; gap: var(--space-md);
+        flex-shrink: 0;
+      }
+      .today-progress {
+        display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+      }
+      .tp-track {
+        width: 140px; height: 8px; border-radius: 999px;
+        background: var(--line); overflow: hidden;
+      }
+      .tp-fill {
+        height: 100%; border-radius: 999px;
+        background: linear-gradient(90deg, var(--done), #4cd964);
+        transition: width 700ms cubic-bezier(.4, 0, .2, 1);
+      }
+      .tp-label {
+        font-size: .82rem; font-weight: 600; color: var(--text-2);
+        white-space: nowrap;
+      }
+      .tp-label .done-num { color: var(--done); }
+
+      .today-arrow {
+        width: 44px; height: 44px; border-radius: 50%;
+        background: var(--accent); display: grid; place-items: center;
+        flex-shrink: 0;
+        box-shadow: 0 2px 8px rgba(0, 122, 255, .25);
+        transition: background var(--t), transform var(--t-fast), box-shadow var(--t);
+      }
+      .today-cta:hover .today-arrow {
+        background: var(--accent-hover);
+        box-shadow: 0 4px 14px rgba(0, 122, 255, .4);
+        transform: translateX(2px);
+      }
+      .today-arrow svg { width: 16px; height: 16px; fill: #fff; }
+
+      /* ─────────────── Section heading ─────────────── */
+      .section-heading {
+        font-size: 1.25rem; font-weight: 700; letter-spacing: -.02em;
+        margin-bottom: var(--space-md);
+      }
+
+      /* ─────────────── Week card ─────────────── */
+      .week-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-xl);
+        padding: var(--space-lg);
+        margin-bottom: var(--space-xl);
+        box-shadow: var(--shadow-md);
+        transition: box-shadow var(--t);
+      }
+      .week-card:hover { box-shadow: var(--shadow-lg); }
+
+      .week-card-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: var(--space-md);
+      }
+      .week-card-title {
+        font-size: 1rem; font-weight: 600; letter-spacing: -.01em;
+      }
+      .week-card-sub {
+        font-size: .82rem; color: var(--text-3);
+      }
+
+      .week-strip {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: var(--space-xs);
+      }
+      .week-day {
+        text-align: center;
+        padding: 8px 4px;
+        border-radius: var(--r-md);
+        cursor: pointer;
+        transition: background var(--t);
+      }
+      .week-day:hover { background: var(--surface-hover); }
+      .wd-label {
+        font-size: .72rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .02em;
+        margin-bottom: 10px;
+      }
+      .wd-bar-bg {
+        height: 56px;
+        background: var(--line);
+        border-radius: 8px;
+        display: flex; flex-direction: column; justify-content: flex-end;
+        overflow: hidden;
+      }
+      .wd-bar {
+        border-radius: 8px;
+        background: var(--done);
+        transition: height 600ms cubic-bezier(.4, 0, .2, 1);
+        min-height: 0;
+      }
+      .wd-count {
+        font-size: .76rem; font-weight: 500; color: var(--text-2);
+        margin-top: 8px;
+      }
+      .week-day.is-today .wd-label { color: var(--accent); }
+      .week-day.is-today .wd-bar-bg {
+        outline: 2px solid var(--accent);
+        outline-offset: -2px;
+        background: var(--accent-soft);
+      }
+      .week-day.is-today .wd-count { color: var(--accent); font-weight: 600; }
+
+      /* ─────────────── Two-column grid for upcoming + reminders ─────────────── */
+      .grid-two {
+        display: grid;
+        grid-template-columns: 1.4fr 1fr;
+        gap: var(--space-xl);
+        align-items: start;
+      }
+      @media (max-width: 880px) {
+        .grid-two { grid-template-columns: 1fr; gap: var(--space-xl); }
+      }
+
+      /* ─────────────── Upcoming (flat list with hover) ─────────────── */
+      .upcoming-list { display: flex; flex-direction: column; }
+
+      .upcoming-item {
+        display: flex; align-items: center; gap: var(--space-sm);
+        padding: 14px var(--space-sm);
+        margin: 0 calc(-1 * var(--space-sm));
+        border-radius: var(--r-md);
+        border-bottom: 1px solid var(--line);
+        transition: background var(--t);
+      }
+      .upcoming-item:last-child { border-bottom: none; }
+      .upcoming-item:hover { background: var(--surface-hover); }
+
+      .up-check {
+        width: 22px; height: 22px; border-radius: 50%;
+        border: 2px solid var(--text-3); background: transparent;
+        flex-shrink: 0; padding: 0; cursor: pointer;
+        transition: border-color var(--t), transform var(--t-fast);
+      }
+      .up-check:hover { border-color: var(--accent); transform: scale(1.08); }
+      .up-check:active { transform: scale(.92); }
+
+      .up-body { flex: 1; min-width: 0; }
+      .up-name { font-size: .96rem; font-weight: 500; }
+      .up-meta { font-size: .8rem; color: var(--text-3); margin-top: 2px; }
+
+      .up-due {
+        font-size: .76rem; font-weight: 600;
+        padding: 4px 10px; border-radius: 999px;
+        white-space: nowrap;
+      }
+      .due-urgent { background: rgba(255, 59, 48, .10); color: #ff3b30; }
+      [data-theme="dark"] .due-urgent { background: rgba(255, 69, 58, .16); color: #ff453a; }
+      .due-soon { background: rgba(255, 149, 0, .10); color: #ff9500; }
+      [data-theme="dark"] .due-soon { background: rgba(255, 159, 10, .16); color: #ff9f0a; }
+      .due-later { color: var(--text-3); background: var(--line); }
+
+      /* ─────────────── Reminders card ─────────────── */
+      .reminder-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-xl);
+        padding: var(--space-lg);
+        box-shadow: var(--shadow-md);
+        transition: box-shadow var(--t);
+      }
+      .reminder-card:hover { box-shadow: var(--shadow-lg); }
+
+      .reminder-card-title {
+        font-size: .78rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: var(--space-md);
+      }
+
+      .reminder-list { display: flex; flex-direction: column; }
+      .reminder-item {
+        display: flex; align-items: flex-start; justify-content: space-between;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+        gap: var(--space-sm);
+      }
+      .reminder-item:last-child { border-bottom: none; }
+      .rem-name { font-size: .92rem; font-weight: 500; }
+      .rem-detail { font-size: .8rem; color: var(--text-3); margin-top: 2px; }
+      .rem-time {
+        font-size: .8rem; color: var(--text-3); white-space: nowrap;
+        flex-shrink: 0; padding-top: 2px;
+      }
+
+      /* ─────────────── Animations ─────────────── */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeIn 400ms cubic-bezier(.4, 0, .2, 1) both; }
+      .d1 { animation-delay: 60ms; }
+      .d2 { animation-delay: 120ms; }
+      .d3 { animation-delay: 180ms; }
+      .d4 { animation-delay: 240ms; }
+    </style>
+  </head>
+  <body>
+
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">TaskPilot</div>
+        <div class="nav-tabs">
+          <button class="nav-tab active">Home</button>
+          <button class="nav-tab">Today</button>
+          <button class="nav-tab">Upcoming</button>
+          <button class="nav-tab">Insights</button>
+        </div>
+        <div class="nav-r">
+          <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'" aria-label="Toggle theme"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+
+      <!-- Greeting + motivation -->
+      <section class="greeting anim">
+        <h1>Welcome back, Nicholas</h1>
+        <p class="motivation">You're 65% through the week — solid pace, keep it going.</p>
+      </section>
+
+      <!-- Today CTA (primary action) -->
+      <div class="today-cta anim d1" onclick="void(0)">
+        <div class="today-left">
+          <div class="today-label">Today — Wednesday</div>
+          <div class="today-headline">5 tasks remaining</div>
+          <div class="today-sub">1 completed so far</div>
+        </div>
+        <div class="today-right">
+          <div class="today-progress">
+            <div class="tp-track"><div class="tp-fill" style="width:17%"></div></div>
+            <span class="tp-label"><span class="done-num">1</span> / 6 done</span>
+          </div>
+          <div class="today-arrow">
+            <svg viewBox="0 0 16 16"><path d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- This week card -->
+      <section class="week-card anim d2">
+        <div class="week-card-head">
+          <span class="week-card-title">This week</span>
+          <span class="week-card-sub">April 13 – 19</span>
+        </div>
+        <div class="week-strip">
+          <div class="week-day">
+            <div class="wd-label">Mon</div>
+            <div class="wd-bar-bg"><div class="wd-bar" style="height:100%"></div></div>
+            <div class="wd-count">4/4</div>
+          </div>
+          <div class="week-day">
+            <div class="wd-label">Tue</div>
+            <div class="wd-bar-bg"><div class="wd-bar" style="height:60%"></div></div>
+            <div class="wd-count">3/5</div>
+          </div>
+          <div class="week-day is-today">
+            <div class="wd-label">Wed</div>
+            <div class="wd-bar-bg"><div class="wd-bar" style="height:17%"></div></div>
+            <div class="wd-count">1/6</div>
+          </div>
+          <div class="week-day">
+            <div class="wd-label">Thu</div>
+            <div class="wd-bar-bg"><div class="wd-bar" style="height:0%"></div></div>
+            <div class="wd-count">0/3</div>
+          </div>
+          <div class="week-day">
+            <div class="wd-label">Fri</div>
+            <div class="wd-bar-bg"><div class="wd-bar" style="height:0%"></div></div>
+            <div class="wd-count">0/2</div>
+          </div>
+          <div class="week-day">
+            <div class="wd-label">Sat</div>
+            <div class="wd-bar-bg"></div>
+            <div class="wd-count">—</div>
+          </div>
+          <div class="week-day">
+            <div class="wd-label">Sun</div>
+            <div class="wd-bar-bg"></div>
+            <div class="wd-count">—</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Upcoming + Reminders side-by-side -->
+      <div class="grid-two">
+
+        <!-- Upcoming (flat list, dominant) -->
+        <section class="anim d3">
+          <h2 class="section-heading">Upcoming</h2>
+          <div class="upcoming-list">
+            <div class="upcoming-item">
+              <button class="up-check"></button>
+              <div class="up-body">
+                <div class="up-name">Finish TypeScript assignment</div>
+                <div class="up-meta">Due today</div>
+              </div>
+              <span class="up-due due-urgent">Today</span>
+            </div>
+            <div class="upcoming-item">
+              <button class="up-check"></button>
+              <div class="up-body">
+                <div class="up-name">Submit lab report</div>
+                <div class="up-meta">11:59 PM</div>
+              </div>
+              <span class="up-due due-urgent">Tomorrow</span>
+            </div>
+            <div class="upcoming-item">
+              <button class="up-check"></button>
+              <div class="up-body">
+                <div class="up-name">Review math notes for quiz</div>
+              </div>
+              <span class="up-due due-soon">Friday</span>
+            </div>
+            <div class="upcoming-item">
+              <button class="up-check"></button>
+              <div class="up-body">
+                <div class="up-name">Read 20 pages of biology textbook</div>
+                <div class="up-meta">Chapter 7</div>
+              </div>
+              <span class="up-due due-later">Next Mon</span>
+            </div>
+            <div class="upcoming-item">
+              <button class="up-check"></button>
+              <div class="up-body">
+                <div class="up-name">Prepare presentation slides</div>
+              </div>
+              <span class="up-due due-later">Next Wed</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Reminders (carded, secondary) -->
+        <aside class="reminder-card anim d4">
+          <div class="reminder-card-title">Reminders</div>
+          <div class="reminder-list">
+            <div class="reminder-item">
+              <div>
+                <div class="rem-name">Group meeting</div>
+                <div class="rem-detail">Study room B</div>
+              </div>
+              <span class="rem-time">Today, 6 PM</span>
+            </div>
+            <div class="reminder-item">
+              <div>
+                <div class="rem-name">Office hours — Prof. Lee</div>
+                <div class="rem-detail">Building C, Room 204</div>
+              </div>
+              <span class="rem-time">Thu, 2 PM</span>
+            </div>
+            <div class="reminder-item">
+              <div>
+                <div class="rem-name">Dentist</div>
+                <div class="rem-detail">Downtown clinic</div>
+              </div>
+              <span class="rem-time">Sat, 10 AM</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+    </main>
+  </body>
+</html>

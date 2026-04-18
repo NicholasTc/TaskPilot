@@ -1,0 +1,598 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Dashboard v4 (Refined)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      /* ─────────────── Design tokens ─────────────── */
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+
+        --r-md: 10px;
+        --r-lg: 14px;
+        --r-xl: 18px;
+
+        --space-xs: 8px;
+        --space-sm: 12px;
+        --space-md: 16px;
+        --space-lg: 24px;
+        --space-xl: 40px;
+        --space-2xl: 56px;
+
+        --t-fast: 120ms ease;
+        --t: 200ms cubic-bezier(.4, 0, .2, 1);
+      }
+
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --bg-section: #eceef2;
+        --surface: rgba(255, 255, 255, .82);
+        --surface-solid: #ffffff;
+        --surface-hover: #f8f9fb;
+        --line: rgba(0, 0, 0, .06);
+        --line-strong: rgba(0, 0, 0, .10);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0, 122, 255, .08);
+        --accent-soft-strong: rgba(0, 122, 255, .14);
+        --done: #34c759;
+        --done-soft: rgba(52, 199, 89, .10);
+        --danger: #ff3b30;
+        --danger-soft: rgba(255, 59, 48, .08);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .04);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, .04), 0 4px 16px rgba(0, 0, 0, .05);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, .06), 0 12px 32px rgba(0, 0, 0, .08);
+        --blur: 16px;
+        --toggle-bg: #e5e5ea;
+        --toggle-knob: #fff;
+        --input-bg: #fff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #000;
+        --bg-section: #0a0a0c;
+        --surface: rgba(28, 28, 30, .82);
+        --surface-solid: #1c1c1e;
+        --surface-hover: #2c2c2e;
+        --line: rgba(255, 255, 255, .08);
+        --line-strong: rgba(255, 255, 255, .14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10, 132, 255, .14);
+        --accent-soft-strong: rgba(10, 132, 255, .22);
+        --done: #30d158;
+        --done-soft: rgba(48, 209, 88, .14);
+        --danger: #ff453a;
+        --danger-soft: rgba(255, 69, 58, .14);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, .2), 0 4px 16px rgba(0, 0, 0, .3);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, .3), 0 12px 32px rgba(0, 0, 0, .4);
+        --blur: 20px;
+        --toggle-bg: #39393d;
+        --toggle-knob: #f5f5f7;
+        --input-bg: rgba(255, 255, 255, .06);
+      }
+
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        transition: background var(--t), color var(--t);
+      }
+
+      /* ─────────────── Nav ─────────────── */
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(var(--blur));
+        -webkit-backdrop-filter: blur(var(--blur));
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1040px; margin: 0 auto;
+        padding: 0 var(--space-lg); height: 56px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .brand { font-weight: 700; font-size: 1rem; letter-spacing: -.02em; }
+      .nav-tabs { display: flex; gap: 2px; }
+      .nav-tab {
+        padding: 6px 14px; border-radius: var(--r-md);
+        font-size: .86rem; font-weight: 500; color: var(--text-2);
+        font-family: var(--font);
+        border: none; background: transparent; cursor: pointer;
+        transition: color var(--t), background var(--t);
+      }
+      .nav-tab:hover { color: var(--text); background: var(--surface-hover); }
+      .nav-tab.active { color: var(--accent); background: var(--accent-soft); }
+      .nav-r { display: flex; align-items: center; gap: var(--space-sm); }
+
+      .toggle {
+        position: relative; width: 40px; height: 24px;
+        border-radius: 999px; background: var(--toggle-bg);
+        border: none; cursor: pointer; transition: background var(--t);
+      }
+      .toggle::after {
+        content: ""; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: var(--toggle-knob);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, .2);
+        transition: transform var(--t);
+      }
+      [data-theme="dark"] .toggle::after { transform: translateX(16px); }
+      .avatar {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+
+      /* ─────────────── Shell ─────────────── */
+      .shell {
+        max-width: 1040px; margin: 0 auto;
+        padding: var(--space-xl) var(--space-lg) var(--space-2xl);
+      }
+
+      /* ─────────────── Greeting ─────────────── */
+      .greeting {
+        margin-bottom: var(--space-xl);
+      }
+      .greeting h1 {
+        font-size: 2.25rem; font-weight: 700; letter-spacing: -.035em;
+        line-height: 1.1;
+      }
+      .greeting .motivation {
+        margin-top: 10px;
+        color: var(--text-2); font-size: 1rem; font-weight: 400;
+      }
+
+      /* ─────────────── Prominent progress ─────────────── */
+      .progress-block {
+        margin-top: var(--space-lg);
+        padding: var(--space-md) var(--space-lg);
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        box-shadow: var(--shadow-sm);
+      }
+      .progress-top {
+        display: flex; align-items: baseline; justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .progress-label {
+        font-size: .82rem; font-weight: 600; color: var(--text-2);
+        text-transform: uppercase; letter-spacing: .04em;
+      }
+      .progress-count {
+        font-size: .92rem; font-weight: 600; color: var(--text);
+      }
+      .progress-count .done-num { color: var(--done); }
+      .progress-track {
+        width: 100%; height: 8px; border-radius: 999px;
+        background: var(--line); overflow: hidden;
+      }
+      .progress-fill {
+        height: 100%; border-radius: 999px;
+        background: linear-gradient(90deg, var(--done), #4cd964);
+        transition: width 700ms cubic-bezier(.4, 0, .2, 1);
+      }
+
+      /* ─────────────── Layout ─────────────── */
+      .layout {
+        display: grid;
+        grid-template-columns: 1fr 300px;
+        gap: var(--space-xl);
+        align-items: start;
+        margin-top: var(--space-xl);
+      }
+      @media (max-width: 880px) {
+        .layout { grid-template-columns: 1fr; gap: var(--space-lg); }
+      }
+
+      /* ─────────────── Primary: Tasks ─────────────── */
+      .task-section {}
+
+      .section-heading {
+        font-size: 1.4rem; font-weight: 700; letter-spacing: -.02em;
+        margin-bottom: var(--space-md);
+      }
+
+      /* Task input */
+      .task-input {
+        display: flex; gap: var(--space-sm);
+        margin-bottom: var(--space-lg);
+      }
+      .task-input input {
+        flex: 1; min-height: 48px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        background: var(--input-bg); color: var(--text);
+        padding: 0 var(--space-md);
+        font-family: var(--font); font-size: .95rem;
+        outline: none;
+        transition: border-color var(--t), box-shadow var(--t);
+      }
+      .task-input input::placeholder { color: var(--text-3); }
+      .task-input input:focus {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px var(--accent-soft);
+      }
+
+      .btn-primary {
+        min-height: 48px; padding: 0 var(--space-lg);
+        border: none; border-radius: var(--r-lg);
+        background: var(--accent); color: #fff;
+        font-family: var(--font); font-weight: 600; font-size: .92rem;
+        cursor: pointer;
+        transition: background var(--t), transform var(--t-fast), box-shadow var(--t);
+        box-shadow: 0 1px 2px rgba(0, 122, 255, .25);
+      }
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        box-shadow: 0 2px 8px rgba(0, 122, 255, .3);
+      }
+      .btn-primary:active { transform: scale(.97); }
+
+      /* Task list */
+      .task-list { display: flex; flex-direction: column; }
+
+      .task {
+        display: flex; align-items: center; gap: var(--space-sm);
+        padding: 14px var(--space-sm);
+        margin: 0 calc(-1 * var(--space-sm));
+        border-radius: var(--r-md);
+        border-bottom: 1px solid var(--line);
+        transition: background var(--t);
+      }
+      .task:last-child { border-bottom: none; }
+      .task:hover { background: var(--surface-hover); }
+
+      .task-check {
+        width: 22px; height: 22px; border-radius: 50%;
+        border: 2px solid var(--text-3); background: transparent;
+        cursor: pointer; flex-shrink: 0; padding: 0;
+        display: grid; place-items: center;
+        transition: border-color var(--t), background var(--t), transform var(--t-fast);
+      }
+      .task-check:hover {
+        border-color: var(--accent);
+        transform: scale(1.08);
+      }
+      .task-check:active { transform: scale(.92); }
+      .task-check svg {
+        width: 11px; height: 11px; fill: #fff; opacity: 0;
+        transition: opacity var(--t);
+      }
+      .task-check.done {
+        border-color: var(--done); background: var(--done);
+      }
+      .task-check.done svg { opacity: 1; }
+
+      .task-body { flex: 1; min-width: 0; }
+      .task-name {
+        font-size: .96rem; font-weight: 500; line-height: 1.4;
+        transition: color var(--t);
+      }
+      .task-name.done {
+        text-decoration: line-through; color: var(--text-3);
+      }
+      .task-meta {
+        font-size: .8rem; color: var(--text-3); margin-top: 2px;
+      }
+
+      .task-actions {
+        display: flex; gap: 4px;
+        opacity: 0; transition: opacity var(--t);
+      }
+      .task:hover .task-actions { opacity: 1; }
+
+      .icon-btn {
+        width: 32px; height: 32px; border-radius: var(--r-md);
+        border: none; background: transparent;
+        cursor: pointer; display: grid; place-items: center;
+        transition: background var(--t), transform var(--t-fast);
+      }
+      .icon-btn:hover { background: var(--line-strong); }
+      .icon-btn:active { transform: scale(.92); }
+      .icon-btn svg { width: 14px; height: 14px; fill: var(--text-2); }
+      .icon-btn.danger:hover { background: var(--danger-soft); }
+      .icon-btn.danger:hover svg { fill: var(--danger); }
+
+      /* Completed group — visually lighter */
+      .completed-section {
+        margin-top: var(--space-xl);
+      }
+      .sub-heading {
+        font-size: .78rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: var(--space-sm);
+      }
+      .completed-section .task { opacity: .55; }
+      .completed-section .task:hover { opacity: .85; }
+
+      /* ─────────────── Secondary: Sidebar ─────────────── */
+      .sidebar {
+        display: flex; flex-direction: column; gap: var(--space-lg);
+      }
+
+      .side-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-xl);
+        padding: var(--space-lg);
+        box-shadow: var(--shadow-md);
+        transition: box-shadow var(--t), transform var(--t);
+      }
+      .side-card:hover { box-shadow: var(--shadow-lg); }
+
+      .side-title {
+        font-size: .78rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: var(--space-md);
+      }
+
+      /* Timer */
+      .timer-display {
+        text-align: center;
+      }
+      .timer-time {
+        font-size: 2.6rem; font-weight: 700; letter-spacing: -.04em;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .timer-mode {
+        margin-top: 6px;
+        font-size: .82rem; color: var(--text-3);
+      }
+      .timer-btns {
+        display: flex; justify-content: center; gap: var(--space-xs);
+        margin-top: var(--space-md);
+      }
+      .btn-timer {
+        font-family: var(--font); min-height: 36px;
+        padding: 0 var(--space-md); border-radius: var(--r-md);
+        font-size: .85rem; font-weight: 500; cursor: pointer;
+        border: 1px solid var(--line); background: transparent;
+        color: var(--text);
+        transition: background var(--t), border-color var(--t), transform var(--t-fast);
+      }
+      .btn-timer:hover {
+        background: var(--surface-hover);
+        border-color: var(--line-strong);
+      }
+      .btn-timer:active { transform: scale(.96); }
+      .btn-timer.primary {
+        background: var(--accent); color: #fff;
+        border-color: transparent;
+        box-shadow: 0 1px 2px rgba(0, 122, 255, .25);
+      }
+      .btn-timer.primary:hover {
+        background: var(--accent-hover);
+        box-shadow: 0 2px 8px rgba(0, 122, 255, .3);
+      }
+
+      /* Reminders */
+      .reminder-list { display: flex; flex-direction: column; }
+      .reminder {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+        gap: var(--space-sm);
+      }
+      .reminder:last-child { border-bottom: none; }
+      .rem-name { font-size: .88rem; font-weight: 500; }
+      .rem-time { font-size: .78rem; color: var(--text-3); white-space: nowrap; }
+
+      /* ─────────────── Animations ─────────────── */
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeIn 400ms cubic-bezier(.4, 0, .2, 1) both; }
+      .d1 { animation-delay: 60ms; }
+      .d2 { animation-delay: 120ms; }
+      .d3 { animation-delay: 180ms; }
+      .d4 { animation-delay: 240ms; }
+
+      @keyframes checkPop {
+        0%   { transform: scale(1); }
+        40%  { transform: scale(1.25); }
+        100% { transform: scale(1); }
+      }
+      .task-check.done { animation: checkPop 320ms ease; }
+    </style>
+  </head>
+  <body>
+
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">TaskPilot</div>
+        <div class="nav-tabs">
+          <button class="nav-tab active">Today</button>
+          <button class="nav-tab">Upcoming</button>
+          <button class="nav-tab">Insights</button>
+        </div>
+        <div class="nav-r">
+          <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'" aria-label="Toggle theme"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+
+      <!-- Greeting + motivation + prominent progress -->
+      <section class="greeting anim">
+        <h1>Good afternoon, Nicholas</h1>
+        <p class="motivation">You're off to a good start — keep the momentum going.</p>
+
+        <div class="progress-block">
+          <div class="progress-top">
+            <span class="progress-label">Today's progress</span>
+            <span class="progress-count"><span class="done-num">1</span> of 6 done</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" style="width: 17%"></div>
+          </div>
+        </div>
+      </section>
+
+      <div class="layout">
+
+        <!-- ─── Primary: Tasks ─── -->
+        <div class="task-section anim d1">
+          <h2 class="section-heading">Today</h2>
+
+          <div class="task-input">
+            <input type="text" placeholder="Add a task..." autofocus />
+            <button class="btn-primary">Add</button>
+          </div>
+
+          <div class="task-list">
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Finish TypeScript assignment</div>
+                <div class="task-meta">Due today</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Submit lab report</div>
+                <div class="task-meta">Due tomorrow, 11:59 PM</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Review math notes for quiz</div>
+                <div class="task-meta">Friday</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Organize desktop files</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="task">
+              <button class="task-check">
+                <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+              </button>
+              <div class="task-body">
+                <div class="task-name">Read 20 pages of biology textbook</div>
+                <div class="task-meta">Chapter 7</div>
+              </div>
+              <div class="task-actions">
+                <button class="icon-btn danger" title="Delete">
+                  <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="completed-section">
+            <div class="sub-heading">Completed</div>
+            <div class="task-list">
+              <div class="task">
+                <button class="task-check done">
+                  <svg viewBox="0 0 16 16"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+                </button>
+                <div class="task-body">
+                  <div class="task-name done">Prepare project status report</div>
+                  <div class="task-meta">Completed 2h ago</div>
+                </div>
+                <div class="task-actions">
+                  <button class="icon-btn danger" title="Delete">
+                    <svg viewBox="0 0 16 16"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/></svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ─── Secondary: Sidebar (carded) ─── -->
+        <aside class="sidebar anim d2">
+
+          <div class="side-card">
+            <div class="side-title">Focus timer</div>
+            <div class="timer-display">
+              <div class="timer-time">25:00</div>
+              <div class="timer-mode">Pomodoro</div>
+              <div class="timer-btns">
+                <button class="btn-timer primary">Start</button>
+                <button class="btn-timer">Pause</button>
+                <button class="btn-timer">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="side-card">
+            <div class="side-title">Reminders</div>
+            <div class="reminder-list">
+              <div class="reminder">
+                <span class="rem-name">Group meeting</span>
+                <span class="rem-time">Today, 6 PM</span>
+              </div>
+              <div class="reminder">
+                <span class="rem-name">Office hours</span>
+                <span class="rem-time">Thu, 2 PM</span>
+              </div>
+              <div class="reminder">
+                <span class="rem-name">Dentist</span>
+                <span class="rem-time">Sat, 10 AM</span>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+      </div>
+    </main>
+  </body>
+</html>
