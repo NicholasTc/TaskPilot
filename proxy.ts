@@ -5,7 +5,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/auth";
 const protectedPaths = ["/today", "/upcoming", "/insights"];
 const authPaths = ["/login", "/signup"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isAuthenticated = Boolean(request.cookies.get(AUTH_COOKIE_NAME)?.value);
 

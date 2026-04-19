@@ -61,6 +61,7 @@ export default function LoginPage() {
             type="email"
             required
             value={email}
+            disabled={isSubmitting}
             onChange={(event) => setEmail(event.target.value)}
             className="min-h-12 w-full rounded-[14px] border px-4 text-[0.95rem] outline-none transition focus:ring-4"
             style={{
@@ -78,6 +79,7 @@ export default function LoginPage() {
             type={showPassword ? "text" : "password"}
             required
             value={password}
+            disabled={isSubmitting}
             onChange={(event) => setPassword(event.target.value)}
             className="min-h-12 w-full rounded-[14px] border px-4 text-[0.95rem] outline-none transition focus:ring-4"
             style={{
@@ -111,7 +113,7 @@ export default function LoginPage() {
         </div>
 
         {errorMessage ? (
-          <p className="text-[0.84rem]" style={{ color: "var(--danger)" }}>
+          <p className="rounded-[10px] px-3 py-2 text-[0.84rem]" style={{ color: "var(--danger)", background: "var(--danger-soft)" }}>
             {errorMessage}
           </p>
         ) : null}

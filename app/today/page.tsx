@@ -28,9 +28,12 @@ export default function TodayPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
+  const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [timerSeconds, setTimerSeconds] = useState(FOCUS_SESSION_SECONDS);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerNotice, setTimerNotice] = useState<string | null>(null);
 
   const activeTasks = useMemo(() => tasks.filter((task) => !task.completed), [tasks]);
   const completedTasks = useMemo(() => tasks.filter((task) => task.completed), [tasks]);
@@ -49,33 +52,41 @@ export default function TodayPage() {
     router.replace("/login");
   }, [router]);
 
-  useEffect(() => {
-    const loadTasks = async () => {
-      try {
-        setErrorMessage(null);
-        const response = await fetch("/api/tasks");
+  const loadTasks = useCallback(async () => {
+    try {
+      setLoadError(null);
+      setErrorMessage(null);
+      setIsLoading(true);
+      const response = await fetch("/api/tasks");
 
-        if (response.status === 401) {
-          redirectToLogin();
-          return;
-        }
-
-        if (!response.ok) {
-          throw new Error("Unable to fetch tasks");
-        }
-
-        const fetchedTasks = (await response.json()) as Task[];
-        setTasks(fetchedTasks);
-      } catch (error) {
-        console.error("Loading tasks failed", error);
-        setErrorMessage("Could not load tasks from server. Showing local demo data.");
-      } finally {
-        setIsLoading(false);
+      if (response.status === 401) {
+        redirectToLogin();
+        return;
       }
-    };
 
-    void loadTasks();
+      if (!response.ok) {
+        throw new Error("Unable to fetch tasks");
+      }
+
+      const fetchedTasks = (await response.json()) as Task[];
+      setTasks(fetchedTasks);
+    } catch (error) {
+      console.error("Loading tasks failed", error);
+      setLoadError("Could not load tasks. Check your connection and try again.");
+    } finally {
+      setIsLoading(false);
+    }
   }, [redirectToLogin]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      void loadTasks();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [loadTasks]);
 
   useEffect(() => {
     if (!isTimerRunning) return;
@@ -85,6 +96,7 @@ export default function TodayPage() {
         if (current <= 1) {
           window.clearInterval(interval);
           setIsTimerRunning(false);
+          setTimerNotice("Focus session complete. Nice work.");
           return 0;
         }
         return current - 1;
@@ -131,7 +143,10 @@ export default function TodayPage() {
   };
 
   const handleToggleTask = async (id: string) => {
+    if (updatingIds.has(id)) return;
+
     try {
+      setUpdatingIds((prev) => new Set(prev).add(id));
       setErrorMessage(null);
       const response = await fetch(`/api/tasks/${id}`, {
         method: "PATCH",
@@ -151,6 +166,12 @@ export default function TodayPage() {
     } catch (error) {
       console.error("Toggling task failed", error);
       setErrorMessage("Could not update task status.");
+    } finally {
+      setUpdatingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -191,6 +212,7 @@ export default function TodayPage() {
     if (timerSeconds === 0) {
       setTimerSeconds(FOCUS_SESSION_SECONDS);
     }
+    setTimerNotice(null);
     setIsTimerRunning(true);
   };
 
@@ -201,6 +223,7 @@ export default function TodayPage() {
   const handleResetTimer = () => {
     setIsTimerRunning(false);
     setTimerSeconds(FOCUS_SESSION_SECONDS);
+    setTimerNotice(null);
   };
 
   return (
@@ -272,6 +295,25 @@ export default function TodayPage() {
             </button>
           </form>
 
+          {loadError ? (
+            <div
+              className="mb-4 flex items-center justify-between gap-3 rounded-[12px] border px-4 py-2.5"
+              style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+            >
+              <p className="text-[0.84rem]" style={{ color: "var(--danger)" }}>
+                {loadError}
+              </p>
+              <button
+                type="button"
+                onClick={() => void loadTasks()}
+                className="rounded-[10px] px-3 py-1.5 text-[0.8rem] font-medium transition active:scale-[0.98]"
+                style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : null}
+
           {errorMessage ? (
             <p className="mb-4 text-[0.84rem]" style={{ color: "var(--danger)" }}>
               {errorMessage}
@@ -280,9 +322,15 @@ export default function TodayPage() {
 
           <div>
             {isLoading ? (
-              <p className="py-3 text-[0.88rem]" style={{ color: "var(--text-3)" }}>
-                Loading tasks...
-              </p>
+              <div className="space-y-2 py-2">
+                {[0, 1, 2].map((skeleton) => (
+                  <div
+                    key={skeleton}
+                    className="mx-[-12px] h-[52px] animate-pulse rounded-[10px] border"
+                    style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+                  />
+                ))}
+              </div>
             ) : null}
             {!isLoading
               ? activeTasks.map((task, idx) => (
@@ -297,8 +345,12 @@ export default function TodayPage() {
                       type="button"
                       aria-label={`Toggle ${task.name}`}
                       onClick={() => handleToggleTask(task.id)}
+                      disabled={updatingIds.has(task.id)}
                       className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full border-2 transition"
-                      style={{ borderColor: "var(--text-3)" }}
+                      style={{
+                        borderColor: "var(--text-3)",
+                        opacity: updatingIds.has(task.id) ? 0.45 : 1,
+                      }}
                     >
                       <svg viewBox="0 0 16 16" className="h-[11px] w-[11px] fill-white opacity-0">
                         <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
@@ -352,8 +404,13 @@ export default function TodayPage() {
                   type="button"
                   aria-label={`Completed ${task.name}`}
                   onClick={() => handleToggleTask(task.id)}
+                  disabled={updatingIds.has(task.id)}
                   className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full border-2"
-                  style={{ borderColor: "var(--done)", background: "var(--done)" }}
+                  style={{
+                    borderColor: "var(--done)",
+                    background: "var(--done)",
+                    opacity: updatingIds.has(task.id) ? 0.45 : 1,
+                  }}
                 >
                   <svg viewBox="0 0 16 16" className="h-[11px] w-[11px] fill-white">
                     <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
@@ -407,6 +464,11 @@ export default function TodayPage() {
               <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-3)" }}>
                 {isTimerRunning ? "Pomodoro • running" : "Pomodoro"}
               </p>
+              {timerNotice ? (
+                <p className="mt-2 text-[0.8rem]" style={{ color: "var(--done)" }}>
+                  {timerNotice}
+                </p>
+              ) : null}
               <div className="mt-4 flex justify-center gap-2">
                 <button
                   type="button"
