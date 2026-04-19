@@ -19,6 +19,8 @@ const reminders = [
   { name: "Dentist", time: "Sat, 10 AM" },
 ];
 
+const FOCUS_SESSION_SECONDS = 25 * 60;
+
 export default function TodayPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
@@ -27,12 +29,21 @@ export default function TodayPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [timerSeconds, setTimerSeconds] = useState(FOCUS_SESSION_SECONDS);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
 
   const activeTasks = useMemo(() => tasks.filter((task) => !task.completed), [tasks]);
   const completedTasks = useMemo(() => tasks.filter((task) => task.completed), [tasks]);
   const completedCount = completedTasks.length;
   const totalCount = tasks.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+  const formattedTimer = useMemo(() => {
+    const minutes = Math.floor(timerSeconds / 60)
+      .toString()
+      .padStart(2, "0");
+    const seconds = (timerSeconds % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }, [timerSeconds]);
 
   const redirectToLogin = useCallback(() => {
     router.replace("/login");
@@ -65,6 +76,25 @@ export default function TodayPage() {
 
     void loadTasks();
   }, [redirectToLogin]);
+
+  useEffect(() => {
+    if (!isTimerRunning) return;
+
+    const interval = window.setInterval(() => {
+      setTimerSeconds((current) => {
+        if (current <= 1) {
+          window.clearInterval(interval);
+          setIsTimerRunning(false);
+          return 0;
+        }
+        return current - 1;
+      });
+    }, 1000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [isTimerRunning]);
 
   const handleAddTask = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -155,6 +185,22 @@ export default function TodayPage() {
         return next;
       });
     }
+  };
+
+  const handleStartTimer = () => {
+    if (timerSeconds === 0) {
+      setTimerSeconds(FOCUS_SESSION_SECONDS);
+    }
+    setIsTimerRunning(true);
+  };
+
+  const handlePauseTimer = () => {
+    setIsTimerRunning(false);
+  };
+
+  const handleResetTimer = () => {
+    setIsTimerRunning(false);
+    setTimerSeconds(FOCUS_SESSION_SECONDS);
   };
 
   return (
@@ -357,29 +403,39 @@ export default function TodayPage() {
               Focus timer
             </h3>
             <div className="text-center">
-              <p className="text-[2.6rem] font-bold leading-none tracking-[-0.04em]">25:00</p>
+              <p className="text-[2.6rem] font-bold leading-none tracking-[-0.04em]">{formattedTimer}</p>
               <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-3)" }}>
-                Pomodoro
+                {isTimerRunning ? "Pomodoro • running" : "Pomodoro"}
               </p>
               <div className="mt-4 flex justify-center gap-2">
                 <button
                   type="button"
+                  onClick={handleStartTimer}
+                  disabled={isTimerRunning}
                   className="min-h-9 rounded-[10px] px-4 text-[0.85rem] font-medium text-white transition active:scale-[0.96]"
-                  style={{ background: "var(--accent)" }}
+                  style={{ background: "var(--accent)", opacity: isTimerRunning ? 0.6 : 1 }}
                 >
-                  Start
+                  {timerSeconds < FOCUS_SESSION_SECONDS && timerSeconds > 0 ? "Resume" : "Start"}
                 </button>
                 <button
                   type="button"
+                  onClick={handlePauseTimer}
+                  disabled={!isTimerRunning}
                   className="min-h-9 rounded-[10px] border px-4 text-[0.85rem] font-medium transition active:scale-[0.96]"
-                  style={{ borderColor: "var(--line)", color: "var(--text)" }}
+                  style={{ borderColor: "var(--line)", color: "var(--text)", opacity: isTimerRunning ? 1 : 0.6 }}
                 >
                   Pause
                 </button>
                 <button
                   type="button"
+                  onClick={handleResetTimer}
+                  disabled={timerSeconds === FOCUS_SESSION_SECONDS && !isTimerRunning}
                   className="min-h-9 rounded-[10px] border px-4 text-[0.85rem] font-medium transition active:scale-[0.96]"
-                  style={{ borderColor: "var(--line)", color: "var(--text)" }}
+                  style={{
+                    borderColor: "var(--line)",
+                    color: "var(--text)",
+                    opacity: timerSeconds === FOCUS_SESSION_SECONDS && !isTimerRunning ? 0.6 : 1,
+                  }}
                 >
                   Reset
                 </button>
