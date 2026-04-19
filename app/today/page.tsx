@@ -23,6 +23,7 @@ export default function TodayPage() {
   const [draft, setDraft] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const activeTasks = useMemo(() => tasks.filter((task) => !task.completed), [tasks]);
@@ -103,13 +104,17 @@ export default function TodayPage() {
   };
 
   const handleDeleteTask = async (id: string) => {
+    if (deletingIds.has(id)) return;
+
     try {
+      setDeletingIds((prev) => new Set(prev).add(id));
       setErrorMessage(null);
       const response = await fetch(`/api/tasks/${id}`, {
         method: "DELETE",
       });
 
-      if (!response.ok) {
+      // Treat 404 as already-deleted to keep delete action idempotent.
+      if (!response.ok && response.status !== 404) {
         throw new Error("Unable to delete task");
       }
 
@@ -117,6 +122,12 @@ export default function TodayPage() {
     } catch (error) {
       console.error("Deleting task failed", error);
       setErrorMessage("Could not delete task.");
+    } finally {
+      setDeletingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
@@ -233,8 +244,9 @@ export default function TodayPage() {
                       type="button"
                       aria-label={`Delete ${task.name}`}
                       onClick={() => handleDeleteTask(task.id)}
+                      disabled={deletingIds.has(task.id)}
                       className="grid h-8 w-8 place-items-center rounded-[10px] transition hover:scale-[0.96]"
-                      style={{ background: "transparent" }}
+                      style={{ background: "transparent", opacity: deletingIds.has(task.id) ? 0.45 : 1 }}
                     >
                       <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" style={{ fill: "var(--text-2)" }}>
                         <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
@@ -287,8 +299,9 @@ export default function TodayPage() {
                   type="button"
                   aria-label={`Delete ${task.name}`}
                   onClick={() => handleDeleteTask(task.id)}
+                  disabled={deletingIds.has(task.id)}
                   className="grid h-8 w-8 place-items-center rounded-[10px] transition hover:scale-[0.96]"
-                  style={{ background: "transparent" }}
+                  style={{ background: "transparent", opacity: deletingIds.has(task.id) ? 0.45 : 1 }}
                 >
                   <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" style={{ fill: "var(--text-2)" }}>
                     <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
