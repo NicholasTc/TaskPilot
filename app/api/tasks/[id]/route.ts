@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
+import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TaskModel } from "@/models/Task";
 
@@ -14,12 +15,20 @@ function isInvalidObjectId(id: string) {
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   try {
+    const userId = await getAuthUserIdFromCookies();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     if (isInvalidObjectId(id)) {
       return NextResponse.json({ error: "Invalid task id." }, { status: 400 });
     }
 
     await connectToDatabase();
-    const deletedTask = await TaskModel.findByIdAndDelete(id);
+    const deletedTask = await TaskModel.findOneAndDelete({
+      _id: new mongoose.Types.ObjectId(id),
+      userId: new mongoose.Types.ObjectId(userId),
+    });
 
     if (!deletedTask) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
@@ -35,6 +44,11 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   try {
+    const userId = await getAuthUserIdFromCookies();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     if (isInvalidObjectId(id)) {
       return NextResponse.json({ error: "Invalid task id." }, { status: 400 });
     }
@@ -43,7 +57,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const hasCompleted = typeof body.completed === "boolean";
 
     await connectToDatabase();
-    const existing = await TaskModel.findById(id);
+    const existing = await TaskModel.findOne({
+      _id: new mongoose.Types.ObjectId(id),
+      userId: new mongoose.Types.ObjectId(userId),
+    });
 
     if (!existing) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });

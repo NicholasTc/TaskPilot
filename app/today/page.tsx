@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
 
 const initialTasks: Task[] = [
@@ -19,6 +20,7 @@ const reminders = [
 ];
 
 export default function TodayPage() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [draft, setDraft] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -32,11 +34,20 @@ export default function TodayPage() {
   const totalCount = tasks.length;
   const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
+  const redirectToLogin = useCallback(() => {
+    router.replace("/login");
+  }, [router]);
+
   useEffect(() => {
     const loadTasks = async () => {
       try {
         setErrorMessage(null);
         const response = await fetch("/api/tasks");
+
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
 
         if (!response.ok) {
           throw new Error("Unable to fetch tasks");
@@ -53,7 +64,7 @@ export default function TodayPage() {
     };
 
     void loadTasks();
-  }, []);
+  }, [redirectToLogin]);
 
   const handleAddTask = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -68,6 +79,11 @@ export default function TodayPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
       });
+
+      if (response.status === 401) {
+        redirectToLogin();
+        return;
+      }
 
       if (!response.ok) {
         throw new Error("Unable to create task");
@@ -91,6 +107,11 @@ export default function TodayPage() {
         method: "PATCH",
       });
 
+      if (response.status === 401) {
+        redirectToLogin();
+        return;
+      }
+
       if (!response.ok) {
         throw new Error("Unable to update task");
       }
@@ -112,6 +133,11 @@ export default function TodayPage() {
       const response = await fetch(`/api/tasks/${id}`, {
         method: "DELETE",
       });
+
+      if (response.status === 401) {
+        redirectToLogin();
+        return;
+      }
 
       // Treat 404 as already-deleted to keep delete action idempotent.
       if (!response.ok && response.status !== 404) {

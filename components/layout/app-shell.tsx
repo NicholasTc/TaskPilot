@@ -13,6 +13,7 @@ const tabs = [
 
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
+  const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof document === "undefined") return "light";
     return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
@@ -31,6 +32,18 @@ export function AppShell({ children }: PropsWithChildren) {
     document.documentElement.dataset.theme = nextTheme;
     setTheme(nextTheme);
   };
+
+  const handleLogout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/login";
+    }
+  };
+
+  if (isAuthPage) {
+    return <main className="mx-auto w-full max-w-[1040px] px-6 pb-14 pt-10">{children}</main>;
+  }
 
   return (
     <>
@@ -61,6 +74,14 @@ export function AppShell({ children }: PropsWithChildren) {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-[10px] px-3 py-1.5 text-[0.82rem] font-medium transition-colors"
+              style={{ color: "var(--text-2)", background: "transparent" }}
+            >
+              Logout
+            </button>
             <button
               type="button"
               onClick={toggleTheme}

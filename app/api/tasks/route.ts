@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
+import mongoose from "mongoose";
+import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TaskModel } from "@/models/Task";
 
@@ -6,8 +8,15 @@ const taskSortOrder = { completed: 1 as const, createdAt: -1 as const };
 
 export async function GET() {
   try {
+    const userId = await getAuthUserIdFromCookies();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     await connectToDatabase();
-    const tasks = await TaskModel.find().sort(taskSortOrder).lean();
+    const tasks = await TaskModel.find({ userId: new mongoose.Types.ObjectId(userId) })
+      .sort(taskSortOrder)
+      .lean();
 
     const response = tasks.map((task) => ({
       id: task._id.toString(),
@@ -25,6 +34,11 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const userId = await getAuthUserIdFromCookies();
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
+    }
+
     const body = await request.json();
     const name = typeof body.name === "string" ? body.name.trim() : "";
     const meta = typeof body.meta === "string" ? body.meta.trim() : "";
@@ -35,6 +49,7 @@ export async function POST(request: NextRequest) {
 
     await connectToDatabase();
     const createdTask = await TaskModel.create({
+      userId: new mongoose.Types.ObjectId(userId),
       name,
       meta,
       completed: false,

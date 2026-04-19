@@ -2,6 +2,12 @@ import { InferSchemaType, Model, Schema, model, models } from "mongoose";
 
 const taskSchema = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+      index: true,
+    },
     name: {
       type: String,
       required: true,
