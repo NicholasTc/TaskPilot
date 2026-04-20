@@ -1,9 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
+import { applyElapsedAndPauseIfNeeded, getRemainingSeconds } from "@/lib/focus-timer";
 import { connectToDatabase } from "@/lib/db";
-import { applyElapsedAndPauseIfNeeded, getDefaultRemainingSeconds } from "@/lib/focus-timer";
 import { StudyBlockModel } from "@/models/StudyBlock";
+import { TaskModel } from "@/models/Task";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -17,7 +18,7 @@ function toObjectId(value: string) {
   return new mongoose.Types.ObjectId(value);
 }
 
-export async function POST(request: NextRequest, context: RouteContext) {
+export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
 
   try {
@@ -30,13 +31,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Invalid block id." }, { status: 400 });
     }
 
-    const body = await request.json().catch(() => ({} as Record<string, unknown>));
-    const activeTaskId =
-      typeof body.activeTaskId === "string" && mongoose.Types.ObjectId.isValid(body.activeTaskId)
-        ? body.activeTaskId
-        : null;
-
     await connectToDatabase();
+
     const block = await StudyBlockModel.findOne({
       _id: toObjectId(id),
       userId: toObjectId(userId),
@@ -46,31 +42,46 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     applyElapsedAndPauseIfNeeded(block);
-    block.status = "active";
-    if (block.remainingSeconds <= 0) {
-      block.remainingSeconds = getDefaultRemainingSeconds(block.durationMin);
-    }
-    block.timerState = "running";
-    block.runningSince = new Date();
-    if (activeTaskId !== null) {
-      block.activeTaskId = toObjectId(activeTaskId);
+    if (block.isModified()) {
+      await block.save();
     }
 
-    await block.save();
+    const tasks = await TaskModel.find({
+      userId: toObjectId(userId),
+      dayKey: block.dayKey,
+      studyBlockId: block._id,
+    })
+      .sort({ order: 1, createdAt: 1 })
+      .lean();
 
     return NextResponse.json({
-      success: true,
       block: {
         id: block._id.toString(),
+        dayKey: block.dayKey,
+        title: block.title,
+        startMinutes: block.startMinutes,
+        durationMin: block.durationMin,
         status: block.status,
-        activeTaskId: block.activeTaskId ? block.activeTaskId.toString() : null,
         timerState: block.timerState,
         remainingSeconds: block.remainingSeconds,
+        effectiveRemainingSeconds: getRemainingSeconds(block),
         runningSince: block.runningSince ? block.runningSince.toISOString() : null,
+        activeTaskId: block.activeTaskId ? block.activeTaskId.toString() : null,
       },
+      tasks: tasks.map((task) => ({
+        id: task._id.toString(),
+        name: task.name,
+        meta: task.meta || "",
+        completed: task.completed,
+        status: task.status ?? (task.completed ? "done" : "planned"),
+        dayKey: task.dayKey ?? null,
+        order: task.order ?? 0,
+        studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
+      })),
     });
   } catch (error) {
-    console.error(`POST /api/blocks/${id}/start failed`, error);
-    return NextResponse.json({ error: "Failed to start study block." }, { status: 500 });
+    console.error(`GET /api/blocks/${id}/focus failed`, error);
+    return NextResponse.json({ error: "Failed to load focus block." }, { status: 500 });
   }
 }
+

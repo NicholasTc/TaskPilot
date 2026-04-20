@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
+import { getDefaultRemainingSeconds, getRemainingSeconds } from "@/lib/focus-timer";
 import {
   ensureNoBlockOverlap,
   isValidDayKey,
@@ -30,7 +31,14 @@ function toBlockResponse(block: {
   durationMin: number;
   status: string;
   activeTaskId?: mongoose.Types.ObjectId | string | null;
+  remainingSeconds?: number;
+  timerState?: "paused" | "running";
+  runningSince?: Date | null;
 }) {
+  const remainingSeconds = Math.max(0, Math.floor(block.remainingSeconds ?? block.durationMin * 60));
+  const timerState = block.timerState ?? "paused";
+  const runningSince = block.runningSince ?? null;
+
   return {
     id: block._id.toString(),
     dayKey: block.dayKey,
@@ -39,9 +47,16 @@ function toBlockResponse(block: {
     durationMin: block.durationMin,
     status: block.status,
     activeTaskId: block.activeTaskId ? block.activeTaskId.toString() : null,
+    timerState,
+    remainingSeconds,
+    effectiveRemainingSeconds: getRemainingSeconds({
+      remainingSeconds,
+      timerState,
+      runningSince,
+    }),
+    runningSince: runningSince ? runningSince.toISOString() : null,
   };
 }
-
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
@@ -65,6 +80,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     if (!existing) {
       return NextResponse.json({ error: "Study block not found." }, { status: 404 });
     }
+    const previousDuration = existing.durationMin;
 
     if (body.title !== undefined) {
       const title = typeof body.title === "string" ? body.title.trim() : "";
@@ -117,6 +133,19 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (existing.startMinutes + existing.durationMin > 1440) {
       return NextResponse.json({ error: "Block cannot end after 23:59." }, { status: 400 });
+    }
+
+    if (
+      body.durationMin !== undefined &&
+      typeof body.durationMin === "number" &&
+      existing.timerState === "paused" &&
+      existing.runningSince === null &&
+      existing.status !== "done"
+    ) {
+      const previousDefault = getDefaultRemainingSeconds(previousDuration);
+      if (existing.remainingSeconds === previousDefault || existing.remainingSeconds <= 0) {
+        existing.remainingSeconds = getDefaultRemainingSeconds(body.durationMin);
+      }
     }
 
     const noOverlap = await ensureNoBlockOverlap({

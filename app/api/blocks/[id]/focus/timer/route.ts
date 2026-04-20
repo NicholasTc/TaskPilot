@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
+import { applyElapsedAndPauseIfNeeded, getRemainingSeconds } from "@/lib/focus-timer";
 import { connectToDatabase } from "@/lib/db";
-import { applyElapsedAndPauseIfNeeded } from "@/lib/focus-timer";
 import { StudyBlockModel } from "@/models/StudyBlock";
 
 type RouteContext = {
@@ -17,7 +17,7 @@ function toObjectId(value: string) {
   return new mongoose.Types.ObjectId(value);
 }
 
-export async function POST(_request: NextRequest, context: RouteContext) {
+export async function POST(request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
 
   try {
@@ -30,7 +30,14 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Invalid block id." }, { status: 400 });
     }
 
+    const body = await request.json().catch(() => ({} as Record<string, unknown>));
+    const action = typeof body.action === "string" ? body.action : "";
+    if (action !== "pause" && action !== "resume") {
+      return NextResponse.json({ error: "Invalid action. Use pause or resume." }, { status: 400 });
+    }
+
     await connectToDatabase();
+
     const block = await StudyBlockModel.findOne({
       _id: toObjectId(id),
       userId: toObjectId(userId),
@@ -40,10 +47,16 @@ export async function POST(_request: NextRequest, context: RouteContext) {
     }
 
     applyElapsedAndPauseIfNeeded(block);
-    block.status = "done";
-    block.activeTaskId = null;
-    block.timerState = "paused";
-    block.runningSince = null;
+
+    if (action === "pause") {
+      block.timerState = "paused";
+      block.runningSince = null;
+    } else if (block.remainingSeconds > 0) {
+      block.status = "active";
+      block.timerState = "running";
+      block.runningSince = new Date();
+    }
+
     await block.save();
 
     return NextResponse.json({
@@ -51,13 +64,15 @@ export async function POST(_request: NextRequest, context: RouteContext) {
       block: {
         id: block._id.toString(),
         status: block.status,
-        activeTaskId: block.activeTaskId,
         timerState: block.timerState,
         remainingSeconds: block.remainingSeconds,
+        effectiveRemainingSeconds: getRemainingSeconds(block),
+        runningSince: block.runningSince ? block.runningSince.toISOString() : null,
       },
     });
   } catch (error) {
-    console.error(`POST /api/blocks/${id}/end failed`, error);
-    return NextResponse.json({ error: "Failed to end study block." }, { status: 500 });
+    console.error(`POST /api/blocks/${id}/focus/timer failed`, error);
+    return NextResponse.json({ error: "Failed to update timer state." }, { status: 500 });
   }
 }
+

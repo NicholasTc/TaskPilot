@@ -8,6 +8,7 @@ const tabs = [
   { href: "/", label: "Home" },
   { href: "/today", label: "Today" },
   { href: "/board", label: "Board" },
+  { href: "/blocks", label: "Blocks" },
   { href: "/upcoming", label: "Upcoming" },
   { href: "/insights", label: "Insights" },
 ];
@@ -24,6 +25,7 @@ export function AppShell({ children }: PropsWithChildren) {
     if (pathname === "/") return "/";
     if (pathname.startsWith("/today")) return "/today";
     if (pathname.startsWith("/board")) return "/board";
+    if (pathname.startsWith("/blocks")) return "/blocks";
     if (pathname.startsWith("/upcoming")) return "/upcoming";
     if (pathname.startsWith("/insights")) return "/insights";
     return "";

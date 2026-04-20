@@ -2,6 +2,8 @@ import { InferSchemaType, Model, Schema, model, models } from "mongoose";
 
 export const STUDY_BLOCK_STATUSES = ["planned", "active", "done"] as const;
 export type StudyBlockStatus = (typeof STUDY_BLOCK_STATUSES)[number];
+export const STUDY_BLOCK_TIMER_STATES = ["paused", "running"] as const;
+export type StudyBlockTimerState = (typeof STUDY_BLOCK_TIMER_STATES)[number];
 
 const studyBlockSchema = new Schema(
   {
@@ -45,6 +47,21 @@ const studyBlockSchema = new Schema(
     activeTaskId: {
       type: Schema.Types.ObjectId,
       ref: "Task",
+      default: null,
+    },
+    remainingSeconds: {
+      type: Number,
+      required: true,
+      min: 0,
+      default: 0,
+    },
+    timerState: {
+      type: String,
+      enum: STUDY_BLOCK_TIMER_STATES,
+      default: "paused",
+    },
+    runningSince: {
+      type: Date,
       default: null,
     },
   },

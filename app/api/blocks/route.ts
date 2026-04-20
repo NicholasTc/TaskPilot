@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
+import { getDefaultRemainingSeconds, getRemainingSeconds } from "@/lib/focus-timer";
 import {
   ensureNoBlockOverlap,
   isValidDayKey,
@@ -22,7 +23,14 @@ function toBlockResponse(block: {
   durationMin: number;
   status: string;
   activeTaskId?: mongoose.Types.ObjectId | string | null;
+  remainingSeconds?: number;
+  timerState?: "paused" | "running";
+  runningSince?: Date | null;
 }) {
+  const remainingSeconds = Math.max(0, Math.floor(block.remainingSeconds ?? block.durationMin * 60));
+  const timerState = block.timerState ?? "paused";
+  const runningSince = block.runningSince ?? null;
+
   return {
     id: block._id.toString(),
     dayKey: block.dayKey,
@@ -31,6 +39,14 @@ function toBlockResponse(block: {
     durationMin: block.durationMin,
     status: block.status,
     activeTaskId: block.activeTaskId ? block.activeTaskId.toString() : null,
+    timerState,
+    remainingSeconds,
+    effectiveRemainingSeconds: getRemainingSeconds({
+      remainingSeconds,
+      timerState,
+      runningSince,
+    }),
+    runningSince: runningSince ? runningSince.toISOString() : null,
   };
 }
 
@@ -134,6 +150,9 @@ export async function POST(request: NextRequest) {
       durationMin,
       status,
       activeTaskId: activeTaskId ? toObjectId(activeTaskId) : null,
+      remainingSeconds: getDefaultRemainingSeconds(durationMin),
+      timerState: "paused",
+      runningSince: null,
     });
 
     return NextResponse.json(toBlockResponse(createdBlock), { status: 201 });
