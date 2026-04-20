@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
+import { NextActionBanner } from "@/components/layout/next-action-banner";
 
 type BlockStatus = "planned" | "active" | "done";
 type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
@@ -439,8 +440,57 @@ export default function BlocksPage() {
     ? blocks.findIndex((block) => block.id === activeBlock.id) + 1
     : 0;
 
+  const plannedNotCommitted = allTasksForDay.filter(
+    (task) =>
+      task.status !== "done" &&
+      ["planned", "in_progress"].includes(task.status) &&
+      !task.studyBlockId,
+  ).length;
+  const committedTasksCount = allTasksForDay.filter((task) => !!task.studyBlockId).length;
+  const blockBanner =
+    blocks.length === 0
+      ? {
+          eyebrow: "Step 2 · Commit",
+          title: "Create your first time block.",
+          description: "Pick a 60–120 minute window and assign one or two planned tasks to it.",
+          tone: "accent" as const,
+          cta: undefined as { label: string; href: string } | undefined,
+        }
+      : plannedNotCommitted > 0
+        ? {
+            eyebrow: "Step 2 · Commit",
+            title: `Assign ${plannedNotCommitted} planned task${plannedNotCommitted === 1 ? "" : "s"} to a block.`,
+            description: "Drag or use the assign panel to commit each task to a time window.",
+            tone: "accent" as const,
+            cta: undefined,
+          }
+        : committedTasksCount > 0
+          ? {
+              eyebrow: "Step 2 · Commit · Ready",
+              title: "All planned tasks are committed.",
+              description: "Head to Home to start your focus block.",
+              tone: "done" as const,
+              cta: { label: "Go to Home", href: "/" },
+            }
+          : {
+              eyebrow: "Step 2 · Commit",
+              title: "Plan some tasks first.",
+              description: "Move tasks into Planned on the Board, then assign them here.",
+              tone: "neutral" as const,
+              cta: { label: "Open Board", href: "/board" },
+            };
+
   return (
     <div className="mx-auto w-full max-w-[1040px]">
+      <NextActionBanner
+        step={2}
+        eyebrow={blockBanner.eyebrow}
+        title={blockBanner.title}
+        description={blockBanner.description}
+        tone={blockBanner.tone}
+        ctaLabel={blockBanner.cta?.label}
+        ctaHref={blockBanner.cta?.href}
+      />
       <header className="anim mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Study Blocks</h1>

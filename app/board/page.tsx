@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
+import { NextActionBanner } from "@/components/layout/next-action-banner";
 
 const BOARD_STATUSES = ["backlog", "planned", "in_progress", "done"] as const;
 type BoardStatus = (typeof BOARD_STATUSES)[number];
@@ -327,8 +328,52 @@ export default function BoardPage() {
     }
   };
 
+  const backlogCount = tasksByStatus.backlog.length;
+  const plannedCount = tasksByStatus.planned.length;
+  const doneCount = tasksByStatus.done.length;
+  const totalToday = plannedCount + tasksByStatus.in_progress.length + doneCount;
+
+  const banner =
+    totalToday === 0
+      ? {
+          eyebrow: "Step 1 · Plan",
+          title: "Pick the few tasks that matter today.",
+          description: backlogCount
+            ? `You have ${backlogCount} task${backlogCount === 1 ? "" : "s"} in your backlog. Drag the right ones into Planned.`
+            : "Your backlog is empty — add a task below to get started.",
+          tone: "accent" as const,
+        }
+      : doneCount === totalToday
+        ? {
+            eyebrow: "Step 1 · Plan · Complete",
+            title: "Today's plan is done. Time to reflect.",
+            description: "Every planned task is finished. Open Reflect to recap.",
+            tone: "done" as const,
+          }
+        : {
+            eyebrow: "Step 1 · Plan",
+            title: "Plan looks good — commit it to a time block.",
+            description: `${plannedCount + tasksByStatus.in_progress.length} planned · move on to Step 2.`,
+            tone: "accent" as const,
+          };
+  const bannerCta =
+    totalToday > 0 && doneCount < totalToday
+      ? { label: "Go to Blocks", href: "/blocks" }
+      : doneCount === totalToday && totalToday > 0
+        ? { label: "Open Reflect", href: "/today" }
+        : undefined;
+
   return (
     <div className="mx-auto w-full max-w-[1280px]">
+      <NextActionBanner
+        step={1}
+        eyebrow={banner.eyebrow}
+        title={banner.title}
+        description={banner.description}
+        tone={banner.tone}
+        ctaLabel={bannerCta?.label}
+        ctaHref={bannerCta?.href}
+      />
       <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Today&apos;s Board</h1>

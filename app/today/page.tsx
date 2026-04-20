@@ -1,578 +1,441 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
+import { NextActionBanner } from "@/components/layout/next-action-banner";
 
-const initialTasks: Task[] = [
-  { id: "t1", name: "Finish TypeScript assignment", meta: "Due today", completed: false },
-  { id: "t2", name: "Submit lab report", meta: "Due tomorrow, 11:59 PM", completed: false },
-  { id: "t3", name: "Review math notes for quiz", meta: "Friday", completed: false },
-  { id: "t4", name: "Organize desktop files", completed: false },
-  { id: "t5", name: "Read 20 pages of biology textbook", meta: "Chapter 7", completed: false },
-  { id: "t6", name: "Prepare project status report", meta: "Completed 2h ago", completed: true },
-];
+type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
+type BlockStatus = "planned" | "active" | "done";
 
-const reminders = [
-  { name: "Group meeting", time: "Today, 6 PM" },
-  { name: "Office hours", time: "Thu, 2 PM" },
-  { name: "Dentist", time: "Sat, 10 AM" },
-];
+type BoardTask = Task & {
+  status: BoardStatus;
+  dayKey: string | null;
+  order: number;
+  studyBlockId: string | null;
+};
 
-const FOCUS_SESSION_SECONDS = 25 * 60;
+type StudyBlock = {
+  id: string;
+  dayKey: string;
+  title: string;
+  startMinutes: number;
+  durationMin: number;
+  status: BlockStatus;
+};
 
-export default function TodayPage() {
+type WeekStatDay = { dayKey: string; total: number; done: number };
+
+function toLocalDayKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function getStartOfWeek(date: Date) {
+  const next = new Date(date);
+  const dayIndex = next.getDay();
+  const diff = (dayIndex + 6) % 7;
+  next.setDate(next.getDate() - diff);
+  return next;
+}
+
+function toHumanTime(startMinutes: number) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(new Date(1970, 0, 1, Math.floor(startMinutes / 60), startMinutes % 60));
+}
+
+function formatWeekRange(startDate: Date) {
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + 6);
+  const startLabel = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric" }).format(startDate);
+  const endLabel = new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(endDate);
+  return `${startLabel} – ${endLabel}`;
+}
+
+function formatDateLong(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  }).format(date);
+}
+
+export default function ReflectPage() {
   const router = useRouter();
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
-  const [draft, setDraft] = useState("");
+  const [tasksByStatus, setTasksByStatus] = useState<Record<BoardStatus, BoardTask[]>>({
+    backlog: [],
+    planned: [],
+    in_progress: [],
+    done: [],
+  });
+  const [blocks, setBlocks] = useState<StudyBlock[]>([]);
+  const [weekStats, setWeekStats] = useState<WeekStatDay[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [deletingIds, setDeletingIds] = useState<Set<string>>(new Set());
-  const [updatingIds, setUpdatingIds] = useState<Set<string>>(new Set());
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const [timerSeconds, setTimerSeconds] = useState(FOCUS_SESSION_SECONDS);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerNotice, setTimerNotice] = useState<string | null>(null);
 
-  const activeTasks = useMemo(() => tasks.filter((task) => !task.completed), [tasks]);
-  const completedTasks = useMemo(() => tasks.filter((task) => task.completed), [tasks]);
-  const completedCount = completedTasks.length;
-  const totalCount = tasks.length;
-  const progress = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-  const formattedTimer = useMemo(() => {
-    const minutes = Math.floor(timerSeconds / 60)
-      .toString()
-      .padStart(2, "0");
-    const seconds = (timerSeconds % 60).toString().padStart(2, "0");
-    return `${minutes}:${seconds}`;
-  }, [timerSeconds]);
+  const today = useMemo(() => new Date(), []);
+  const todayKey = useMemo(() => toLocalDayKey(today), [today]);
+  const weekStart = useMemo(() => getStartOfWeek(today), [today]);
+  const weekRange = useMemo(() => formatWeekRange(weekStart), [weekStart]);
 
-  const redirectToLogin = useCallback(() => {
-    router.replace("/login");
-  }, [router]);
+  const allTasks = useMemo(
+    () =>
+      [
+        ...tasksByStatus.backlog,
+        ...tasksByStatus.planned,
+        ...tasksByStatus.in_progress,
+        ...tasksByStatus.done,
+      ] as BoardTask[],
+    [tasksByStatus],
+  );
 
-  const loadTasks = useCallback(async () => {
+  const committedTasks = useMemo(
+    () => allTasks.filter((task) => task.studyBlockId !== null),
+    [allTasks],
+  );
+  const completedTasks = useMemo(
+    () => committedTasks.filter((task) => task.status === "done"),
+    [committedTasks],
+  );
+
+  const totalCommitted = committedTasks.length;
+  const totalDone = completedTasks.length;
+  const progressPct = totalCommitted > 0 ? Math.round((totalDone / totalCommitted) * 100) : 0;
+
+  const focusedMinutes = useMemo(() => {
+    const doneBlockIds = new Set(blocks.filter((b) => b.status === "done").map((b) => b.id));
+    return blocks
+      .filter((b) => doneBlockIds.has(b.id))
+      .reduce((sum, b) => sum + b.durationMin, 0);
+  }, [blocks]);
+
+  const tasksByBlock = useMemo(() => {
+    const map = new Map<string, BoardTask[]>();
+    for (const task of committedTasks) {
+      if (!task.studyBlockId) continue;
+      if (!map.has(task.studyBlockId)) map.set(task.studyBlockId, []);
+      map.get(task.studyBlockId)!.push(task);
+    }
+    return map;
+  }, [committedTasks]);
+
+  const redirectToLogin = useCallback(() => router.replace("/login"), [router]);
+
+  const loadData = useCallback(async () => {
     try {
-      setLoadError(null);
       setErrorMessage(null);
       setIsLoading(true);
-      const response = await fetch("/api/tasks");
 
-      if (response.status === 401) {
+      const weekStartKey = toLocalDayKey(getStartOfWeek(new Date()));
+      const [boardResponse, blocksResponse, weekStatsResponse] = await Promise.all([
+        fetch(`/api/board?day=${todayKey}`),
+        fetch(`/api/blocks?day=${todayKey}`),
+        fetch(`/api/week-stats?start=${weekStartKey}`),
+      ]);
+
+      if ([boardResponse, blocksResponse, weekStatsResponse].some((r) => r.status === 401)) {
         redirectToLogin();
         return;
       }
-
-      if (!response.ok) {
-        throw new Error("Unable to fetch tasks");
+      if (!boardResponse.ok || !blocksResponse.ok || !weekStatsResponse.ok) {
+        throw new Error("Unable to load reflect data.");
       }
 
-      const fetchedTasks = (await response.json()) as Task[];
-      setTasks(fetchedTasks);
+      const boardPayload = (await boardResponse.json()) as {
+        tasksByStatus: Record<BoardStatus, BoardTask[]>;
+      };
+      const blocksPayload = (await blocksResponse.json()) as { blocks: StudyBlock[] };
+      const weekStatsPayload = (await weekStatsResponse.json()) as { days: WeekStatDay[] };
+
+      setTasksByStatus({
+        backlog: boardPayload.tasksByStatus.backlog ?? [],
+        planned: boardPayload.tasksByStatus.planned ?? [],
+        in_progress: boardPayload.tasksByStatus.in_progress ?? [],
+        done: boardPayload.tasksByStatus.done ?? [],
+      });
+      setBlocks((blocksPayload.blocks ?? []).sort((a, b) => a.startMinutes - b.startMinutes));
+      setWeekStats(weekStatsPayload.days ?? []);
     } catch (error) {
-      console.error("Loading tasks failed", error);
-      setLoadError("Could not load tasks. Check your connection and try again.");
+      console.error("Loading reflect data failed", error);
+      setErrorMessage("Could not load today's reflection. Please refresh.");
     } finally {
       setIsLoading(false);
     }
-  }, [redirectToLogin]);
+  }, [todayKey, redirectToLogin]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadTasks();
+      void loadData();
     }, 0);
+    return () => window.clearTimeout(timer);
+  }, [loadData]);
 
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [loadTasks]);
-
-  useEffect(() => {
-    if (!isTimerRunning) return;
-
-    const interval = window.setInterval(() => {
-      setTimerSeconds((current) => {
-        if (current <= 1) {
-          window.clearInterval(interval);
-          setIsTimerRunning(false);
-          setTimerNotice("Focus session complete. Nice work.");
-          return 0;
-        }
-        return current - 1;
-      });
-    }, 1000);
-
-    return () => {
-      window.clearInterval(interval);
-    };
-  }, [isTimerRunning]);
-
-  const handleAddTask = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const name = draft.trim();
-    if (!name || isSubmitting) return;
-
-    try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
-      const response = await fetch("/api/tasks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
-      });
-
-      if (response.status === 401) {
-        redirectToLogin();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Unable to create task");
-      }
-
-      const createdTask = (await response.json()) as Task;
-      setTasks((prev) => [createdTask, ...prev]);
-      setDraft("");
-    } catch (error) {
-      console.error("Adding task failed", error);
-      setErrorMessage("Could not add task. Please try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleToggleTask = async (id: string) => {
-    if (updatingIds.has(id)) return;
-
-    try {
-      setUpdatingIds((prev) => new Set(prev).add(id));
-      setErrorMessage(null);
-      const response = await fetch(`/api/tasks/${id}`, {
-        method: "PATCH",
-      });
-
-      if (response.status === 401) {
-        redirectToLogin();
-        return;
-      }
-
-      if (!response.ok) {
-        throw new Error("Unable to update task");
-      }
-
-      const updatedTask = (await response.json()) as Task;
-      setTasks((prev) => prev.map((task) => (task.id === id ? updatedTask : task)));
-    } catch (error) {
-      console.error("Toggling task failed", error);
-      setErrorMessage("Could not update task status.");
-    } finally {
-      setUpdatingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  };
-
-  const handleDeleteTask = async (id: string) => {
-    if (deletingIds.has(id)) return;
-
-    try {
-      setDeletingIds((prev) => new Set(prev).add(id));
-      setErrorMessage(null);
-      const response = await fetch(`/api/tasks/${id}`, {
-        method: "DELETE",
-      });
-
-      if (response.status === 401) {
-        redirectToLogin();
-        return;
-      }
-
-      // Treat 404 as already-deleted to keep delete action idempotent.
-      if (!response.ok && response.status !== 404) {
-        throw new Error("Unable to delete task");
-      }
-
-      setTasks((prev) => prev.filter((task) => task.id !== id));
-    } catch (error) {
-      console.error("Deleting task failed", error);
-      setErrorMessage("Could not delete task.");
-    } finally {
-      setDeletingIds((prev) => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
-    }
-  };
-
-  const handleStartTimer = () => {
-    if (timerSeconds === 0) {
-      setTimerSeconds(FOCUS_SESSION_SECONDS);
-    }
-    setTimerNotice(null);
-    setIsTimerRunning(true);
-  };
-
-  const handlePauseTimer = () => {
-    setIsTimerRunning(false);
-  };
-
-  const handleResetTimer = () => {
-    setIsTimerRunning(false);
-    setTimerSeconds(FOCUS_SESSION_SECONDS);
-    setTimerNotice(null);
-  };
+  const allDone = totalCommitted > 0 && totalDone === totalCommitted;
+  const noFlowYet = totalCommitted === 0;
 
   return (
-    <div>
-      <section className="anim mb-10">
+    <div className="mx-auto w-full max-w-[960px]">
+      {noFlowYet ? (
+        <NextActionBanner
+          step={4}
+          eyebrow="Step 4 · Reflect"
+          title="Nothing committed today yet."
+          description="Plan and commit tasks to see your reflection here."
+          tone="neutral"
+          ctaLabel="Start Day"
+          ctaHref="/board"
+        />
+      ) : allDone ? (
+        <NextActionBanner
+          step={4}
+          eyebrow="Step 4 · Reflect · Complete"
+          title="You finished everything you committed to today."
+          description="Take a beat — then plan tomorrow."
+          tone="done"
+          ctaLabel="Plan tomorrow"
+          ctaHref="/board"
+        />
+      ) : (
+        <NextActionBanner
+          step={4}
+          eyebrow="Step 4 · Reflect"
+          title={`${totalDone} of ${totalCommitted} done — keep going.`}
+          description="You can come back here when you're done. For now, finish your current block."
+          tone="accent"
+          ctaLabel="Back to Home"
+          ctaHref="/"
+        />
+      )}
+
+      <header className="anim mb-6">
         <p
-          className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.05em]"
+          className="mb-1.5 text-[0.78rem] font-semibold uppercase tracking-[0.05em]"
           style={{ color: "var(--accent)" }}
         >
-          Today&apos;s list
+          {formatDateLong(today)}
         </p>
-        <h1 className="text-[2.4rem] font-bold leading-[1.1] tracking-[-0.035em]">
-          Good afternoon, Nicholas
+        <h1 className="text-[1.95rem] font-bold leading-[1.1] tracking-[-0.03em]">
+          Today&apos;s reflection
         </h1>
-        <p className="mt-2.5 text-[1rem]" style={{ color: "var(--text-2)" }}>
-          You&apos;re off to a good start — keep the momentum going.
+        <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
+          A snapshot of what you committed to and what you finished.
         </p>
+      </header>
 
-        <div
-          className="mt-6 rounded-[16px] border px-6 py-[18px]"
-          style={{
-            background: "var(--surface-solid)",
-            borderColor: "var(--line)",
-            boxShadow: "var(--shadow-sm)",
-          }}
+      {errorMessage ? (
+        <p
+          className="mb-4 rounded-[12px] border px-4 py-3 text-[0.86rem]"
+          style={{ borderColor: "var(--line)", background: "var(--surface-solid)", color: "var(--danger)" }}
         >
-          <div className="mb-2.5 flex items-baseline justify-between">
-            <span
-              className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-              style={{ color: "var(--text-2)" }}
-            >
-              Today&apos;s progress
-            </span>
-            <span className="text-[0.92rem] font-semibold">
-              <span style={{ color: "var(--done)" }}>{completedCount}</span> of {totalCount} done
-            </span>
+          {errorMessage}
+        </p>
+      ) : null}
+
+      {/* Progress card */}
+      <section
+        className="anim anim-d1 mb-6 rounded-[16px] border p-5"
+        style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+      >
+        <div className="mb-3 flex items-baseline justify-between">
+          <span
+            className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
+            style={{ color: "var(--text-2)" }}
+          >
+            Today&apos;s progress
+          </span>
+          <span className="text-[0.92rem] font-semibold">
+            <span style={{ color: "var(--done)" }}>{totalDone}</span> of {totalCommitted} done
+          </span>
+        </div>
+        <div className="h-2.5 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
+          <div
+            className="h-full rounded-full transition-all duration-500"
+            style={{
+              width: `${progressPct}%`,
+              background: "linear-gradient(90deg, var(--done), #4cd964)",
+            }}
+          />
+        </div>
+        <div className="mt-4 grid grid-cols-3 gap-3 max-[600px]:grid-cols-1">
+          <div className="rounded-[12px] border px-4 py-3" style={{ borderColor: "var(--line)", background: "var(--surface-hover)" }}>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+              Committed
+            </p>
+            <p className="mt-1 text-[1.5rem] font-bold tabular-nums">{totalCommitted}</p>
           </div>
-          <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
-            <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{
-                width: `${progress}%`,
-                background: "linear-gradient(90deg, var(--done), #4cd964)",
-              }}
-            />
+          <div className="rounded-[12px] border px-4 py-3" style={{ borderColor: "var(--done)", background: "var(--done-soft)" }}>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--done)" }}>
+              Done
+            </p>
+            <p className="mt-1 text-[1.5rem] font-bold tabular-nums">{totalDone}</p>
+          </div>
+          <div className="rounded-[12px] border px-4 py-3" style={{ borderColor: "var(--line)", background: "var(--surface-hover)" }}>
+            <p className="text-[0.7rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+              Focused
+            </p>
+            <p className="mt-1 text-[1.5rem] font-bold tabular-nums">
+              {focusedMinutes}
+              <span className="ml-1 text-[0.78rem] font-medium" style={{ color: "var(--text-2)" }}>min</span>
+            </p>
           </div>
         </div>
       </section>
 
-      <div className="grid grid-cols-[1fr_320px] gap-10 max-[880px]:grid-cols-1">
-        <section className="anim anim-d1">
-          <div className="mb-4 flex items-center gap-2.5">
-            <span
-              className="pulse-dot inline-block h-2 w-2 rounded-full"
-              style={{ background: "var(--accent)" }}
-            />
-            <h2 className="text-[1.4rem] font-bold tracking-[-0.02em]">Today</h2>
-          </div>
-
-          <form className="mb-6 flex gap-3" onSubmit={handleAddTask}>
-            <input
-              type="text"
-              value={draft}
-              onChange={(event) => setDraft(event.target.value)}
-              placeholder="Add a task..."
-              className="min-h-12 flex-1 rounded-[14px] border px-4 text-[0.95rem] outline-none transition focus:ring-4"
-              style={{
-                borderColor: "var(--line)",
-                background: "var(--surface-solid)",
-                color: "var(--text)",
-                boxShadow: "var(--shadow-sm)",
-              }}
-            />
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="min-h-12 rounded-[14px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.97]"
-              style={{
-                background: "var(--accent)",
-                boxShadow: "0 1px 2px rgba(0, 122, 255, 0.25)",
-                opacity: isSubmitting ? 0.7 : 1,
-              }}
-            >
-              {isSubmitting ? "Adding..." : "Add"}
-            </button>
-          </form>
-
-          {loadError ? (
-            <div
-              className="mb-4 flex items-center justify-between gap-3 rounded-[12px] border px-4 py-2.5"
-              style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-            >
-              <p className="text-[0.84rem]" style={{ color: "var(--danger)" }}>
-                {loadError}
-              </p>
-              <button
-                type="button"
-                onClick={() => void loadTasks()}
-                className="rounded-[10px] px-3 py-1.5 text-[0.8rem] font-medium transition active:scale-[0.98]"
-                style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
-              >
-                Retry
-              </button>
+      {/* Committed tasks by block */}
+      <section className="anim anim-d2 mb-6">
+        <h2 className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]" style={{ color: "var(--text-3)" }}>
+          What you committed to
+        </h2>
+        <div
+          className="rounded-[16px] border"
+          style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+        >
+          {isLoading ? (
+            <div className="space-y-2 p-4">
+              {[0, 1, 2].map((s) => (
+                <div key={s} className="h-[58px] animate-pulse rounded-[10px]" style={{ background: "var(--surface-hover)" }} />
+              ))}
             </div>
-          ) : null}
-
-          {errorMessage ? (
-            <p className="mb-4 text-[0.84rem]" style={{ color: "var(--danger)" }}>
-              {errorMessage}
-            </p>
-          ) : null}
-
-          <div>
-            {isLoading ? (
-              <div className="space-y-2 py-2">
-                {[0, 1, 2].map((skeleton) => (
+          ) : committedTasks.length === 0 ? (
+            <div className="p-8 text-center">
+              <p className="text-[0.92rem] font-medium">Nothing committed today.</p>
+              <p className="mt-1 text-[0.84rem]" style={{ color: "var(--text-2)" }}>
+                Open the Board to plan, then commit tasks to a block.
+              </p>
+              <Link
+                href="/board"
+                className="mt-4 inline-flex h-9 items-center rounded-[10px] px-4 text-[0.84rem] font-semibold text-white"
+                style={{ background: "var(--accent)" }}
+              >
+                Start Day →
+              </Link>
+            </div>
+          ) : (
+            blocks
+              .filter((block) => tasksByBlock.has(block.id))
+              .map((block, blockIdx, blockList) => {
+                const tasksInBlock = tasksByBlock.get(block.id) ?? [];
+                const isLastBlock = blockIdx === blockList.length - 1;
+                return (
                   <div
-                    key={skeleton}
-                    className="mx-[-12px] h-[52px] animate-pulse rounded-[10px] border"
-                    style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-                  />
-                ))}
-              </div>
-            ) : null}
-            {!isLoading
-              ? activeTasks.map((task, idx) => (
-                  <article
-                    key={task.id}
-                    className="group mx-[-12px] flex items-center gap-3 rounded-[10px] border-b px-3 py-[14px] transition hover:bg-[var(--surface-hover)]"
-                    style={{
-                      borderBottomColor: idx === activeTasks.length - 1 ? "transparent" : "var(--line)",
-                      transitionDuration: "var(--t)",
-                    }}
+                    key={block.id}
+                    className="border-b px-4 py-3 last:border-b-0"
+                    style={{ borderBottomColor: isLastBlock ? "transparent" : "var(--line)" }}
                   >
-                    <button
-                      type="button"
-                      aria-label={`Toggle ${task.name}`}
-                      onClick={() => handleToggleTask(task.id)}
-                      disabled={updatingIds.has(task.id)}
-                      className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full border-2 transition group-hover:border-[var(--accent)]"
-                      style={{
-                        borderColor: "var(--text-3)",
-                        opacity: updatingIds.has(task.id) ? 0.45 : 1,
-                      }}
-                    >
-                      <svg viewBox="0 0 16 16" className="h-[11px] w-[11px] fill-white opacity-0">
-                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                      </svg>
-                    </button>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-[0.96rem] font-medium">{task.name}</p>
-                      {task.meta ? (
-                        <p className="mt-0.5 text-[0.8rem]" style={{ color: "var(--text-3)" }}>
-                          {task.meta}
-                        </p>
-                      ) : null}
+                    <div className="mb-2 flex items-baseline justify-between">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[0.84rem] font-semibold tabular-nums">
+                          {toHumanTime(block.startMinutes)}
+                        </span>
+                        <span className="text-[0.92rem] font-semibold">{block.title}</span>
+                      </div>
+                      <span
+                        className="rounded-full px-2 py-[2px] text-[0.7rem] font-semibold uppercase tracking-[0.03em]"
+                        style={{
+                          background:
+                            block.status === "active" ? "var(--warn-soft)"
+                              : block.status === "done" ? "var(--done-soft)"
+                                : "var(--accent-soft)",
+                          color:
+                            block.status === "active" ? "var(--warn)"
+                              : block.status === "done" ? "var(--done)"
+                                : "var(--accent)",
+                        }}
+                      >
+                        {block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming"}
+                      </span>
                     </div>
-                    <button
-                      type="button"
-                      aria-label={`Delete ${task.name}`}
-                      onClick={() => handleDeleteTask(task.id)}
-                      disabled={deletingIds.has(task.id)}
-                      className="grid h-8 w-8 place-items-center rounded-[10px] transition hover:scale-[0.96]"
-                      style={{ background: "transparent", opacity: deletingIds.has(task.id) ? 0.45 : 1 }}
-                    >
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" style={{ fill: "var(--text-2)" }}>
-                        <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-                        <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
-                      </svg>
-                    </button>
-                  </article>
-                ))
-              : null}
-            {!isLoading && activeTasks.length === 0 ? (
-              <p className="py-3 text-[0.88rem]" style={{ color: "var(--text-3)" }}>
-                No active tasks. Add one to get started.
-              </p>
-            ) : null}
-          </div>
+                    <ul className="ml-1 space-y-1.5">
+                      {tasksInBlock.map((task) => (
+                        <li key={task.id} className="flex items-center gap-2.5">
+                          <span
+                            className="grid h-[16px] w-[16px] place-items-center rounded-full"
+                            style={{
+                              background: task.status === "done" ? "var(--done)" : "transparent",
+                              border: task.status === "done" ? "none" : "1.5px solid var(--text-3)",
+                            }}
+                          >
+                            {task.status === "done" ? (
+                              <svg viewBox="0 0 16 16" className="h-[8px] w-[8px] fill-white">
+                                <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                              </svg>
+                            ) : null}
+                          </span>
+                          <span
+                            className="text-[0.88rem]"
+                            style={{
+                              color: task.status === "done" ? "var(--text-3)" : "var(--text)",
+                              textDecoration: task.status === "done" ? "line-through" : "none",
+                            }}
+                          >
+                            {task.name}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                );
+              })
+          )}
+        </div>
+      </section>
 
-          <section className="mt-10">
-            <div className="mb-3 flex items-center gap-2">
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--done)" }}
-              />
-              <h3
-                className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-                style={{ color: "var(--text-3)" }}
-              >
-                Completed
-              </h3>
-            </div>
-            {!isLoading
-              ? completedTasks.map((task) => (
-              <article
-                key={task.id}
-                className="mx-[-12px] flex items-center gap-3 rounded-[10px] px-3 py-[14px] opacity-60 transition hover:bg-[var(--surface-hover)] hover:opacity-85"
-              >
-                <button
-                  type="button"
-                  aria-label={`Completed ${task.name}`}
-                  onClick={() => handleToggleTask(task.id)}
-                  disabled={updatingIds.has(task.id)}
-                  className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full border-2"
-                  style={{
-                    borderColor: "var(--done)",
-                    background: "var(--done)",
-                    opacity: updatingIds.has(task.id) ? 0.45 : 1,
-                  }}
+      {/* This week */}
+      <section
+        className="anim anim-d3 rounded-[16px] border px-5 py-[18px]"
+        style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+      >
+        <header className="mb-3.5 flex items-baseline justify-between">
+          <h3 className="text-base font-semibold tracking-[-0.01em]">This week</h3>
+          <span className="text-[0.8rem]" style={{ color: "var(--text-3)" }}>
+            {weekRange}
+          </span>
+        </header>
+        <div className="grid grid-cols-7 gap-2">
+          {weekStats.map((day) => {
+            const date = new Date(`${day.dayKey}T00:00:00`);
+            const label = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
+            const isToday = day.dayKey === todayKey;
+            const fillPercent = day.total > 0 ? Math.max(4, Math.round((day.done / day.total) * 100)) : 0;
+
+            return (
+              <div key={day.dayKey} className="text-center">
+                <div
+                  className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.04em]"
+                  style={{ color: isToday ? "var(--accent)" : "var(--text-3)" }}
                 >
-                  <svg viewBox="0 0 16 16" className="h-[11px] w-[11px] fill-white">
-                    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                  </svg>
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[0.96rem] font-medium line-through">{task.name}</p>
-                  {task.meta ? (
-                    <p className="mt-0.5 text-[0.8rem]" style={{ color: "var(--text-3)" }}>
-                      {task.meta}
-                    </p>
-                  ) : null}
+                  {label}
                 </div>
-                <button
-                  type="button"
-                  aria-label={`Delete ${task.name}`}
-                  onClick={() => handleDeleteTask(task.id)}
-                  disabled={deletingIds.has(task.id)}
-                  className="grid h-8 w-8 place-items-center rounded-[10px] transition hover:scale-[0.96]"
-                  style={{ background: "transparent", opacity: deletingIds.has(task.id) ? 0.45 : 1 }}
-                >
-                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" style={{ fill: "var(--text-2)" }}>
-                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z" />
-                    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z" />
-                  </svg>
-                </button>
-              </article>
-            ))
-              : null}
-            {!isLoading && completedTasks.length === 0 ? (
-              <p className="py-3 text-[0.88rem]" style={{ color: "var(--text-3)" }}>
-                Nothing completed yet.
-              </p>
-            ) : null}
-          </section>
-        </section>
-
-        <aside className="anim anim-d2 flex flex-col gap-6">
-          <section
-            className="rounded-[18px] border px-6 py-6"
-            style={{
-              background: "var(--surface-solid)",
-              borderColor: "var(--line)",
-              boxShadow: "var(--shadow-md)",
-            }}
-          >
-            <div className="mb-4 flex items-center gap-2">
-              <span
-                className={`inline-block h-1.5 w-1.5 rounded-full ${isTimerRunning ? "pulse-dot" : ""}`}
-                style={{ background: isTimerRunning ? "var(--warn)" : "var(--text-3)" }}
-              />
-              <h3
-                className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-                style={{ color: "var(--text-3)" }}
-              >
-                Focus timer
-              </h3>
-            </div>
-            <div className="text-center">
-              <p className="text-[2.6rem] font-bold leading-none tracking-[-0.04em]">{formattedTimer}</p>
-              <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-3)" }}>
-                {isTimerRunning ? "Pomodoro • running" : "Pomodoro"}
-              </p>
-              {timerNotice ? (
-                <p className="mt-2 text-[0.8rem]" style={{ color: "var(--done)" }}>
-                  {timerNotice}
-                </p>
-              ) : null}
-              <div className="mt-4 flex justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleStartTimer}
-                  disabled={isTimerRunning}
-                  className="min-h-9 rounded-[10px] px-4 text-[0.85rem] font-medium text-white transition active:scale-[0.96]"
-                  style={{ background: "var(--accent)", opacity: isTimerRunning ? 0.6 : 1 }}
-                >
-                  {timerSeconds < FOCUS_SESSION_SECONDS && timerSeconds > 0 ? "Resume" : "Start"}
-                </button>
-                <button
-                  type="button"
-                  onClick={handlePauseTimer}
-                  disabled={!isTimerRunning}
-                  className="min-h-9 rounded-[10px] border px-4 text-[0.85rem] font-medium transition active:scale-[0.96]"
-                  style={{ borderColor: "var(--line)", color: "var(--text)", opacity: isTimerRunning ? 1 : 0.6 }}
-                >
-                  Pause
-                </button>
-                <button
-                  type="button"
-                  onClick={handleResetTimer}
-                  disabled={timerSeconds === FOCUS_SESSION_SECONDS && !isTimerRunning}
-                  className="min-h-9 rounded-[10px] border px-4 text-[0.85rem] font-medium transition active:scale-[0.96]"
+                <div
+                  className="relative h-[38px] overflow-hidden rounded-[10px]"
                   style={{
-                    borderColor: "var(--line)",
-                    color: "var(--text)",
-                    opacity: timerSeconds === FOCUS_SESSION_SECONDS && !isTimerRunning ? 0.6 : 1,
+                    background: isToday ? "var(--accent-soft)" : "var(--surface-hover)",
+                    outline: isToday ? "2px solid var(--accent)" : "none",
+                    outlineOffset: isToday ? "2px" : "0",
                   }}
                 >
-                  Reset
-                </button>
+                  <div
+                    className="absolute inset-x-0 bottom-0 rounded-[10px]"
+                    style={{
+                      height: `${fillPercent}%`,
+                      background: isToday ? "var(--accent)" : "var(--done)",
+                    }}
+                  />
+                </div>
+                <div className="mt-1.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
+                  {day.total > 0 ? `${day.done}/${day.total}` : "—"}
+                </div>
               </div>
-            </div>
-          </section>
-
-          <section
-            className="rounded-[18px] border px-6 py-6"
-            style={{
-              background: "var(--surface-solid)",
-              borderColor: "var(--line)",
-              boxShadow: "var(--shadow-md)",
-            }}
-          >
-            <div className="mb-4 flex items-center gap-2">
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full"
-                style={{ background: "var(--warn)" }}
-              />
-              <h3
-                className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-                style={{ color: "var(--text-3)" }}
-              >
-                Reminders
-              </h3>
-            </div>
-            {reminders.map((reminder, idx) => (
-              <article
-                key={reminder.name}
-                className="flex items-center justify-between gap-3 border-b py-2.5"
-                style={{ borderBottomColor: idx === reminders.length - 1 ? "transparent" : "var(--line)" }}
-              >
-                <p className="text-[0.88rem] font-medium">{reminder.name}</p>
-                <span className="whitespace-nowrap text-[0.78rem]" style={{ color: "var(--text-3)" }}>
-                  {reminder.time}
-                </span>
-              </article>
-            ))}
-          </section>
-        </aside>
-      </div>
+            );
+          })}
+        </div>
+      </section>
     </div>
   );
 }

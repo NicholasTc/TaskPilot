@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Task } from "@/types/task";
+import { NextActionBanner } from "@/components/layout/next-action-banner";
 
 type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
 type BlockStatus = "planned" | "active" | "done";
@@ -173,6 +174,10 @@ export default function HomePage() {
   const totalWeekDone = useMemo(() => weekStats.reduce((sum, day) => sum + day.done, 0), [weekStats]);
   const totalWeekTasks = useMemo(() => weekStats.reduce((sum, day) => sum + day.total, 0), [weekStats]);
 
+  const committedToday = boardCounts.planned + boardCounts.in_progress + boardCounts.done;
+  const isInFlow = committedToday > 0;
+  const allDoneToday = isInFlow && boardCounts.done === committedToday;
+
   const redirectToLogin = useCallback(() => {
     router.replace("/login");
   }, [router]);
@@ -266,6 +271,42 @@ export default function HomePage() {
         >
           {errorMessage}
         </div>
+      ) : null}
+
+      {!isLoading && isInFlow ? (
+        allDoneToday ? (
+          <NextActionBanner
+            step={4}
+            eyebrow="Step 4 · Reflect"
+            title="You finished today's plan."
+            description="Take a moment to recap, then plan tomorrow."
+            tone="done"
+            ctaLabel="Open Reflect"
+            ctaHref="/today"
+          />
+        ) : activeBlock ? (
+          <NextActionBanner
+            step={3}
+            eyebrow="Step 3 · Execute"
+            title={activeTask ? `Now: ${activeTask.name}` : "Pick the one task to work on."}
+            description={activeTask
+              ? `Open focus mode and protect this block.`
+              : "Choose one task from this block and start the timer."}
+            tone="warn"
+            ctaLabel={activeTask ? "Open focus mode" : "Manage block"}
+            ctaHref={activeTask ? `/blocks/${activeBlock.id}/focus` : "/blocks"}
+          />
+        ) : (
+          <NextActionBanner
+            step={3}
+            eyebrow="Step 3 · Execute"
+            title="Start your next block."
+            description={`${committedToday - boardCounts.done} task${committedToday - boardCounts.done === 1 ? "" : "s"} remaining today.`}
+            tone="accent"
+            ctaLabel="Open Blocks"
+            ctaHref="/blocks"
+          />
+        )
       ) : null}
 
       {isLoading ? (

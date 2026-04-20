@@ -2,16 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PropsWithChildren, useMemo, useState } from "react";
-
-const tabs = [
-  { href: "/", label: "Home" },
-  { href: "/today", label: "Today" },
-  { href: "/board", label: "Board" },
-  { href: "/blocks", label: "Blocks" },
-  { href: "/upcoming", label: "Upcoming" },
-  { href: "/insights", label: "Insights" },
-];
+import { PropsWithChildren, useEffect, useMemo, useState } from "react";
+import { DailyFlow, getStepLabel } from "@/lib/daily-flow";
+import { FlowStrip } from "./flow-strip";
 
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
@@ -20,16 +13,38 @@ export function AppShell({ children }: PropsWithChildren) {
     if (typeof document === "undefined") return "light";
     return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   });
+  const [flow, setFlow] = useState<DailyFlow | null>(null);
 
-  const activeHref = useMemo(() => {
-    if (pathname === "/") return "/";
-    if (pathname.startsWith("/today")) return "/today";
-    if (pathname.startsWith("/board")) return "/board";
-    if (pathname.startsWith("/blocks")) return "/blocks";
-    if (pathname.startsWith("/upcoming")) return "/upcoming";
-    if (pathname.startsWith("/insights")) return "/insights";
-    return "";
-  }, [pathname]);
+  const isHomeActive = pathname === "/";
+  const isTasksActive = pathname.startsWith("/tasks");
+  const isInFlow =
+    pathname.startsWith("/board") ||
+    pathname.startsWith("/blocks") ||
+    pathname.startsWith("/today");
+
+  useEffect(() => {
+    if (isAuthPage) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const response = await fetch("/api/daily-flow");
+        if (!response.ok) return;
+        const data = (await response.json()) as DailyFlow;
+        if (!cancelled) setFlow(data);
+      } catch {
+        // silent
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthPage, pathname]);
+
+  const startDayCopy = useMemo(() => {
+    if (!flow || !flow.hasStarted) return { label: "Start Day", badge: null as string | null };
+    const meta = getStepLabel(flow.step);
+    return { label: "Continue Day", badge: `Step ${meta.num}` };
+  }, [flow]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
@@ -56,25 +71,58 @@ export function AppShell({ children }: PropsWithChildren) {
         style={{ background: "var(--surface)", borderColor: "var(--line)" }}
       >
         <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between px-6">
-          <div className="text-base font-bold tracking-[-0.02em]">TaskPilot</div>
+          <Link href="/" className="text-base font-bold tracking-[-0.02em]">
+            TaskPilot
+          </Link>
 
-          <div className="flex gap-0.5">
-            {tabs.map((tab) => {
-              const isActive = activeHref === tab.href;
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
-                  style={{
-                    color: isActive ? "var(--accent)" : "var(--text-2)",
-                    background: isActive ? "var(--accent-soft)" : "transparent",
-                  }}
+          <div className="flex items-center gap-1.5">
+            <Link
+              href="/"
+              className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
+              style={{
+                color: isHomeActive ? "var(--accent)" : "var(--text-2)",
+                background: isHomeActive ? "var(--accent-soft)" : "transparent",
+              }}
+            >
+              Home
+            </Link>
+
+            <Link
+              href="/board"
+              className="inline-flex h-9 items-center gap-2 rounded-full px-4 text-[0.84rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+              style={{
+                background: "var(--accent)",
+                boxShadow: isInFlow ? "0 0 0 3px var(--accent-soft)" : "0 1px 2px rgba(0,122,255,0.25)",
+              }}
+            >
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full"
+                style={{
+                  background: "#fff",
+                  animation: flow?.hasStarted ? "pulseDot 1.5s ease-in-out infinite" : undefined,
+                }}
+              />
+              {startDayCopy.label}
+              {startDayCopy.badge ? (
+                <span
+                  className="rounded-full px-1.5 py-[1px] text-[0.66rem] font-semibold"
+                  style={{ background: "rgba(255,255,255,0.22)" }}
                 >
-                  {tab.label}
-                </Link>
-              );
-            })}
+                  {startDayCopy.badge}
+                </span>
+              ) : null}
+            </Link>
+
+            <Link
+              href="/tasks"
+              className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
+              style={{
+                color: isTasksActive ? "var(--accent)" : "var(--text-2)",
+                background: isTasksActive ? "var(--accent-soft)" : "transparent",
+              }}
+            >
+              Tasks
+            </Link>
           </div>
 
           <div className="flex items-center gap-3">
@@ -106,6 +154,8 @@ export function AppShell({ children }: PropsWithChildren) {
           </div>
         </div>
       </nav>
+
+      <FlowStrip />
 
       <main className="mx-auto w-full max-w-[1280px] px-6 pb-14 pt-10">{children}</main>
     </>
