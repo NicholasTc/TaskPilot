@@ -100,9 +100,10 @@ export function NextActionBanner({
       className="anim mb-5 grid grid-cols-[auto_1fr_auto] items-center gap-4 rounded-[16px] border-l-[3px] px-5 py-4 max-[720px]:grid-cols-1"
       style={{
         background: t.bg,
-        borderLeftColor: t.border,
-        border: `1px solid ${t.border}`,
-        borderLeftWidth: 3,
+        borderTop: `1px solid ${t.border}`,
+        borderRight: `1px solid ${t.border}`,
+        borderBottom: `1px solid ${t.border}`,
+        borderLeft: `3px solid ${t.border}`,
       }}
     >
       <div

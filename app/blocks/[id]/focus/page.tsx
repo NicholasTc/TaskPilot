@@ -44,19 +44,11 @@ function formatClock(seconds: number) {
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const remSeconds = safeSeconds % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
+  if (hours > 0) {
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
+  }
+  return `${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
 }
-
-function formatDurationLabel(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours === 0) return `${remainder}m`;
-  if (remainder === 0) return `${hours}h block`;
-  return `${hours}h ${remainder}m block`;
-}
-
-const RING_RADIUS = 133;
-const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 
 export default function FocusModePage() {
   const router = useRouter();
@@ -292,11 +284,10 @@ export default function FocusModePage() {
     );
   }
 
-  const totalSeconds = block.durationMin * 60;
-  const progressPercent =
-    totalSeconds > 0 ? Math.min(100, Math.max(0, (displayRemainingSeconds / totalSeconds) * 100)) : 0;
-  const ringDashOffset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * progressPercent) / 100;
   const isComplete = displayRemainingSeconds <= 0;
+  const isRunning = block.timerState === "running" && !isComplete;
+  const focusTitle = activeTask?.name ?? (tasks.length === 0 ? "No tasks in this block" : "Pick a task to focus on");
+  const focusMeta = `${toHumanTime(block.startMinutes)} – ${toHumanTime(block.startMinutes + block.durationMin)}  ·  ${block.title}`;
 
   return (
     <div className="focus-bg -mx-6 -mt-10 min-h-[calc(100vh-56px)] px-6 pb-16 pt-10">
@@ -319,156 +310,140 @@ export default function FocusModePage() {
           >
             <span
               className="pulse-dot mr-2 inline-block h-1.5 w-1.5 rounded-full"
-              style={{ background: "var(--warn)" }}
+              style={{ background: isRunning ? "var(--warn)" : "var(--text-3)" }}
             />
-            {block.timerState === "running" ? "Focus session running" : "Focus session paused"}
+            {isComplete
+              ? "Session complete"
+              : isRunning
+                ? "Focus session running"
+                : "Focus session paused"}
           </div>
         </div>
 
-        <div className="anim text-center">
-          <p
-            className="text-[0.82rem] font-semibold uppercase tracking-[0.05em]"
-            style={{ color: "var(--accent)" }}
+        <section
+          className="anim mx-auto rounded-[20px] border px-7 py-9 text-center"
+          style={{
+            background: "var(--surface-solid)",
+            borderColor: "var(--line)",
+            boxShadow: "var(--shadow-md)",
+            maxWidth: 720,
+          }}
+        >
+          <div
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[0.74rem] font-semibold uppercase tracking-[0.1em]"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
           >
-            Active block
-          </p>
-          <h1 className="mt-3 text-[2.4rem] font-bold leading-[1.1] tracking-[-0.035em]">
-            {block.title}
+            <span aria-hidden>🔥</span>
+            Your focus now
+          </div>
+
+          <h1 className="mx-auto mt-4 max-w-[520px] text-[1.8rem] font-bold leading-[1.2] tracking-[-0.025em]">
+            {focusTitle}
           </h1>
-          <p className="mt-2 text-[1rem]" style={{ color: "var(--text-2)" }}>
-            {toHumanTime(block.startMinutes)} – {toHumanTime(block.startMinutes + block.durationMin)}
+          <p className="mt-2 text-[0.96rem]" style={{ color: "var(--text-2)" }}>
+            {focusMeta}
           </p>
-        </div>
 
-        <div className="anim anim-d1 relative mx-auto mt-14 mb-9 h-[280px] w-[280px]">
-          <svg viewBox="0 0 280 280" className="h-full w-full -rotate-90">
-            <circle cx="140" cy="140" r={RING_RADIUS} fill="none" stroke="var(--line)" strokeWidth="6" />
-            <circle
-              cx="140"
-              cy="140"
-              r={RING_RADIUS}
-              fill="none"
-              stroke="var(--accent)"
-              strokeWidth="6"
-              strokeLinecap="round"
-              strokeDasharray={RING_CIRCUMFERENCE}
-              strokeDashoffset={ringDashOffset}
-              style={{ transition: "stroke-dashoffset 1s linear" }}
-            />
-          </svg>
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="text-center">
-              <div className="text-[3.6rem] font-bold leading-none tracking-[-0.05em] tabular-nums">
-                {formatClock(displayRemainingSeconds)}
-              </div>
-              <div className="mt-2 text-[0.88rem]" style={{ color: "var(--text-2)" }}>
-                {isComplete
-                  ? "session complete"
-                  : `remaining of ${formatDurationLabel(block.durationMin)}`}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {activeTask ? (
-          <section
-            className="anim anim-d2 mx-auto mb-8 max-w-[480px] rounded-[16px] border px-5 py-[18px] text-left"
-            style={{
-              background: "var(--surface-solid)",
-              borderColor: "var(--line)",
-              boxShadow: "0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05)",
-            }}
-          >
+          <div className="mt-6">
             <div
-              className="mb-1.5 inline-flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.04em]"
-              style={{ color: "var(--warn)" }}
+              className="text-[3.2rem] font-bold leading-none tracking-[-0.04em] tabular-nums"
+              style={{ color: isComplete ? "var(--done)" : "var(--text)" }}
             >
-              <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--warn)" }} />
-              Now working on
+              {formatClock(displayRemainingSeconds)}
             </div>
-            <p className="text-[1.1rem] font-semibold tracking-[-0.01em]">{activeTask.name}</p>
-            <div className="mt-3.5 flex flex-wrap gap-2">
+            <p className="mt-2 text-[0.88rem]" style={{ color: "var(--text-2)" }}>
+              {isComplete
+                ? "Session complete — wrap up and reflect"
+                : isRunning
+                  ? activeTask
+                    ? `Working on: ${activeTask.name}`
+                    : "Pick the task you'll work on"
+                  : "Press Start Focus when you're ready"}
+            </p>
+          </div>
+
+          <div className="mt-6 flex flex-wrap justify-center gap-2.5">
+            {!isComplete ? (
+              isRunning ? (
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => void updateTimerState("pause")}
+                  className="inline-flex h-12 items-center gap-2 rounded-[12px] px-6 text-[0.94rem] font-semibold"
+                  style={{
+                    background: "var(--surface-solid)",
+                    border: "1px solid var(--line)",
+                    color: "var(--text)",
+                    opacity: isSaving ? 0.6 : 1,
+                  }}
+                >
+                  Pause
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={isSaving}
+                  onClick={() => void updateTimerState("resume")}
+                  className="inline-flex h-12 items-center gap-2 rounded-[12px] px-7 text-[0.94rem] font-semibold text-white"
+                  style={{
+                    background: "var(--accent)",
+                    boxShadow: "0 6px 18px rgba(0,122,255,0.28)",
+                    opacity: isSaving ? 0.6 : 1,
+                  }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                    <path d="M5 3.5v9a.5.5 0 0 0 .76.43l7.5-4.5a.5.5 0 0 0 0-.86l-7.5-4.5A.5.5 0 0 0 5 3.5z" />
+                  </svg>
+                  Start Focus
+                </button>
+              )
+            ) : null}
+
+            {activeTask ? (
               <button
                 type="button"
                 disabled={isSaving}
                 onClick={() => void handleMarkDone(activeTask)}
-                className="h-8 rounded-[8px] px-3 text-[0.82rem] font-semibold text-white"
-                style={{ background: "var(--done)", opacity: isSaving ? 0.65 : 1 }}
+                className="h-12 rounded-[12px] px-6 text-[0.94rem] font-semibold text-white"
+                style={{
+                  background: "var(--done)",
+                  boxShadow: "0 6px 18px rgba(52,199,89,0.24)",
+                  opacity: isSaving ? 0.6 : 1,
+                }}
               >
-                Mark done
+                Mark Done
               </button>
-              <button
-                type="button"
-                disabled={isSaving}
-                onClick={() => void setActiveTask(null)}
-                className="h-8 rounded-[8px] border px-3 text-[0.82rem] font-medium"
-                style={{ borderColor: "var(--line)", background: "transparent", color: "var(--text)" }}
-              >
-                Clear active task
-              </button>
-            </div>
-          </section>
-        ) : null}
+            ) : null}
 
-        <div className="anim anim-d2 mb-8 flex flex-wrap justify-center gap-3">
-          <button
-            type="button"
-            disabled={isSaving || isComplete || block.timerState === "running"}
-            onClick={() => void updateTimerState("resume")}
-            className="inline-flex h-12 items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white"
-            style={{
-              background: "var(--accent)",
-              boxShadow: "0 2px 8px rgba(0,122,255,0.25)",
-              opacity: isSaving || isComplete || block.timerState === "running" ? 0.5 : 1,
-            }}
-          >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-              <path d="M5 3.5v9a.5.5 0 0 0 .76.43l7.5-4.5a.5.5 0 0 0 0-.86l-7.5-4.5A.5.5 0 0 0 5 3.5z" />
-            </svg>
-            {isComplete ? "Complete" : block.timerState === "running" ? "Running" : "Resume"}
-          </button>
-          <button
-            type="button"
-            disabled={isSaving || block.timerState !== "running"}
-            onClick={() => void updateTimerState("pause")}
-            className="h-12 rounded-[12px] border px-6 text-[0.92rem] font-semibold"
-            style={{
-              background: "var(--surface-solid)",
-              borderColor: "var(--line)",
-              color: "var(--text)",
-              opacity: isSaving || block.timerState !== "running" ? 0.6 : 1,
-            }}
-          >
-            Pause
-          </button>
-          <button
-            type="button"
-            disabled={isSaving}
-            onClick={() => void handleEndBlock()}
-            className="h-12 rounded-[12px] border px-6 text-[0.92rem] font-semibold"
-            style={{
-              background: "var(--surface-solid)",
-              borderColor: "var(--line)",
-              color: "var(--text)",
-              opacity: isSaving ? 0.6 : 1,
-            }}
-          >
-            End block
-          </button>
-        </div>
+            <button
+              type="button"
+              disabled={isSaving}
+              onClick={() => void handleEndBlock()}
+              className="h-12 rounded-[12px] border px-6 text-[0.94rem] font-semibold"
+              style={{
+                background: "transparent",
+                borderColor: "var(--line)",
+                color: "var(--text-2)",
+                opacity: isSaving ? 0.6 : 1,
+              }}
+            >
+              End block
+            </button>
+          </div>
 
-        {errorMessage ? (
-          <p className="mb-4 text-center text-[0.84rem]" style={{ color: "var(--danger)" }}>
-            {errorMessage}
-          </p>
-        ) : null}
-        {notice ? (
-          <p className="mb-4 text-center text-[0.84rem]" style={{ color: "var(--done)" }}>
-            {notice}
-          </p>
-        ) : null}
+          {errorMessage ? (
+            <p className="mt-4 text-[0.84rem]" style={{ color: "var(--danger)" }}>
+              {errorMessage}
+            </p>
+          ) : null}
+          {notice ? (
+            <p className="mt-4 text-[0.84rem]" style={{ color: "var(--done)" }}>
+              {notice}
+            </p>
+          ) : null}
+        </section>
 
-        <section className="anim anim-d3 mx-auto max-w-[480px] text-left">
+        <section className="anim anim-d2 mx-auto mt-8 max-w-[520px] text-left">
           <h2
             className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.04em]"
             style={{ color: "var(--text-3)" }}
@@ -480,24 +455,24 @@ export default function FocusModePage() {
               No tasks linked to this block yet.
             </p>
           ) : (
-            <div>
-              {tasks.map((task, index) => {
+            <ul className="divide-y" style={{ borderColor: "var(--line)" }}>
+              {tasks.map((task) => {
                 const isActive = block.activeTaskId === task.id;
                 const isDone = task.status === "done";
                 return (
-                  <div
+                  <li
                     key={task.id}
-                    className="flex items-center justify-between gap-3 border-b py-3 last:border-b-0"
-                    style={{ borderBottomColor: index === tasks.length - 1 ? "transparent" : "var(--line)" }}
+                    className="flex items-center justify-between gap-3 py-2.5"
+                    style={{ borderBottomColor: "var(--line)" }}
                   >
                     <div className="flex min-w-0 items-center gap-2.5">
-                      <button
-                        type="button"
-                        onClick={() => void handleMarkDone(task)}
-                        aria-label={`Toggle ${task.name}`}
-                        className="grid h-[20px] w-[20px] flex-shrink-0 place-items-center rounded-full border-2"
+                      <span
+                        aria-hidden
+                        className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full"
                         style={{
-                          borderColor: isDone ? "var(--done)" : isActive ? "var(--warn)" : "var(--text-3)",
+                          border: isDone
+                            ? "none"
+                            : `2px solid ${isActive ? "var(--warn)" : "var(--text-3)"}`,
                           background: isDone
                             ? "var(--done)"
                             : isActive
@@ -506,14 +481,12 @@ export default function FocusModePage() {
                           boxShadow: isActive ? "0 0 0 4px rgba(255,149,0,0.15)" : "none",
                         }}
                       >
-                        {isDone || isActive ? (
+                        {isDone ? (
                           <svg viewBox="0 0 16 16" className="h-2.5 w-2.5 fill-white">
-                            {isDone ? (
-                              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                            ) : null}
+                            <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
                           </svg>
                         ) : null}
-                      </button>
+                      </span>
                       <p
                         className="truncate text-[0.92rem]"
                         style={{
@@ -526,7 +499,14 @@ export default function FocusModePage() {
                       </p>
                     </div>
                     <div className="flex flex-shrink-0 gap-1.5">
-                      {!isActive && !isDone ? (
+                      {isActive ? (
+                        <span
+                          className="inline-flex h-7 items-center rounded-[8px] px-2.5 text-[0.74rem] font-semibold"
+                          style={{ background: "var(--warn-soft)", color: "var(--warn)" }}
+                        >
+                          Active
+                        </span>
+                      ) : !isDone ? (
                         <button
                           type="button"
                           onClick={() => void setActiveTask(task.id)}
@@ -541,19 +521,11 @@ export default function FocusModePage() {
                           Set active
                         </button>
                       ) : null}
-                      {isActive ? (
-                        <span
-                          className="inline-flex h-7 items-center rounded-[8px] px-2.5 text-[0.74rem] font-semibold"
-                          style={{ background: "var(--warn-soft)", color: "var(--warn)" }}
-                        >
-                          Active
-                        </span>
-                      ) : null}
                     </div>
-                  </div>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </section>
       </div>

@@ -150,21 +150,22 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
     }
 
-    const nextCompleted =
-      hasCompleted
-        ? body.completed
-        : hasStatus
-          ? parsedStatus === "done"
-          : !existing.completed;
+    const nextCompleted = hasCompleted
+      ? (body.completed as boolean)
+      : hasStatus
+        ? parsedStatus === "done"
+        : existing.completed;
     existing.completed = nextCompleted;
     const nextStatus: (typeof TASK_STATUSES)[number] =
       hasStatus && parsedStatus
         ? parsedStatus
-        : nextCompleted
-          ? "done"
-          : existing.status === "done"
-            ? "planned"
-            : existing.status || "backlog";
+        : hasCompleted
+          ? nextCompleted
+            ? "done"
+            : existing.status === "done"
+              ? "planned"
+              : existing.status || "backlog"
+          : existing.status || (existing.completed ? "done" : "backlog");
     existing.status = nextStatus;
 
     if (hasDayKey) {
