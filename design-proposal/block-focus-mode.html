@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Block Focus Mode</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --t: 200ms cubic-bezier(.4, 0, .2, 1);
+      }
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface-solid: #ffffff;
+        --line: rgba(0,0,0,.06);
+        --line-strong: rgba(0,0,0,.10);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0,122,255,.08);
+        --done: #34c759;
+        --warn: #ff9500;
+      }
+      [data-theme="dark"] {
+        --bg: #0a0a0c;
+        --surface-solid: #1c1c1e;
+        --line: rgba(255,255,255,.08);
+        --line-strong: rgba(255,255,255,.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10,132,255,.14);
+        --done: #30d158;
+        --warn: #ff9f0a;
+      }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background:
+          radial-gradient(ellipse at 50% 0%, var(--accent-soft) 0%, transparent 60%),
+          var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Minimal nav (focus mode) */
+      .focus-nav {
+        position: sticky; top: 0; z-index: 50;
+        backdrop-filter: blur(20px);
+        background: rgba(255,255,255,.5);
+        border-bottom: 1px solid var(--line);
+      }
+      [data-theme="dark"] .focus-nav {
+        background: rgba(20,20,22,.5);
+      }
+      .focus-nav-inner {
+        max-width: 760px; margin: 0 auto;
+        padding: 0 24px; height: 56px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .nav-back {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: .86rem; font-weight: 500; color: var(--text-2);
+        background: none; border: none; cursor: pointer;
+        padding: 6px 10px; border-radius: 8px;
+      }
+      .nav-back:hover { background: var(--surface-solid); color: var(--text); }
+      .focus-meta {
+        font-size: .82rem; font-weight: 600; color: var(--text-2);
+      }
+      .focus-meta-dot {
+        display: inline-block;
+        width: 6px; height: 6px;
+        border-radius: 50%;
+        background: var(--warn);
+        margin-right: 6px;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .4; transform: scale(1.4); }
+      }
+      .toggle {
+        position: relative; width: 40px; height: 24px;
+        border-radius: 999px; background: #e5e5ea;
+        border: none; cursor: pointer;
+      }
+      [data-theme="dark"] .toggle { background: #39393d; }
+      .toggle::after {
+        content: ""; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        transition: transform var(--t);
+      }
+      [data-theme="dark"] .toggle::after { transform: translateX(16px); background: #f5f5f7; }
+
+      /* Main focus area */
+      .focus-shell {
+        max-width: 760px; margin: 0 auto;
+        padding: 64px 24px 64px;
+        text-align: center;
+      }
+
+      .block-name {
+        font-size: .82rem; font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase; letter-spacing: .05em;
+        margin-bottom: 12px;
+      }
+      .block-headline {
+        font-size: 2.4rem; font-weight: 700; letter-spacing: -.035em;
+        line-height: 1.1;
+        margin-bottom: 8px;
+      }
+      .block-time {
+        font-size: 1rem; color: var(--text-2);
+      }
+
+      /* Timer ring */
+      .timer-wrap {
+        margin: 56px auto 36px;
+        position: relative;
+        width: 280px; height: 280px;
+      }
+      .timer-svg {
+        transform: rotate(-90deg);
+        width: 100%; height: 100%;
+      }
+      .ring-bg {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 6;
+      }
+      .ring-fg {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 6;
+        stroke-linecap: round;
+        stroke-dasharray: 836;
+        stroke-dashoffset: 480;
+      }
+      .timer-content {
+        position: absolute;
+        inset: 0;
+        display: flex; flex-direction: column;
+        align-items: center; justify-content: center;
+      }
+      .timer-value {
+        font-size: 3.6rem; font-weight: 700; letter-spacing: -.05em;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .timer-sub {
+        margin-top: 8px;
+        font-size: .88rem; color: var(--text-2);
+      }
+
+      /* Current task */
+      .now-card {
+        max-width: 480px; margin: 0 auto 32px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px 22px;
+        text-align: left;
+        box-shadow: 0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+      }
+      .now-label {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: .72rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .04em;
+        color: var(--warn);
+        margin-bottom: 6px;
+      }
+      .now-label::before {
+        content: "";
+        width: 6px; height: 6px;
+        border-radius: 50%; background: var(--warn);
+      }
+      .now-task {
+        font-size: 1.1rem; font-weight: 600; letter-spacing: -.01em;
+      }
+      .now-actions {
+        margin-top: 14px;
+        display: flex; gap: 8px;
+      }
+      .now-btn {
+        height: 32px; padding: 0 12px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: transparent;
+        font-family: var(--font); font-weight: 500; font-size: .82rem;
+        color: var(--text);
+        cursor: pointer;
+      }
+      .now-btn:hover { border-color: var(--line-strong); }
+      .now-btn-primary {
+        background: var(--done); color: #fff; border-color: transparent;
+      }
+
+      /* Controls */
+      .controls {
+        display: flex; justify-content: center; gap: 12px;
+        margin-bottom: 32px;
+      }
+      .ctrl-btn {
+        height: 48px; padding: 0 24px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        background: var(--surface-solid);
+        font-family: var(--font); font-weight: 600; font-size: .92rem;
+        color: var(--text);
+        cursor: pointer;
+        transition: border-color var(--t), background var(--t);
+        display: inline-flex; align-items: center; gap: 8px;
+      }
+      .ctrl-btn:hover { border-color: var(--line-strong); }
+      .ctrl-btn-primary {
+        background: var(--accent); color: #fff; border-color: transparent;
+        box-shadow: 0 2px 8px rgba(0,122,255,.25);
+      }
+      .ctrl-btn-primary:hover { background: var(--accent-hover); }
+      .ctrl-btn svg { width: 14px; height: 14px; fill: currentColor; }
+
+      /* Block tasks list */
+      .block-tasks-section {
+        max-width: 480px; margin: 0 auto;
+        text-align: left;
+      }
+      .bts-title {
+        font-size: .72rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: 8px;
+      }
+      .bts-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .bts-row:last-child { border-bottom: none; }
+      .bts-check {
+        width: 18px; height: 18px; flex-shrink: 0;
+        border-radius: 50%;
+        border: 2px solid var(--text-3);
+        cursor: pointer;
+      }
+      .bts-row.done .bts-check {
+        background: var(--done);
+        border-color: var(--done);
+      }
+      .bts-row.active .bts-check {
+        border-color: var(--warn);
+        background: var(--warn);
+        box-shadow: 0 0 0 4px rgba(255,149,0,.15);
+      }
+      .bts-text { font-size: .92rem; }
+      .bts-row.done .bts-text {
+        color: var(--text-3); text-decoration: line-through;
+      }
+      .bts-row.active .bts-text { font-weight: 600; }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeUp 400ms ease both; }
+      .d1 { animation-delay: 80ms; }
+      .d2 { animation-delay: 160ms; }
+      .d3 { animation-delay: 240ms; }
+    </style>
+  </head>
+  <body>
+    <nav class="focus-nav">
+      <div class="focus-nav-inner">
+        <button class="nav-back">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 12L6 8l4-4"/>
+          </svg>
+          Exit focus
+        </button>
+        <div class="focus-meta">
+          <span class="focus-meta-dot"></span>
+          Block 1 of 3
+        </div>
+        <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'"></button>
+      </div>
+    </nav>
+
+    <main class="focus-shell">
+      <div class="anim">
+        <div class="block-name">Active block</div>
+        <h1 class="block-headline">TypeScript Deep Work</h1>
+        <p class="block-time">10:00 AM – 12:00 PM</p>
+      </div>
+
+      <div class="timer-wrap anim d1">
+        <svg class="timer-svg" viewBox="0 0 280 280">
+          <circle class="ring-bg" cx="140" cy="140" r="133"/>
+          <circle class="ring-fg" cx="140" cy="140" r="133"/>
+        </svg>
+        <div class="timer-content">
+          <div class="timer-value">01:14:32</div>
+          <div class="timer-sub">remaining of 2h block</div>
+        </div>
+      </div>
+
+      <div class="now-card anim d2">
+        <div class="now-label">Now working on</div>
+        <div class="now-task">Finish TypeScript assignment</div>
+        <div class="now-actions">
+          <button class="now-btn now-btn-primary">Mark done</button>
+          <button class="now-btn">Switch task</button>
+        </div>
+      </div>
+
+      <div class="controls anim d2">
+        <button class="ctrl-btn ctrl-btn-primary">
+          <svg viewBox="0 0 16 16"><path d="M5 3.5v9a.5.5 0 0 0 .76.43l7.5-4.5a.5.5 0 0 0 0-.86l-7.5-4.5A.5.5 0 0 0 5 3.5z"/></svg>
+          Continue
+        </button>
+        <button class="ctrl-btn">Pause</button>
+        <button class="ctrl-btn">End block</button>
+      </div>
+
+      <section class="block-tasks-section anim d3">
+        <div class="bts-title">Tasks in this block</div>
+        <div class="bts-row active">
+          <div class="bts-check"></div>
+          <div class="bts-text">Finish TypeScript assignment</div>
+        </div>
+        <div class="bts-row done">
+          <div class="bts-check"></div>
+          <div class="bts-text">Email professor about extension</div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

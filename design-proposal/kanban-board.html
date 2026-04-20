@@ -1,0 +1,471 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Daily Kanban Board</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --r-md: 10px;
+        --r-lg: 14px;
+        --r-xl: 18px;
+        --t: 200ms cubic-bezier(.4, 0, .2, 1);
+      }
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface-solid: #ffffff;
+        --surface: rgba(255,255,255,.82);
+        --surface-hover: #f8f9fb;
+        --column-bg: #eef0f4;
+        --line: rgba(0,0,0,.06);
+        --line-strong: rgba(0,0,0,.10);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0,122,255,.08);
+        --done: #34c759;
+        --warn: #ff9500;
+        --danger: #ff3b30;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+        --shadow-md: 0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+        --shadow-lg: 0 4px 12px rgba(0,0,0,.06), 0 12px 32px rgba(0,0,0,.08);
+      }
+      [data-theme="dark"] {
+        --bg: #000;
+        --surface-solid: #1c1c1e;
+        --surface: rgba(28,28,30,.82);
+        --surface-hover: #2c2c2e;
+        --column-bg: #131316;
+        --line: rgba(255,255,255,.08);
+        --line-strong: rgba(255,255,255,.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10,132,255,.14);
+        --done: #30d158;
+        --warn: #ff9f0a;
+        --danger: #ff453a;
+        --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+        --shadow-md: 0 1px 3px rgba(0,0,0,.2), 0 4px 16px rgba(0,0,0,.3);
+        --shadow-lg: 0 4px 12px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4);
+      }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* Nav */
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1280px; margin: 0 auto;
+        padding: 0 24px; height: 56px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .brand { font-weight: 700; font-size: 1rem; letter-spacing: -.02em; }
+      .nav-tabs { display: flex; gap: 2px; }
+      .nav-tab {
+        padding: 6px 14px; border-radius: 10px;
+        font-size: .86rem; font-weight: 500; color: var(--text-2);
+        border: none; background: transparent; cursor: pointer;
+      }
+      .nav-tab.active { color: var(--accent); background: var(--accent-soft); }
+      .nav-r { display: flex; align-items: center; gap: 12px; }
+      .avatar {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+
+      /* Shell */
+      .shell { max-width: 1280px; margin: 0 auto; padding: 32px 24px 56px; }
+
+      /* Header */
+      .board-head {
+        display: flex; align-items: flex-end; justify-content: space-between;
+        margin-bottom: 24px; gap: 16px; flex-wrap: wrap;
+      }
+      .board-head h1 {
+        font-size: 1.85rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1;
+      }
+      .board-head p {
+        margin-top: 6px; color: var(--text-2); font-size: .92rem;
+      }
+      .head-actions { display: flex; align-items: center; gap: 10px; }
+      .date-nav {
+        display: flex; align-items: center; gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface-solid);
+      }
+      .date-btn {
+        height: 32px; min-width: 32px;
+        border: none; background: transparent;
+        border-radius: 8px; cursor: pointer;
+        display: grid; place-items: center;
+        color: var(--text-2);
+        transition: background var(--t);
+      }
+      .date-btn:hover { background: var(--surface-hover); color: var(--text); }
+      .date-current {
+        padding: 6px 14px;
+        font-size: .88rem; font-weight: 600;
+      }
+      .btn-primary {
+        height: 36px; padding: 0 16px;
+        border: none; border-radius: 10px;
+        background: var(--accent); color: #fff;
+        font-family: var(--font); font-weight: 600; font-size: .86rem;
+        cursor: pointer;
+        display: inline-flex; align-items: center; gap: 6px;
+        box-shadow: 0 1px 2px rgba(0,122,255,.25);
+      }
+      .btn-primary:hover { background: var(--accent-hover); }
+      .btn-primary svg { width: 14px; height: 14px; fill: currentColor; }
+
+      /* Board */
+      .board {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      @media (max-width: 1100px) {
+        .board { grid-template-columns: repeat(2, 1fr); }
+      }
+      @media (max-width: 700px) {
+        .board { grid-template-columns: 1fr; }
+      }
+
+      .column {
+        background: var(--column-bg);
+        border-radius: 16px;
+        padding: 14px;
+        display: flex; flex-direction: column;
+        min-height: 400px;
+      }
+
+      .col-head {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 12px;
+        padding: 0 4px;
+      }
+      .col-title-wrap { display: flex; align-items: center; gap: 8px; }
+      .col-dot { width: 8px; height: 8px; border-radius: 50%; }
+      .col-title {
+        font-size: .82rem; font-weight: 700;
+        letter-spacing: .02em;
+        text-transform: uppercase;
+      }
+      .col-count {
+        font-size: .76rem; font-weight: 600;
+        color: var(--text-3);
+        background: var(--surface-solid);
+        padding: 2px 8px;
+        border-radius: 999px;
+      }
+      .col-add {
+        width: 24px; height: 24px;
+        border: none; border-radius: 6px;
+        background: transparent;
+        cursor: pointer;
+        color: var(--text-3);
+        transition: background var(--t), color var(--t);
+        display: grid; place-items: center;
+      }
+      .col-add:hover { background: var(--surface-solid); color: var(--accent); }
+
+      /* Column accents */
+      .col-backlog .col-dot { background: var(--text-3); }
+      .col-planned .col-dot { background: var(--accent); }
+      .col-progress .col-dot { background: var(--warn); }
+      .col-done .col-dot { background: var(--done); }
+
+      /* Cards */
+      .cards { display: flex; flex-direction: column; gap: 8px; }
+      .card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        cursor: grab;
+        transition: box-shadow var(--t), transform 120ms ease, border-color var(--t);
+        box-shadow: var(--shadow-sm);
+      }
+      .card:hover {
+        box-shadow: var(--shadow-md);
+        transform: translateY(-1px);
+        border-color: var(--line-strong);
+      }
+      .card-title {
+        font-size: .92rem; font-weight: 500; line-height: 1.4;
+        color: var(--text);
+      }
+      .card-meta {
+        display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+        margin-top: 8px;
+      }
+      .tag {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: .72rem; font-weight: 500;
+        padding: 3px 8px;
+        border-radius: 999px;
+      }
+      .tag-block {
+        background: var(--accent-soft); color: var(--accent);
+      }
+      .tag-time {
+        background: var(--surface-hover); color: var(--text-2);
+      }
+      .tag-priority-high {
+        background: rgba(255,59,48,.10); color: var(--danger);
+      }
+      .tag-priority-med {
+        background: rgba(255,149,0,.10); color: var(--warn);
+      }
+
+      /* In Progress card variant */
+      .card-progress {
+        border-color: var(--warn);
+        box-shadow: 0 0 0 3px rgba(255,149,0,.10);
+      }
+      .progress-bar {
+        height: 4px; border-radius: 999px;
+        background: var(--line); margin-top: 10px;
+        overflow: hidden;
+      }
+      .progress-bar > div {
+        height: 100%;
+        background: linear-gradient(90deg, var(--warn), #ffb340);
+        border-radius: 999px;
+      }
+
+      /* Done card variant */
+      .card-done .card-title {
+        color: var(--text-3);
+        text-decoration: line-through;
+      }
+      .card-done {
+        opacity: .75;
+      }
+
+      /* Empty column placeholder */
+      .empty-card {
+        border: 1.5px dashed var(--line-strong);
+        border-radius: 12px;
+        padding: 16px;
+        text-align: center;
+        color: var(--text-3);
+        font-size: .82rem;
+        background: transparent;
+      }
+
+      /* WIP banner */
+      .wip-banner {
+        margin-top: 12px;
+        padding: 10px 12px;
+        border-radius: 10px;
+        background: rgba(255,149,0,.08);
+        border: 1px solid rgba(255,149,0,.20);
+        color: var(--warn);
+        font-size: .76rem; font-weight: 500;
+        display: flex; align-items: center; gap: 6px;
+      }
+
+      /* Animations */
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeUp 350ms ease both; }
+      .d1 { animation-delay: 60ms; }
+      .d2 { animation-delay: 120ms; }
+      .d3 { animation-delay: 180ms; }
+      .d4 { animation-delay: 240ms; }
+
+      /* Theme toggle */
+      .toggle {
+        position: relative; width: 40px; height: 24px;
+        border-radius: 999px; background: #e5e5ea;
+        border: none; cursor: pointer;
+      }
+      [data-theme="dark"] .toggle { background: #39393d; }
+      .toggle::after {
+        content: ""; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        transition: transform var(--t);
+      }
+      [data-theme="dark"] .toggle::after { transform: translateX(16px); background: #f5f5f7; }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">TaskPilot</div>
+        <div class="nav-tabs">
+          <button class="nav-tab">Home</button>
+          <button class="nav-tab">Today</button>
+          <button class="nav-tab active">Board</button>
+          <button class="nav-tab">Blocks</button>
+          <button class="nav-tab">Insights</button>
+        </div>
+        <div class="nav-r">
+          <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+      <header class="board-head anim">
+        <div>
+          <h1>Today's Board</h1>
+          <p>Plan, focus, and finish — one task at a time.</p>
+        </div>
+        <div class="head-actions">
+          <div class="date-nav">
+            <button class="date-btn" aria-label="Previous day">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12L6 8l4-4"/></svg>
+            </button>
+            <div class="date-current">Wed, April 15</div>
+            <button class="date-btn" aria-label="Next day">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+            </button>
+          </div>
+          <button class="btn-primary">
+            <svg viewBox="0 0 16 16"><path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z"/></svg>
+            New Task
+          </button>
+        </div>
+      </header>
+
+      <div class="board">
+        <!-- Backlog -->
+        <section class="column col-backlog anim d1">
+          <div class="col-head">
+            <div class="col-title-wrap">
+              <div class="col-dot"></div>
+              <span class="col-title">Backlog</span>
+              <span class="col-count">3</span>
+            </div>
+            <button class="col-add" aria-label="Add task">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z"/></svg>
+            </button>
+          </div>
+          <div class="cards">
+            <article class="card">
+              <p class="card-title">Read 20 pages of biology textbook</p>
+              <div class="card-meta">
+                <span class="tag tag-time">Chapter 7</span>
+              </div>
+            </article>
+            <article class="card">
+              <p class="card-title">Prepare presentation slides</p>
+              <div class="card-meta">
+                <span class="tag tag-priority-med">Medium</span>
+              </div>
+            </article>
+            <article class="card">
+              <p class="card-title">Organize desktop files</p>
+            </article>
+          </div>
+        </section>
+
+        <!-- Planned -->
+        <section class="column col-planned anim d2">
+          <div class="col-head">
+            <div class="col-title-wrap">
+              <div class="col-dot"></div>
+              <span class="col-title">Planned</span>
+              <span class="col-count">2</span>
+            </div>
+            <button class="col-add" aria-label="Add task">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z"/></svg>
+            </button>
+          </div>
+          <div class="cards">
+            <article class="card">
+              <p class="card-title">Review math notes for quiz</p>
+              <div class="card-meta">
+                <span class="tag tag-block">Block 2 · 2-4 PM</span>
+                <span class="tag tag-priority-med">Medium</span>
+              </div>
+            </article>
+            <article class="card">
+              <p class="card-title">Submit lab report</p>
+              <div class="card-meta">
+                <span class="tag tag-block">Block 3 · 4-6 PM</span>
+                <span class="tag tag-priority-high">High</span>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <!-- In Progress -->
+        <section class="column col-progress anim d3">
+          <div class="col-head">
+            <div class="col-title-wrap">
+              <div class="col-dot"></div>
+              <span class="col-title">In Progress</span>
+              <span class="col-count">1</span>
+            </div>
+            <button class="col-add" aria-label="Add task">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z"/></svg>
+            </button>
+          </div>
+          <div class="cards">
+            <article class="card card-progress">
+              <p class="card-title">Finish TypeScript assignment</p>
+              <div class="card-meta">
+                <span class="tag tag-block">Block 1 · 10-12 PM</span>
+                <span class="tag tag-priority-high">High</span>
+              </div>
+              <div class="progress-bar"><div style="width: 45%"></div></div>
+            </article>
+          </div>
+          <div class="wip-banner">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 4zm0 7a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z"/></svg>
+            One task in progress — stay focused
+          </div>
+        </section>
+
+        <!-- Done -->
+        <section class="column col-done anim d4">
+          <div class="col-head">
+            <div class="col-title-wrap">
+              <div class="col-dot"></div>
+              <span class="col-title">Done</span>
+              <span class="col-count">1</span>
+            </div>
+          </div>
+          <div class="cards">
+            <article class="card card-done">
+              <p class="card-title">Prepare project status report</p>
+              <div class="card-meta">
+                <span class="tag tag-time">Completed 2h ago</span>
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>

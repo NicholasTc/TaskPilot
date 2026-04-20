@@ -7,6 +7,7 @@ import { PropsWithChildren, useMemo, useState } from "react";
 const tabs = [
   { href: "/", label: "Home" },
   { href: "/today", label: "Today" },
+  { href: "/board", label: "Board" },
   { href: "/upcoming", label: "Upcoming" },
   { href: "/insights", label: "Insights" },
 ];
@@ -22,6 +23,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const activeHref = useMemo(() => {
     if (pathname === "/") return "/";
     if (pathname.startsWith("/today")) return "/today";
+    if (pathname.startsWith("/board")) return "/board";
     if (pathname.startsWith("/upcoming")) return "/upcoming";
     if (pathname.startsWith("/insights")) return "/insights";
     return "";

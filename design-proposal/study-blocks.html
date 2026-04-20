@@ -1,0 +1,497 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Study Blocks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <style>
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --r-md: 10px;
+        --r-lg: 14px;
+        --r-xl: 18px;
+        --t: 200ms cubic-bezier(.4, 0, .2, 1);
+      }
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface-solid: #ffffff;
+        --surface: rgba(255,255,255,.82);
+        --surface-hover: #f8f9fb;
+        --line: rgba(0,0,0,.06);
+        --line-strong: rgba(0,0,0,.10);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0,122,255,.08);
+        --done: #34c759;
+        --done-soft: rgba(52,199,89,.10);
+        --warn: #ff9500;
+        --warn-soft: rgba(255,149,0,.10);
+        --shadow-sm: 0 1px 2px rgba(0,0,0,.04);
+        --shadow-md: 0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05);
+        --shadow-lg: 0 4px 12px rgba(0,0,0,.06), 0 12px 32px rgba(0,0,0,.08);
+      }
+      [data-theme="dark"] {
+        --bg: #000;
+        --surface-solid: #1c1c1e;
+        --surface: rgba(28,28,30,.82);
+        --surface-hover: #2c2c2e;
+        --line: rgba(255,255,255,.08);
+        --line-strong: rgba(255,255,255,.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10,132,255,.14);
+        --done: #30d158;
+        --done-soft: rgba(48,209,88,.14);
+        --warn: #ff9f0a;
+        --warn-soft: rgba(255,159,10,.14);
+        --shadow-sm: 0 1px 2px rgba(0,0,0,.3);
+        --shadow-md: 0 1px 3px rgba(0,0,0,.2), 0 4px 16px rgba(0,0,0,.3);
+        --shadow-lg: 0 4px 12px rgba(0,0,0,.3), 0 12px 32px rgba(0,0,0,.4);
+      }
+      *, *::before, *::after { box-sizing: border-box; margin: 0; }
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      .nav {
+        position: sticky; top: 0; z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1040px; margin: 0 auto;
+        padding: 0 24px; height: 56px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .brand { font-weight: 700; font-size: 1rem; letter-spacing: -.02em; }
+      .nav-tabs { display: flex; gap: 2px; }
+      .nav-tab {
+        padding: 6px 14px; border-radius: 10px;
+        font-size: .86rem; font-weight: 500; color: var(--text-2);
+        border: none; background: transparent; cursor: pointer;
+      }
+      .nav-tab.active { color: var(--accent); background: var(--accent-soft); }
+      .nav-r { display: flex; align-items: center; gap: 12px; }
+      .avatar {
+        width: 30px; height: 30px; border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+      .toggle {
+        position: relative; width: 40px; height: 24px;
+        border-radius: 999px; background: #e5e5ea;
+        border: none; cursor: pointer;
+      }
+      [data-theme="dark"] .toggle { background: #39393d; }
+      .toggle::after {
+        content: ""; position: absolute; top: 3px; left: 3px;
+        width: 18px; height: 18px; border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0,0,0,.2);
+        transition: transform var(--t);
+      }
+      [data-theme="dark"] .toggle::after { transform: translateX(16px); background: #f5f5f7; }
+
+      .shell { max-width: 1040px; margin: 0 auto; padding: 32px 24px 56px; }
+
+      .head { margin-bottom: 32px; }
+      .head h1 {
+        font-size: 1.85rem; font-weight: 700; letter-spacing: -.03em; line-height: 1.1;
+      }
+      .head p { margin-top: 6px; color: var(--text-2); font-size: .95rem; }
+      .head-philosophy {
+        margin-top: 14px;
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: .82rem; font-weight: 500;
+      }
+      .head-philosophy svg { width: 13px; height: 13px; fill: currentColor; }
+
+      .section-title {
+        font-size: .78rem; font-weight: 600; color: var(--text-3);
+        text-transform: uppercase; letter-spacing: .04em;
+        margin-bottom: 12px;
+      }
+
+      /* Active block hero */
+      .active-block {
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        border-radius: 18px;
+        padding: 28px;
+        color: #fff;
+        margin-bottom: 32px;
+        box-shadow: 0 8px 24px rgba(0,122,255,.25);
+        position: relative;
+        overflow: hidden;
+      }
+      [data-theme="dark"] .active-block {
+        background: linear-gradient(135deg, #0a84ff, #5e5ce6);
+      }
+      .active-block::before {
+        content: "";
+        position: absolute;
+        top: -40px; right: -40px;
+        width: 200px; height: 200px;
+        border-radius: 50%;
+        background: rgba(255,255,255,.08);
+      }
+      .ab-label {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: .78rem; font-weight: 600;
+        text-transform: uppercase; letter-spacing: .05em;
+        opacity: .8;
+        margin-bottom: 8px;
+      }
+      .ab-label::before {
+        content: "";
+        width: 8px; height: 8px;
+        border-radius: 50%; background: #fff;
+        animation: pulse 2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: .6; transform: scale(1.3); }
+      }
+      .ab-title {
+        font-size: 1.45rem; font-weight: 700; letter-spacing: -.02em;
+        margin-bottom: 4px;
+      }
+      .ab-time { font-size: .92rem; opacity: .9; }
+      .ab-grid {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 24px;
+        align-items: end;
+        margin-top: 20px;
+        position: relative;
+      }
+      .ab-tasks {
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .ab-task {
+        display: flex; align-items: center; gap: 10px;
+        font-size: .92rem;
+      }
+      .ab-task-check {
+        width: 18px; height: 18px;
+        border-radius: 50%;
+        border: 2px solid rgba(255,255,255,.5);
+        flex-shrink: 0;
+        display: grid; place-items: center;
+      }
+      .ab-task.done .ab-task-check {
+        background: #fff; border-color: #fff;
+      }
+      .ab-task.done .ab-task-check::after {
+        content: "✓";
+        color: #007aff;
+        font-size: .7rem; font-weight: 700;
+      }
+      .ab-task.done span { opacity: .65; text-decoration: line-through; }
+      .ab-timer {
+        text-align: right;
+      }
+      .ab-timer-value {
+        font-size: 2.4rem; font-weight: 700; letter-spacing: -.04em;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .ab-timer-label {
+        font-size: .8rem; opacity: .8; margin-top: 4px;
+      }
+      .ab-actions {
+        margin-top: 20px;
+        display: flex; gap: 8px;
+        position: relative;
+      }
+      .ab-btn {
+        height: 38px; padding: 0 18px;
+        border-radius: 10px;
+        border: none;
+        font-family: var(--font); font-weight: 600; font-size: .86rem;
+        cursor: pointer;
+      }
+      .ab-btn-primary {
+        background: #fff; color: #007aff;
+      }
+      .ab-btn-ghost {
+        background: rgba(255,255,255,.18); color: #fff;
+      }
+
+      /* Block list */
+      .blocks-list {
+        display: flex; flex-direction: column; gap: 12px;
+      }
+      .block-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 20px;
+        display: grid;
+        grid-template-columns: auto 1fr auto;
+        gap: 18px;
+        align-items: center;
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow var(--t), border-color var(--t);
+      }
+      .block-card:hover {
+        box-shadow: var(--shadow-md);
+        border-color: var(--line-strong);
+      }
+      .block-time-col {
+        text-align: center;
+        min-width: 80px;
+        padding-right: 18px;
+        border-right: 1px solid var(--line);
+      }
+      .block-time-start {
+        font-size: 1.4rem; font-weight: 700; letter-spacing: -.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .block-time-end {
+        font-size: .78rem; color: var(--text-3); margin-top: 2px;
+      }
+      .block-time-duration {
+        margin-top: 6px;
+        font-size: .72rem; font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: inline-block;
+      }
+      .block-content {}
+      .block-title {
+        font-size: 1.05rem; font-weight: 600; letter-spacing: -.01em;
+        margin-bottom: 6px;
+      }
+      .block-tasks-summary {
+        font-size: .82rem; color: var(--text-2);
+        margin-bottom: 10px;
+      }
+      .block-tasks {
+        display: flex; flex-direction: column; gap: 4px;
+      }
+      .block-task-mini {
+        display: flex; align-items: center; gap: 8px;
+        font-size: .85rem; color: var(--text-2);
+      }
+      .block-task-mini .dot {
+        width: 5px; height: 5px;
+        border-radius: 50%;
+        background: var(--text-3);
+        flex-shrink: 0;
+      }
+      .block-task-mini.done span {
+        text-decoration: line-through; opacity: .6;
+      }
+      .block-task-mini.done .dot { background: var(--done); }
+
+      .block-action {
+        display: flex; flex-direction: column; gap: 6px;
+        align-items: flex-end;
+      }
+      .block-status {
+        font-size: .72rem; font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+        text-transform: uppercase; letter-spacing: .04em;
+      }
+      .status-active { background: var(--warn-soft); color: var(--warn); }
+      .status-upcoming { background: var(--accent-soft); color: var(--accent); }
+      .status-done { background: var(--done-soft); color: var(--done); }
+      .block-btn {
+        height: 32px; padding: 0 14px;
+        border-radius: 8px;
+        border: 1px solid var(--line);
+        background: var(--surface-solid);
+        font-family: var(--font); font-weight: 500; font-size: .82rem;
+        color: var(--text);
+        cursor: pointer;
+        transition: border-color var(--t);
+      }
+      .block-btn:hover { border-color: var(--line-strong); }
+      .block-btn-primary {
+        background: var(--accent); color: #fff; border-color: transparent;
+      }
+
+      /* Empty state */
+      .add-block {
+        margin-top: 16px;
+        width: 100%;
+        padding: 18px;
+        border: 1.5px dashed var(--line-strong);
+        border-radius: 16px;
+        background: transparent;
+        cursor: pointer;
+        color: var(--text-2);
+        font-family: var(--font); font-size: .92rem; font-weight: 500;
+        display: flex; align-items: center; justify-content: center; gap: 8px;
+        transition: border-color var(--t), color var(--t);
+      }
+      .add-block:hover { border-color: var(--accent); color: var(--accent); }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      .anim { animation: fadeUp 350ms ease both; }
+      .d1 { animation-delay: 60ms; }
+      .d2 { animation-delay: 120ms; }
+      .d3 { animation-delay: 180ms; }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">TaskPilot</div>
+        <div class="nav-tabs">
+          <button class="nav-tab">Home</button>
+          <button class="nav-tab">Today</button>
+          <button class="nav-tab">Board</button>
+          <button class="nav-tab active">Blocks</button>
+          <button class="nav-tab">Insights</button>
+        </div>
+        <div class="nav-r">
+          <button class="toggle" onclick="document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light'"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+      <header class="head anim">
+        <h1>Study Blocks</h1>
+        <p>Two hours of focused, single-task work. No multitasking.</p>
+        <div class="head-philosophy">
+          <svg viewBox="0 0 16 16"><path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.97 5.97a.75.75 0 0 0-1.06 0L7 9.88 5.09 8a.75.75 0 1 0-1.06 1.06l2.44 2.44a.75.75 0 0 0 1.06 0l4.44-4.44a.75.75 0 0 0 0-1.06z"/></svg>
+          Single-focus mode · 2-hour blocks
+        </div>
+      </header>
+
+      <!-- Active block hero -->
+      <section class="active-block anim d1">
+        <div class="ab-label">Active block</div>
+        <div class="ab-title">Block 1 — TypeScript Deep Work</div>
+        <div class="ab-time">10:00 AM – 12:00 PM · 2 hours</div>
+
+        <div class="ab-grid">
+          <div class="ab-tasks">
+            <div class="ab-task">
+              <div class="ab-task-check"></div>
+              <span>Finish TypeScript assignment</span>
+            </div>
+            <div class="ab-task done">
+              <div class="ab-task-check"></div>
+              <span>Email professor about extension</span>
+            </div>
+          </div>
+          <div class="ab-timer">
+            <div class="ab-timer-value">01:14:32</div>
+            <div class="ab-timer-label">Time remaining</div>
+          </div>
+        </div>
+
+        <div class="ab-actions">
+          <button class="ab-btn ab-btn-primary">Pause</button>
+          <button class="ab-btn ab-btn-ghost">End block</button>
+        </div>
+      </section>
+
+      <!-- Today's blocks list -->
+      <div class="section-title">Today's schedule</div>
+      <div class="blocks-list">
+        <article class="block-card anim d1">
+          <div class="block-time-col">
+            <div class="block-time-start">10:00</div>
+            <div class="block-time-end">– 12:00 PM</div>
+            <div class="block-time-duration">2h</div>
+          </div>
+          <div class="block-content">
+            <div class="block-title">TypeScript Deep Work</div>
+            <div class="block-tasks-summary">2 tasks · 1 in progress</div>
+            <div class="block-tasks">
+              <div class="block-task-mini">
+                <div class="dot"></div>
+                <span>Finish TypeScript assignment</span>
+              </div>
+              <div class="block-task-mini done">
+                <div class="dot"></div>
+                <span>Email professor about extension</span>
+              </div>
+            </div>
+          </div>
+          <div class="block-action">
+            <span class="block-status status-active">Active</span>
+            <button class="block-btn block-btn-primary">Open</button>
+          </div>
+        </article>
+
+        <article class="block-card anim d2">
+          <div class="block-time-col">
+            <div class="block-time-start">2:00</div>
+            <div class="block-time-end">– 4:00 PM</div>
+            <div class="block-time-duration">2h</div>
+          </div>
+          <div class="block-content">
+            <div class="block-title">Math Review</div>
+            <div class="block-tasks-summary">1 task</div>
+            <div class="block-tasks">
+              <div class="block-task-mini">
+                <div class="dot"></div>
+                <span>Review math notes for quiz</span>
+              </div>
+            </div>
+          </div>
+          <div class="block-action">
+            <span class="block-status status-upcoming">Upcoming</span>
+            <button class="block-btn">Edit</button>
+          </div>
+        </article>
+
+        <article class="block-card anim d3">
+          <div class="block-time-col">
+            <div class="block-time-start">4:00</div>
+            <div class="block-time-end">– 6:00 PM</div>
+            <div class="block-time-duration">2h</div>
+          </div>
+          <div class="block-content">
+            <div class="block-title">Lab Report Writing</div>
+            <div class="block-tasks-summary">1 task</div>
+            <div class="block-tasks">
+              <div class="block-task-mini">
+                <div class="dot"></div>
+                <span>Submit lab report</span>
+              </div>
+            </div>
+          </div>
+          <div class="block-action">
+            <span class="block-status status-upcoming">Upcoming</span>
+            <button class="block-btn">Edit</button>
+          </div>
+        </article>
+      </div>
+
+      <button class="add-block">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z"/></svg>
+        Add new block
+      </button>
+    </main>
+  </body>
+</html>
