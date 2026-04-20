@@ -18,6 +18,7 @@ type StudyBlock = {
   timerState?: "paused" | "running";
   remainingSeconds?: number;
   effectiveRemainingSeconds?: number;
+  runningSince?: string | null;
 };
 
 type BoardTask = Task & {
@@ -106,8 +107,10 @@ export default function BlocksPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSavingAssignments, setIsSavingAssignments] = useState(false);
+  const [isUpdatingTimer, setIsUpdatingTimer] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [nowMs, setNowMs] = useState(() => Date.now());
   const [openAssignBlockId, setOpenAssignBlockId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [draftTitle, setDraftTitle] = useState("");
@@ -121,6 +124,21 @@ export default function BlocksPage() {
     () => blocks.find((block) => block.status === "active") ?? null,
     [blocks],
   );
+  const activeBlockRemainingSeconds = useMemo(() => {
+    if (!activeBlock) return 0;
+
+    const baseRemaining =
+      activeBlock.effectiveRemainingSeconds ?? activeBlock.remainingSeconds ?? activeBlock.durationMin * 60;
+
+    if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
+      return Math.max(0, Math.floor(baseRemaining));
+    }
+
+    const runningSinceMs = new Date(activeBlock.runningSince).getTime();
+    const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
+    const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
+    return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
+  }, [activeBlock, nowMs]);
 
   const allTasksForDay = useMemo(
     () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
@@ -192,6 +210,20 @@ export default function BlocksPage() {
     const timer = window.setTimeout(() => setSuccessMessage(null), 2800);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
+
+  useEffect(() => {
+    if (!activeBlock || activeBlock.timerState !== "running") return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeBlock]);
+
+  useEffect(() => {
+    if (!activeBlock || activeBlock.timerState !== "running") return;
+    const interval = window.setInterval(() => {
+      void loadData();
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [activeBlock, loadData]);
 
   const handleCreateBlock = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -280,6 +312,32 @@ export default function BlocksPage() {
     } catch (error) {
       console.error("Ending block failed", error);
       setErrorMessage("Could not end block.");
+    }
+  };
+
+  const handleTogglePauseBlock = async (blockId: string, nextAction: "pause" | "resume") => {
+    try {
+      setIsUpdatingTimer(true);
+      setErrorMessage(null);
+      const response = await fetch(`/api/blocks/${blockId}/focus/timer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: nextAction }),
+      });
+      if (response.status === 401) {
+        redirectToLogin();
+        return;
+      }
+      if (!response.ok) {
+        throw new Error("Unable to update timer state");
+      }
+      await loadData();
+      setSuccessMessage(nextAction === "pause" ? "Block paused." : "Block resumed.");
+    } catch (error) {
+      console.error("Toggling block pause failed", error);
+      setErrorMessage("Could not update block timer state.");
+    } finally {
+      setIsUpdatingTimer(false);
     }
   };
 
@@ -428,9 +486,27 @@ export default function BlocksPage() {
             {toHumanTime(activeBlock.startMinutes + activeBlock.durationMin)} · {activeBlock.durationMin} min
           </p>
           <p className="mt-2 text-[0.82rem] opacity-90">
-            Remaining: {formatClock(activeBlock.effectiveRemainingSeconds ?? activeBlock.remainingSeconds ?? 0)}
+            Remaining: {formatClock(activeBlockRemainingSeconds)}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() =>
+                void handleTogglePauseBlock(
+                  activeBlock.id,
+                  activeBlock.timerState === "running" ? "pause" : "resume",
+                )
+              }
+              disabled={isUpdatingTimer || activeBlockRemainingSeconds <= 0}
+              className="h-9 rounded-[10px] px-4 text-[0.84rem] font-semibold"
+              style={{
+                background: "rgba(255,255,255,0.2)",
+                color: "#fff",
+                opacity: isUpdatingTimer || activeBlockRemainingSeconds <= 0 ? 0.6 : 1,
+              }}
+            >
+              {activeBlock.timerState === "running" ? "Pause" : "Resume"}
+            </button>
             <button
               type="button"
               onClick={() => handleEndBlock(activeBlock.id)}
