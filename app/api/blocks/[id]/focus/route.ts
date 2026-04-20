@@ -3,6 +3,8 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { applyElapsedAndPauseIfNeeded, getRemainingSeconds } from "@/lib/focus-timer";
 import { connectToDatabase } from "@/lib/db";
+import { normalizeBlockSessionState } from "@/lib/study-block-state";
+import { normalizeTaskState } from "@/lib/task-status";
 import { StudyBlockModel } from "@/models/StudyBlock";
 import { TaskModel } from "@/models/Task";
 
@@ -42,6 +44,7 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     applyElapsedAndPauseIfNeeded(block);
+    normalizeBlockSessionState(block);
     if (block.isModified()) {
       await block.save();
     }
@@ -68,16 +71,19 @@ export async function GET(_request: Request, context: RouteContext) {
         runningSince: block.runningSince ? block.runningSince.toISOString() : null,
         activeTaskId: block.activeTaskId ? block.activeTaskId.toString() : null,
       },
-      tasks: tasks.map((task) => ({
-        id: task._id.toString(),
-        name: task.name,
-        meta: task.meta || "",
-        completed: task.completed,
-        status: task.status ?? (task.completed ? "done" : "planned"),
-        dayKey: task.dayKey ?? null,
-        order: task.order ?? 0,
-        studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
-      })),
+      tasks: tasks.map((task) => {
+        const { status, completed } = normalizeTaskState(task);
+        return {
+          id: task._id.toString(),
+          name: task.name,
+          meta: task.meta || "",
+          completed,
+          status,
+          dayKey: task.dayKey ?? null,
+          order: task.order ?? 0,
+          studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
+        };
+      }),
     });
   } catch (error) {
     console.error(`GET /api/blocks/${id}/focus failed`, error);

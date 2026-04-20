@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
+import { normalizeTaskState } from "@/lib/task-status";
 
 const dayKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -24,13 +25,14 @@ function toTaskResponse(task: {
   order?: number;
   studyBlockId?: mongoose.Types.ObjectId | string | null;
 }) {
+  const { status, completed } = normalizeTaskState(task);
   return {
     id: task._id.toString(),
     name: task.name,
     meta: task.meta || "",
-    completed: task.completed,
+    completed,
     dayKey: task.dayKey ?? null,
-    status: task.status ?? (task.completed ? "done" : "backlog"),
+    status,
     order: task.order ?? 0,
     studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
   };
@@ -65,14 +67,7 @@ export async function GET(request: NextRequest) {
 
     for (const task of tasks) {
       const mappedTask = toTaskResponse(task);
-      const safeStatus =
-        TASK_STATUSES.includes(mappedTask.status as (typeof TASK_STATUSES)[number]) &&
-        mappedTask.status
-          ? mappedTask.status
-          : mappedTask.completed
-            ? "done"
-            : "backlog";
-      tasksByStatus[safeStatus].push({ ...mappedTask, status: safeStatus });
+      tasksByStatus[mappedTask.status].push(mappedTask);
     }
 
     return NextResponse.json({

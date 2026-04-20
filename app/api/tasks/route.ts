@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
+import { normalizeTaskState } from "@/lib/task-status";
 
 const taskSortOrder = { completed: 1 as const, createdAt: -1 as const };
 const dayKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -40,13 +41,14 @@ function toTaskResponse(task: {
   order?: number;
   studyBlockId?: mongoose.Types.ObjectId | string | null;
 }) {
+  const { status, completed } = normalizeTaskState(task);
   return {
     id: task._id.toString(),
     name: task.name,
     meta: task.meta || "",
-    completed: task.completed,
+    completed,
     dayKey: task.dayKey ?? null,
-    status: task.status ?? (task.completed ? "done" : "backlog"),
+    status,
     order: task.order ?? 0,
     studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
   };

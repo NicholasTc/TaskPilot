@@ -137,25 +137,14 @@ export function FlowStrip({ alwaysShow = false }: FlowStripProps) {
           })}
         </ol>
 
-        {/* Next-action hint */}
+        {/* Orientation-only hint. Primary CTA lives in the page's banner,
+            so the strip never competes for the "do this next" role. */}
         {hint ? (
-          <div className="flex items-center gap-2.5 text-[0.8rem]" style={{ color: "var(--text-2)" }}>
+          <div className="flex items-center gap-2 text-[0.8rem]" style={{ color: "var(--text-2)" }}>
             <span className="font-semibold" style={{ color: "var(--text)" }}>
               Next:
             </span>
             <span>{hint.message}</span>
-            {hint.ctaHref !== pathname ? (
-              <Link
-                href={hint.ctaHref}
-                className="inline-flex items-center gap-1 rounded-[8px] px-2.5 py-1 text-[0.78rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
-                style={{ background: "var(--accent)" }}
-              >
-                {hint.ctaLabel}
-                <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M6 4l4 4-4 4" />
-                </svg>
-              </Link>
-            ) : null}
           </div>
         ) : null}
       </div>

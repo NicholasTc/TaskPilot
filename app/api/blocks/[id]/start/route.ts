@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { applyElapsedAndPauseIfNeeded, getDefaultRemainingSeconds } from "@/lib/focus-timer";
+import { normalizeBlockSessionState } from "@/lib/study-block-state";
 import { StudyBlockModel } from "@/models/StudyBlock";
 
 type RouteContext = {
@@ -46,6 +47,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     applyElapsedAndPauseIfNeeded(block);
+    if (block.status === "done") {
+      return NextResponse.json(
+        { error: "Block is already done." },
+        { status: 409 },
+      );
+    }
     block.status = "active";
     if (block.remainingSeconds <= 0) {
       block.remainingSeconds = getDefaultRemainingSeconds(block.durationMin);
@@ -55,6 +62,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     if (activeTaskId !== null) {
       block.activeTaskId = toObjectId(activeTaskId);
     }
+    normalizeBlockSessionState(block);
 
     await block.save();
 

@@ -9,6 +9,7 @@ import {
   DailyFlowTask,
   deriveDailyFlow,
 } from "@/lib/daily-flow";
+import { normalizeTaskState } from "@/lib/task-status";
 
 const dayKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
 
     const flowTasks: DailyFlowTask[] = tasks.map((t) => ({
       id: String(t._id),
-      status: (t.status ?? (t.completed ? "done" : "backlog")) as DailyFlowTask["status"],
+      status: normalizeTaskState(t).status,
       studyBlockId: t.studyBlockId ? String(t.studyBlockId) : null,
     }));
 

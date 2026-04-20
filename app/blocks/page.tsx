@@ -460,7 +460,7 @@ export default function BlocksPage() {
         ? {
             eyebrow: "Step 2 · Commit",
             title: `Assign ${plannedNotCommitted} planned task${plannedNotCommitted === 1 ? "" : "s"} to a block.`,
-            description: "Drag or use the assign panel to commit each task to a time window.",
+            description: "Tap Assign on a block to commit each task to a time window.",
             tone: "accent" as const,
             cta: undefined,
           }
@@ -495,17 +495,8 @@ export default function BlocksPage() {
         <div>
           <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Study Blocks</h1>
           <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
-            Two hours of focused, single-task work. No multitasking.
+            Commit each planned task to a time window.
           </p>
-          <div
-            className="mt-3.5 inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.82rem] font-medium"
-            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-          >
-            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
-              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.97 5.97a.75.75 0 0 0-1.06 0L7 9.88 5.09 8a.75.75 0 1 0-1.06 1.06l2.44 2.44a.75.75 0 0 0 1.06 0l4.44-4.44a.75.75 0 0 0 0-1.06z" />
-            </svg>
-            Single-focus mode · 2-hour blocks
-          </div>
         </div>
         <div
           className="flex items-center gap-1 rounded-[12px] border p-1"
@@ -613,7 +604,15 @@ export default function BlocksPage() {
               </div>
             </div>
 
-            <div className="relative mt-5 flex flex-wrap gap-2">
+            <div className="relative mt-5 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => router.push(`/blocks/${activeBlock.id}/focus`)}
+                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold"
+                style={{ background: "#fff", color: "var(--accent)" }}
+              >
+                Open focus mode
+              </button>
               <button
                 type="button"
                 onClick={() =>
@@ -623,28 +622,19 @@ export default function BlocksPage() {
                   )
                 }
                 disabled={isUpdatingTimer || activeBlockRemainingSeconds <= 0}
-                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold"
+                className="h-[32px] rounded-[8px] px-3 text-[0.8rem] font-medium text-white"
                 style={{
-                  background: "#fff",
-                  color: "var(--accent)",
-                  opacity: isUpdatingTimer || activeBlockRemainingSeconds <= 0 ? 0.65 : 1,
+                  background: "rgba(255,255,255,0.16)",
+                  opacity: isUpdatingTimer || activeBlockRemainingSeconds <= 0 ? 0.55 : 1,
                 }}
               >
                 {activeBlock.timerState === "running" ? "Pause" : "Resume"}
               </button>
               <button
                 type="button"
-                onClick={() => router.push(`/blocks/${activeBlock.id}/focus`)}
-                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.18)" }}
-              >
-                Open focus mode
-              </button>
-              <button
-                type="button"
                 onClick={() => handleEndBlock(activeBlock.id)}
-                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.18)" }}
+                className="h-[32px] rounded-[8px] px-3 text-[0.8rem] font-medium text-white"
+                style={{ background: "rgba(255,255,255,0.16)" }}
               >
                 End block
               </button>
@@ -776,7 +766,7 @@ export default function BlocksPage() {
                       {statusLabel}
                     </span>
                     <div className="flex flex-wrap justify-end gap-1.5">
-                      {block.status !== "active" && block.status !== "done" ? (
+                      {block.status === "planned" ? (
                         <button
                           type="button"
                           onClick={() => void handleStartBlock(block.id)}
@@ -793,28 +783,34 @@ export default function BlocksPage() {
                           className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
                           style={{ background: "var(--accent)" }}
                         >
-                          Open
+                          Open focus
+                        </button>
+                      ) : null}
+                      {block.status !== "done" ? (
+                        <button
+                          type="button"
+                          onClick={() => (isAssignOpen ? setOpenAssignBlockId(null) : openAssignPanel(block))}
+                          className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
+                          style={{
+                            borderColor: "var(--line)",
+                            background: "var(--surface-solid)",
+                            color: "var(--text-2)",
+                          }}
+                        >
+                          {isAssignOpen ? "Close" : "Assign"}
                         </button>
                       ) : null}
                       <button
                         type="button"
-                        onClick={() => (isAssignOpen ? setOpenAssignBlockId(null) : openAssignPanel(block))}
-                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
-                        style={{
-                          borderColor: "var(--line)",
-                          background: "var(--surface-solid)",
-                          color: "var(--text)",
-                        }}
-                      >
-                        {isAssignOpen ? "Close" : "Assign"}
-                      </button>
-                      <button
-                        type="button"
                         onClick={() => void handleDeleteBlock(block.id)}
-                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
-                        style={{ borderColor: "var(--line)", color: "var(--danger)" }}
+                        aria-label="Delete block"
+                        title="Delete block"
+                        className="grid h-8 w-8 place-items-center rounded-[8px] border text-[var(--text-3)] hover:text-[var(--danger)]"
+                        style={{ borderColor: "var(--line)" }}
                       >
-                        Delete
+                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6zM14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z" />
+                        </svg>
                       </button>
                     </div>
                   </div>

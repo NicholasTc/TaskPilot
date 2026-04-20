@@ -336,22 +336,6 @@ export default function HomePage() {
             <p className="mb-3.5 text-[0.92rem] opacity-90">
               {activeTask ? `Now: ${activeTask.name}` : "No active task selected"}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href={`/blocks/${activeBlock.id}/focus`}
-                className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.82rem] font-semibold"
-                style={{ background: "#fff", color: "var(--accent)" }}
-              >
-                Open focus mode
-              </Link>
-              <Link
-                href="/blocks"
-                className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.82rem] font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.18)" }}
-              >
-                Manage blocks
-              </Link>
-            </div>
           </div>
           <div className="relative text-right max-[800px]:text-left">
             <div className="text-[2.2rem] font-bold leading-none tracking-[-0.04em] tabular-nums">
@@ -362,26 +346,19 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-      ) : (
+      ) : !isInFlow ? (
         <section
-          className="anim anim-d1 mb-4 flex items-center justify-between gap-3 rounded-[14px] px-[18px] py-3.5 max-[700px]:flex-col max-[700px]:items-start"
+          className="anim anim-d1 mb-4 rounded-[14px] px-[18px] py-3.5"
           style={{
             background: "var(--surface-solid)",
             border: "1px dashed var(--line-strong)",
           }}
         >
           <span className="text-[0.9rem]" style={{ color: "var(--text-2)" }}>
-            No active block right now — start a focused session to begin your deep work.
+            No active block right now — use Start Day to begin.
           </span>
-          <Link
-            href="/blocks"
-            className="inline-flex h-[30px] items-center rounded-[8px] px-3.5 text-[0.8rem] font-semibold text-white"
-            style={{ background: "var(--accent)" }}
-          >
-            Plan blocks
-          </Link>
         </section>
-      )}
+      ) : null}
 
       <section
         className="anim anim-d2 mb-7 rounded-[16px] border px-5 py-[18px]"

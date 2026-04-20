@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
@@ -306,15 +305,8 @@ export default function ReflectPage() {
             <div className="p-8 text-center">
               <p className="text-[0.92rem] font-medium">Nothing committed today.</p>
               <p className="mt-1 text-[0.84rem]" style={{ color: "var(--text-2)" }}>
-                Open the Board to plan, then commit tasks to a block.
+                Use Start Day above to plan and commit tasks.
               </p>
-              <Link
-                href="/board"
-                className="mt-4 inline-flex h-9 items-center rounded-[10px] px-4 text-[0.84rem] font-semibold text-white"
-                style={{ background: "var(--accent)" }}
-              >
-                Start Day →
-              </Link>
             </div>
           ) : (
             blocks

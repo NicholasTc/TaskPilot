@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { DailyFlow, getStepLabel } from "@/lib/daily-flow";
+import { DailyFlow, getStepLabel, getStepRoute } from "@/lib/daily-flow";
 import { FlowStrip } from "./flow-strip";
 
 export function AppShell({ children }: PropsWithChildren) {
@@ -41,9 +41,15 @@ export function AppShell({ children }: PropsWithChildren) {
   }, [isAuthPage, pathname]);
 
   const startDayCopy = useMemo(() => {
-    if (!flow || !flow.hasStarted) return { label: "Start Day", badge: null as string | null };
+    if (!flow || !flow.hasStarted) {
+      return { label: "Start Day", badge: null as string | null, href: "/board" };
+    }
     const meta = getStepLabel(flow.step);
-    return { label: "Continue Day", badge: `Step ${meta.num}` };
+    return {
+      label: "Continue Day",
+      badge: `Step ${meta.num}`,
+      href: getStepRoute(flow.step),
+    };
   }, [flow]);
 
   const toggleTheme = () => {
@@ -88,7 +94,7 @@ export function AppShell({ children }: PropsWithChildren) {
             </Link>
 
             <Link
-              href="/board"
+              href={startDayCopy.href}
               className="inline-flex h-9 items-center gap-2 rounded-full px-4 text-[0.84rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
               style={{
                 background: "var(--accent)",

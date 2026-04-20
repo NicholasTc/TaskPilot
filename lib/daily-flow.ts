@@ -32,10 +32,15 @@ export type DailyFlow = {
   step: DailyFlowStep;
   hasStarted: boolean;
   counts: {
+    /** Tasks still in backlog (not picked for today yet). */
     backlog: number;
-    planned: number;
+    /** Tasks picked for today (status is planned/in_progress/done). */
+    pickedForToday: number;
+    /** Of picked-for-today tasks, how many are attached to a block. */
     committed: number;
+    /** Of picked-for-today tasks, how many are currently in progress. */
     inProgress: number;
+    /** Of picked-for-today tasks, how many are done. */
     done: number;
     blocks: number;
     activeBlocks: number;
@@ -56,7 +61,7 @@ export function deriveDailyFlow(
   blocks: DailyFlowBlock[],
 ): DailyFlow {
   const backlog = tasks.filter((t) => t.status === "backlog").length;
-  const planned = tasks.filter((t) =>
+  const pickedForToday = tasks.filter((t) =>
     ["planned", "in_progress", "done"].includes(t.status),
   ).length;
   const committed = tasks.filter((t) => t.studyBlockId !== null).length;
@@ -65,17 +70,17 @@ export function deriveDailyFlow(
   const activeBlocks = blocks.filter((b) => b.status === "active").length;
 
   let step: DailyFlowStep;
-  if (planned === 0) step = "board";
+  if (pickedForToday === 0) step = "board";
   else if (committed === 0) step = "blocks";
   else if (done < committed) step = "home";
   else step = "today";
 
   return {
     step,
-    hasStarted: planned > 0,
+    hasStarted: pickedForToday > 0,
     counts: {
       backlog,
-      planned,
+      pickedForToday,
       committed,
       inProgress,
       done,
@@ -135,9 +140,10 @@ export function getNextActionHint(flow: DailyFlow): {
         ctaHref: "/board",
       };
     case "blocks": {
-      const n = flow.counts.planned;
+      const n = flow.counts.pickedForToday - flow.counts.committed;
+      const count = Math.max(0, n);
       return {
-        message: `Assign your ${n} planned task${n === 1 ? "" : "s"} to a time block.`,
+        message: `Assign your ${count} picked task${count === 1 ? "" : "s"} to a time block.`,
         ctaLabel: "Open Blocks",
         ctaHref: "/blocks",
       };

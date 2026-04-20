@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
+import { normalizeTaskState, resolveTaskState } from "@/lib/task-status";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -56,13 +57,14 @@ function toTaskResponse(task: {
   order?: number;
   studyBlockId?: mongoose.Types.ObjectId | string | null;
 }) {
+  const { status, completed } = normalizeTaskState(task);
   return {
     id: task._id.toString(),
     name: task.name,
     meta: task.meta || "",
-    completed: task.completed,
+    completed,
     dayKey: task.dayKey ?? null,
-    status: task.status ?? (task.completed ? "done" : "backlog"),
+    status,
     order: task.order ?? 0,
     studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
   };
@@ -150,23 +152,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
     }
 
-    const nextCompleted = hasCompleted
-      ? (body.completed as boolean)
-      : hasStatus
-        ? parsedStatus === "done"
-        : existing.completed;
-    existing.completed = nextCompleted;
-    const nextStatus: (typeof TASK_STATUSES)[number] =
-      hasStatus && parsedStatus
-        ? parsedStatus
-        : hasCompleted
-          ? nextCompleted
-            ? "done"
-            : existing.status === "done"
-              ? "planned"
-              : existing.status || "backlog"
-          : existing.status || (existing.completed ? "done" : "backlog");
+    const { status: nextStatus, completed: nextCompleted } = resolveTaskState(
+      { status: existing.status, completed: existing.completed },
+      {
+        status: hasStatus ? parsedStatus : undefined,
+        completed: hasCompleted ? (body.completed as boolean) : undefined,
+      },
+    );
     existing.status = nextStatus;
+    existing.completed = nextCompleted;
 
     if (hasDayKey) {
       existing.dayKey = parsedDayKey ?? null;

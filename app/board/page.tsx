@@ -26,27 +26,31 @@ const initialBoardTasks: TasksByStatus = {
 
 const statusMeta: Record<
   BoardStatus,
-  { title: string; dot: string; empty: string }
+  { title: string; dot: string; empty: string; question: string }
 > = {
   backlog: {
     title: "Backlog",
     dot: "var(--text-3)",
-    empty: "Drop unscheduled tasks here",
+    empty: "Add a task to the backlog",
+    question: "What might I do?",
   },
   planned: {
     title: "Planned",
     dot: "var(--accent)",
-    empty: "Drop tasks planned for this day",
+    empty: "Drag backlog tasks here",
+    question: "What am I doing today?",
   },
   in_progress: {
     title: "In Progress",
     dot: "var(--warn)",
-    empty: "Drag one task here to focus",
+    empty: "Drag one task here",
+    question: "What's my one focus?",
   },
   done: {
     title: "Done",
     dot: "var(--done)",
     empty: "Completed tasks appear here",
+    question: "What did I finish?",
   },
 };
 
@@ -499,7 +503,7 @@ export default function BoardPage() {
                   outlineOffset: isOver ? "-2px" : isProgress ? "-1.5px" : "0",
                 }}
               >
-                <header className="mb-3 flex items-center justify-between px-1">
+                <header className="mb-1 flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <span
                       className="h-2 w-2 rounded-full"
@@ -515,23 +519,13 @@ export default function BoardPage() {
                       {tasksByStatus[status].length}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => (isDrafting ? cancelDraft() : openDraft(status))}
-                    aria-label={isDrafting ? "Cancel add task" : `Add task to ${statusMeta[status].title}`}
-                    className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-3)] transition-[background,color] duration-200 hover:bg-[var(--surface-solid)] hover:text-[var(--accent)]"
-                  >
-                    {isDrafting ? (
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                        <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
-                      </svg>
-                    )}
-                  </button>
                 </header>
+                <p
+                  className="mb-3 px-1 text-[0.72rem]"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {statusMeta[status].question}
+                </p>
 
                 {isDrafting ? (
                   <form onSubmit={handleCreateTask} className="mb-2 flex flex-col gap-1.5">
