@@ -47,7 +47,7 @@ const boardStatuses: BoardStatus[] = ["backlog", "planned", "in_progress", "done
 const boardStatusMeta: Record<BoardStatus, { label: string; tip: string; dotColor: string }> = {
   backlog: { label: "Backlog", tip: "unscheduled", dotColor: "var(--text-3)" },
   planned: { label: "Planned", tip: "in upcoming blocks", dotColor: "var(--accent)" },
-  in_progress: { label: "In Progress", tip: "single focus", dotColor: "#ff9500" },
+  in_progress: { label: "In Progress", tip: "single focus", dotColor: "var(--warn)" },
   done: { label: "Done", tip: "today", dotColor: "var(--done)" },
 };
 
@@ -63,12 +63,6 @@ function getStartOfWeek(date: Date) {
   const dayIndex = next.getDay();
   const diff = (dayIndex + 6) % 7;
   next.setDate(next.getDate() - diff);
-  return next;
-}
-
-function addDays(date: Date, amount: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + amount);
   return next;
 }
 
@@ -98,6 +92,14 @@ function formatReminderTime(isoDateString: string) {
   }).format(date);
 }
 
+function formatWeekRange(startDate: Date) {
+  const endDate = new Date(startDate);
+  endDate.setDate(endDate.getDate() + 6);
+  const startLabel = new Intl.DateTimeFormat("en-US", { month: "long", day: "numeric" }).format(startDate);
+  const endLabel = new Intl.DateTimeFormat("en-US", { day: "numeric" }).format(endDate);
+  return `${startLabel} – ${endLabel}`;
+}
+
 function getGreetingTitle() {
   const hour = new Date().getHours();
   if (hour < 12) return "Good morning, Nicholas";
@@ -122,6 +124,8 @@ export default function HomePage() {
 
   const today = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => toLocalDayKey(today), [today]);
+  const weekStart = useMemo(() => getStartOfWeek(today), [today]);
+  const weekRange = useMemo(() => formatWeekRange(weekStart), [weekStart]);
 
   const activeBlock = useMemo(
     () => blocks.find((block) => block.status === "active") ?? null,
@@ -136,6 +140,11 @@ export default function HomePage() {
   const activeTask = activeBlock?.activeTaskId
     ? allBoardTasks.find((task) => task.id === activeBlock.activeTaskId) ?? null
     : null;
+
+  const totalBlocksToday = blocks.length;
+  const activeBlockIndex = activeBlock
+    ? blocks.findIndex((block) => block.id === activeBlock.id) + 1
+    : 0;
 
   const activeBlockRemainingSeconds = useMemo(() => {
     if (!activeBlock) return 0;
@@ -173,8 +182,7 @@ export default function HomePage() {
       setErrorMessage(null);
       setIsLoading(true);
 
-      const weekStart = getStartOfWeek(new Date());
-      const weekStartKey = toLocalDayKey(weekStart);
+      const weekStartKey = toLocalDayKey(getStartOfWeek(new Date()));
 
       const [boardResponse, blocksResponse, remindersResponse, weekStatsResponse] = await Promise.all([
         fetch(`/api/board?day=${todayKey}`),
@@ -241,15 +249,15 @@ export default function HomePage() {
   }, [activeBlock, loadHomeData]);
 
   return (
-    <div>
-      <section className="mb-7">
-        <h1 className="text-[2.25rem] font-bold leading-[1.1] tracking-[-0.035em]">{getGreetingTitle()}</h1>
-        <p className="mt-2.5 text-base" style={{ color: "var(--text-2)" }}>
+    <div className="mx-auto w-full max-w-[1120px]">
+      <header className="anim mb-7">
+        <h1 className="text-[1.95rem] font-bold leading-[1.1] tracking-[-0.03em]">{getGreetingTitle()}</h1>
+        <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
           {totalWeekTasks > 0
             ? `You're ${totalWeekDone} of ${totalWeekTasks} tasks done this week — keep the momentum going.`
             : "Plan your day and lock in your focus blocks."}
         </p>
-      </section>
+      </header>
 
       {errorMessage ? (
         <div
@@ -261,62 +269,72 @@ export default function HomePage() {
       ) : null}
 
       {isLoading ? (
-        <div className="mb-10 h-[180px] animate-pulse rounded-[18px] border" style={{ borderColor: "var(--line)" }} />
+        <div
+          className="mb-4 h-[180px] animate-pulse rounded-[18px] border"
+          style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+        />
       ) : activeBlock ? (
         <section
-          className="mb-5 grid grid-cols-[1fr_auto] items-center gap-6 rounded-[18px] border px-7 py-6 text-white shadow-[0_8px_24px_rgba(0,122,255,0.2)] max-[800px]:grid-cols-1"
+          className="anim anim-d1 relative mb-4 grid grid-cols-[1fr_auto] items-center gap-6 overflow-hidden rounded-[18px] px-7 py-6 text-white max-[800px]:grid-cols-1"
           style={{
             background: "linear-gradient(135deg, #007aff, #5856d6)",
-            borderColor: "transparent",
+            boxShadow: "0 8px 24px rgba(0,122,255,0.20)",
           }}
         >
-          <div>
-            <p className="text-[0.72rem] font-semibold uppercase tracking-[0.05em] opacity-85">Active block</p>
-            <h2 className="mt-1 text-[1.45rem] font-bold tracking-[-0.02em]">{activeBlock.title}</h2>
-            <p className="mt-1 text-[0.9rem] opacity-90">
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-[30px] -top-[60px] h-[220px] w-[220px] rounded-full"
+            style={{ background: "rgba(255,255,255,0.07)" }}
+          />
+          <div className="relative">
+            <div className="mb-2 inline-flex items-center gap-2 text-[0.72rem] font-semibold uppercase tracking-[0.05em] opacity-85">
+              <span className="pulse-dot inline-block h-[7px] w-[7px] rounded-full bg-white" />
+              Active block{totalBlocksToday > 0 ? ` · ${activeBlockIndex} of ${totalBlocksToday} today` : ""}
+            </div>
+            <h2 className="mb-1 text-[1.35rem] font-bold tracking-[-0.02em]">{activeBlock.title}</h2>
+            <p className="mb-3.5 text-[0.92rem] opacity-90">
               {activeTask ? `Now: ${activeTask.name}` : "No active task selected"}
             </p>
-            <div className="mt-4 flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2">
               <Link
                 href={`/blocks/${activeBlock.id}/focus`}
-                className="rounded-[10px] px-4 py-2 text-[0.84rem] font-semibold"
+                className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.82rem] font-semibold"
                 style={{ background: "#fff", color: "var(--accent)" }}
               >
                 Open focus mode
               </Link>
               <Link
                 href="/blocks"
-                className="rounded-[10px] px-4 py-2 text-[0.84rem] font-semibold"
-                style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
+                className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.82rem] font-semibold text-white"
+                style={{ background: "rgba(255,255,255,0.18)" }}
               >
                 Manage blocks
               </Link>
             </div>
           </div>
-          <div className="text-right max-[800px]:text-left">
-            <div className="text-[2.2rem] font-bold leading-none tracking-[-0.04em]">
+          <div className="relative text-right max-[800px]:text-left">
+            <div className="text-[2.2rem] font-bold leading-none tracking-[-0.04em] tabular-nums">
               {formatClock(activeBlockRemainingSeconds)}
             </div>
-            <div className="mt-1 text-[0.8rem] opacity-85">
-              remaining · {toHumanTime(activeBlock.startMinutes)} -{" "}
-              {toHumanTime(activeBlock.startMinutes + activeBlock.durationMin)}
+            <div className="mt-1.5 text-[0.78rem] opacity-85">
+              remaining · {toHumanTime(activeBlock.startMinutes)} – {toHumanTime(activeBlock.startMinutes + activeBlock.durationMin)}
             </div>
           </div>
         </section>
       ) : (
         <section
-          className="mb-5 flex items-center justify-between gap-3 rounded-[14px] border px-5 py-4 max-[700px]:flex-col max-[700px]:items-start"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+          className="anim anim-d1 mb-4 flex items-center justify-between gap-3 rounded-[14px] px-[18px] py-3.5 max-[700px]:flex-col max-[700px]:items-start"
+          style={{
+            background: "var(--surface-solid)",
+            border: "1px dashed var(--line-strong)",
+          }}
         >
-          <div>
-            <p className="text-[0.95rem] font-semibold">No active block right now.</p>
-            <p className="mt-0.5 text-[0.84rem]" style={{ color: "var(--text-2)" }}>
-              Start a focused block to begin your deep work session.
-            </p>
-          </div>
+          <span className="text-[0.9rem]" style={{ color: "var(--text-2)" }}>
+            No active block right now — start a focused session to begin your deep work.
+          </span>
           <Link
             href="/blocks"
-            className="rounded-[10px] px-4 py-2 text-[0.84rem] font-semibold text-white"
+            className="inline-flex h-[30px] items-center rounded-[8px] px-3.5 text-[0.8rem] font-semibold text-white"
             style={{ background: "var(--accent)" }}
           >
             Plan blocks
@@ -325,98 +343,122 @@ export default function HomePage() {
       )}
 
       <section
-        className="mb-8 rounded-[16px] border px-5 py-5"
+        className="anim anim-d2 mb-7 rounded-[16px] border px-5 py-[18px]"
         style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
       >
-        <header className="mb-3 flex items-center justify-between">
-          <div>
+        <header className="mb-3.5 flex items-center justify-between">
+          <div className="flex items-baseline gap-2.5">
             <h3 className="text-base font-semibold tracking-[-0.01em]">Today&apos;s Board</h3>
-            <p className="text-[0.78rem]" style={{ color: "var(--text-3)" }}>
+            <span className="text-[0.8rem]" style={{ color: "var(--text-3)" }}>
               snapshot
-            </p>
+            </span>
           </div>
           <Link
             href="/board"
-            className="rounded-[8px] px-2.5 py-1 text-[0.8rem] font-medium"
-            style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
+            className="inline-flex items-center gap-1 text-[0.82rem] font-medium"
+            style={{ color: "var(--accent)" }}
           >
             Open Board
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M6 4l4 4-4 4" />
+            </svg>
           </Link>
         </header>
-        <div className="grid grid-cols-4 gap-2 max-[820px]:grid-cols-2">
-          {boardStatuses.map((status) => (
-            <Link
-              key={status}
-              href="/board"
-              className="rounded-[12px] border px-3 py-3 transition hover:bg-[var(--surface-hover)]"
-              style={{
-                borderColor: status === "in_progress" ? "rgba(255,149,0,0.4)" : "var(--line)",
-                background: status === "in_progress" ? "rgba(255,149,0,0.08)" : "var(--surface-hover)",
-              }}
-            >
-              <div className="mb-1 flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.03em]">
-                <span className="h-1.5 w-1.5 rounded-full" style={{ background: boardStatusMeta[status].dotColor }} />
-                {boardStatusMeta[status].label}
-              </div>
-              <div className="text-[1.45rem] font-bold leading-none tracking-[-0.02em]">{boardCounts[status]}</div>
-              <p className="mt-1 text-[0.74rem]" style={{ color: "var(--text-3)" }}>
-                {boardStatusMeta[status].tip}
-              </p>
-            </Link>
-          ))}
+        <div className="grid grid-cols-4 gap-2.5 max-[820px]:grid-cols-2">
+          {boardStatuses.map((status) => {
+            const isProgress = status === "in_progress";
+            return (
+              <Link
+                key={status}
+                href="/board"
+                className="rounded-[12px] border px-3.5 py-3 transition-[border-color,background] duration-200"
+                style={{
+                  background: isProgress ? "var(--warn-soft)" : "var(--surface-hover)",
+                  borderColor: isProgress ? "var(--warn)" : "var(--line)",
+                }}
+              >
+                <div
+                  className="mb-2 flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.03em]"
+                  style={{ color: isProgress ? "var(--warn)" : "var(--text-2)" }}
+                >
+                  <span
+                    className="h-[7px] w-[7px] rounded-full"
+                    style={{ background: boardStatusMeta[status].dotColor }}
+                  />
+                  {boardStatusMeta[status].label}
+                </div>
+                <div
+                  className="text-[1.6rem] font-bold leading-none tracking-[-0.02em] tabular-nums"
+                  style={{ color: isProgress ? "var(--warn)" : "var(--text)" }}
+                >
+                  {boardCounts[status]}
+                </div>
+                <p className="mt-1.5 text-[0.76rem]" style={{ color: "var(--text-3)" }}>
+                  {boardStatusMeta[status].tip}
+                </p>
+              </Link>
+            );
+          })}
         </div>
       </section>
 
-      <div className="grid grid-cols-[1.5fr_1fr] gap-6 max-[900px]:grid-cols-1">
-        <section>
-          <h2 className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+      <div className="grid grid-cols-[1.5fr_1fr] gap-5 max-[900px]:grid-cols-1">
+        <section className="anim anim-d3">
+          <h2
+            className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]"
+            style={{ color: "var(--text-3)" }}
+          >
             Today&apos;s blocks
           </h2>
           <div
-            className="rounded-[16px] border px-5 py-4"
+            className="rounded-[16px] border px-5 py-[18px]"
             style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
           >
             {blocks.length === 0 ? (
-              <p className="text-[0.84rem]" style={{ color: "var(--text-2)" }}>
+              <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
                 No blocks planned for today.
               </p>
             ) : (
               blocks.map((block, index) => (
                 <article
                   key={block.id}
-                  className="grid grid-cols-[66px_1fr_auto] items-center gap-3 border-b py-3 max-[720px]:grid-cols-1 max-[720px]:gap-1.5"
-                  style={{ borderBottomColor: index === blocks.length - 1 ? "transparent" : "var(--line)" }}
+                  className="grid grid-cols-[60px_1fr_auto] items-center gap-3.5 border-b py-3 last:border-b-0 max-[720px]:grid-cols-1 max-[720px]:gap-1.5"
+                  style={{
+                    borderBottomColor: index === blocks.length - 1 ? "transparent" : "var(--line)",
+                  }}
                 >
                   <div>
-                    <div className="text-[0.92rem] font-semibold">{toHumanTime(block.startMinutes)}</div>
-                    <div className="text-[0.72rem]" style={{ color: "var(--text-3)" }}>
-                      {block.durationMin}m
+                    <div className="text-[0.92rem] font-semibold tabular-nums">
+                      {toHumanTime(block.startMinutes)}
+                    </div>
+                    <div className="mt-0.5 text-[0.72rem]" style={{ color: "var(--text-3)" }}>
+                      – {toHumanTime(block.startMinutes + block.durationMin)}
                     </div>
                   </div>
                   <div className="min-w-0">
                     <p className="truncate text-[0.92rem] font-medium">{block.title}</p>
-                    <p className="text-[0.76rem]" style={{ color: "var(--text-2)" }}>
-                      {toHumanTime(block.startMinutes)} - {toHumanTime(block.startMinutes + block.durationMin)}
+                    <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
+                      {block.durationMin}m
                     </p>
                   </div>
                   <span
-                    className="w-fit rounded-full px-2.5 py-1 text-[0.72rem] font-semibold uppercase tracking-[0.03em]"
+                    className="inline-flex items-center rounded-full px-2 py-[3px] text-[0.7rem] font-semibold uppercase tracking-[0.03em]"
                     style={{
                       background:
                         block.status === "active"
-                          ? "rgba(255,149,0,0.12)"
+                          ? "var(--warn-soft)"
                           : block.status === "done"
                             ? "var(--done-soft)"
                             : "var(--accent-soft)",
                       color:
                         block.status === "active"
-                          ? "#ff9500"
+                          ? "var(--warn)"
                           : block.status === "done"
                             ? "var(--done)"
                             : "var(--accent)",
                     }}
                   >
-                    {block.status}
+                    {block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming"}
                   </span>
                 </article>
               ))
@@ -424,29 +466,34 @@ export default function HomePage() {
           </div>
         </section>
 
-        <aside>
-          <h2 className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+        <aside className="anim anim-d4">
+          <h2
+            className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]"
+            style={{ color: "var(--text-3)" }}
+          >
             Reminders
           </h2>
           <div
-            className="rounded-[16px] border px-5 py-4"
+            className="rounded-[16px] border px-5 py-[18px]"
             style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
           >
             {reminders.length === 0 ? (
-              <p className="text-[0.84rem]" style={{ color: "var(--text-2)" }}>
+              <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
                 No reminders yet.
               </p>
             ) : (
-              reminders.slice(0, 5).map((reminder, index) => (
+              reminders.slice(0, 5).map((reminder, index, list) => (
                 <article
                   key={reminder.id}
-                  className="flex items-start justify-between gap-2 border-b py-3"
-                  style={{ borderBottomColor: index === reminders.slice(0, 5).length - 1 ? "transparent" : "var(--line)" }}
+                  className="flex items-start justify-between gap-3 border-b py-3 last:border-b-0"
+                  style={{
+                    borderBottomColor: index === list.length - 1 ? "transparent" : "var(--line)",
+                  }}
                 >
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[0.9rem] font-medium">{reminder.title}</p>
                     {reminder.note ? (
-                      <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-3)" }}>
+                      <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
                         {reminder.note}
                       </p>
                     ) : null}
@@ -462,13 +509,13 @@ export default function HomePage() {
       </div>
 
       <section
-        className="mt-8 rounded-[16px] border px-5 py-5"
+        className="anim anim-d4 mt-6 rounded-[16px] border px-5 py-[18px]"
         style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
       >
-        <header className="mb-3 flex items-center justify-between">
+        <header className="mb-3.5 flex items-baseline justify-between">
           <h3 className="text-base font-semibold tracking-[-0.01em]">This week</h3>
           <span className="text-[0.8rem]" style={{ color: "var(--text-3)" }}>
-            Real completion progress
+            {weekRange}
           </span>
         </header>
         <div className="grid grid-cols-7 gap-2">
@@ -476,36 +523,35 @@ export default function HomePage() {
             const date = new Date(`${day.dayKey}T00:00:00`);
             const label = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(date);
             const isToday = day.dayKey === todayKey;
-            const progressPercent = day.total > 0 ? Math.max(4, Math.round((day.done / day.total) * 100)) : 0;
+            const fillPercent = day.total > 0 ? Math.max(4, Math.round((day.done / day.total) * 100)) : 0;
 
             return (
-              <div
-                key={day.dayKey}
-                className="rounded-[10px] px-1 py-2 text-center"
-                style={{ background: isToday ? "var(--accent-soft)" : "transparent" }}
-              >
-                <p
-                  className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.02em]"
+              <div key={day.dayKey} className="text-center">
+                <div
+                  className="mb-1.5 text-[0.68rem] font-semibold uppercase tracking-[0.04em]"
                   style={{ color: isToday ? "var(--accent)" : "var(--text-3)" }}
                 >
                   {label}
-                </p>
+                </div>
                 <div
-                  className="flex h-12 flex-col justify-end overflow-hidden rounded-lg"
+                  className="relative h-[38px] overflow-hidden rounded-[10px] transition-transform duration-200 hover:-translate-y-[1px]"
                   style={{
-                    background: "var(--line)",
+                    background: isToday ? "var(--accent-soft)" : "var(--surface-hover)",
                     outline: isToday ? "2px solid var(--accent)" : "none",
-                    outlineOffset: isToday ? "-2px" : "0",
+                    outlineOffset: isToday ? "2px" : "0",
                   }}
                 >
                   <div
-                    className="rounded-lg bg-[var(--done)]"
-                    style={{ height: `${progressPercent}%`, minHeight: day.total > 0 ? "4px" : "0" }}
+                    className="absolute inset-x-0 bottom-0 rounded-[10px]"
+                    style={{
+                      height: `${fillPercent}%`,
+                      background: isToday ? "var(--accent)" : "var(--done)",
+                    }}
                   />
                 </div>
-                <p className="mt-1.5 text-[0.75rem]" style={{ color: isToday ? "var(--accent)" : "var(--text-2)" }}>
+                <div className="mt-1.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
                   {day.total > 0 ? `${day.done}/${day.total}` : "—"}
-                </p>
+                </div>
               </div>
             );
           })}

@@ -25,31 +25,27 @@ const initialBoardTasks: TasksByStatus = {
 
 const statusMeta: Record<
   BoardStatus,
-  { title: string; dot: string; empty: string; softBackground: string }
+  { title: string; dot: string; empty: string }
 > = {
   backlog: {
     title: "Backlog",
     dot: "var(--text-3)",
     empty: "Drop unscheduled tasks here",
-    softBackground: "var(--surface-hover)",
   },
   planned: {
     title: "Planned",
     dot: "var(--accent)",
     empty: "Drop tasks planned for this day",
-    softBackground: "var(--surface-hover)",
   },
   in_progress: {
     title: "In Progress",
-    dot: "#ff9500",
+    dot: "var(--warn)",
     empty: "Drag one task here to focus",
-    softBackground: "rgba(255, 149, 0, 0.08)",
   },
   done: {
     title: "Done",
     dot: "var(--done)",
     empty: "Completed tasks appear here",
-    softBackground: "var(--surface-hover)",
   },
 };
 
@@ -69,7 +65,7 @@ function addDays(date: Date, amount: number) {
 function formatDateLabel(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
-    month: "short",
+    month: "long",
     day: "numeric",
   }).format(date);
 }
@@ -110,8 +106,9 @@ export default function BoardPage() {
   const [legacyCount, setLegacyCount] = useState<number | null>(null);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [draggingFromStatus, setDraggingFromStatus] = useState<BoardStatus | null>(null);
+  const [dragOverStatus, setDragOverStatus] = useState<BoardStatus | null>(null);
+  const [draftStatus, setDraftStatus] = useState<BoardStatus | null>(null);
   const [draftName, setDraftName] = useState("");
-  const [draftStatus, setDraftStatus] = useState<BoardStatus>("backlog");
   const [isCreating, setIsCreating] = useState(false);
 
   const dayKey = useMemo(() => toLocalDayKey(selectedDate), [selectedDate]);
@@ -275,8 +272,20 @@ export default function BoardPage() {
     [dayKey, isSaving, persistReorder, showWipWarnings, tasksByStatus],
   );
 
+  const openDraft = (status: BoardStatus) => {
+    setDraftStatus(status);
+    setDraftName("");
+    setErrorMessage(null);
+  };
+
+  const cancelDraft = () => {
+    setDraftStatus(null);
+    setDraftName("");
+  };
+
   const handleCreateTask = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (!draftStatus) return;
     const name = draftName.trim();
     if (!name || isCreating) return;
 
@@ -304,11 +313,12 @@ export default function BoardPage() {
       }
 
       const createdTask = normalizeTask((await response.json()) as Task);
+      const targetStatus = draftStatus;
       const nextState = cloneTasksByStatus(tasksByStatus);
-      nextState[draftStatus] = [...nextState[draftStatus], createdTask];
+      nextState[targetStatus] = [...nextState[targetStatus], createdTask];
       setTasksByStatus(nextState);
       setDraftName("");
-      showWipWarnings(nextState, createdTask.id, draftStatus);
+      showWipWarnings(nextState, createdTask.id, targetStatus);
     } catch (error) {
       console.error("Creating board task failed", error);
       setErrorMessage("Could not create task. Please try again.");
@@ -318,15 +328,15 @@ export default function BoardPage() {
   };
 
   return (
-    <div>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto w-full max-w-[1280px]">
+      <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.9rem] font-bold leading-[1.1] tracking-[-0.03em]">Today&apos;s Board</h1>
+          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Today&apos;s Board</h1>
           <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
             Plan, focus, and finish — one task at a time.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           <div
             className="flex items-center gap-1 rounded-[12px] border p-1"
             style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
@@ -334,25 +344,36 @@ export default function BoardPage() {
             <button
               type="button"
               onClick={() => setSelectedDate((current) => addDays(current, -1))}
-              className="grid h-8 w-8 place-items-center rounded-[8px] transition hover:bg-[var(--surface-hover)]"
+              className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
               aria-label="Previous day"
             >
-              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" style={{ stroke: "currentColor" }}>
-                <path d="M10 12 6 8l4-4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 12 6 8l4-4" />
               </svg>
             </button>
-            <div className="px-2 text-[0.86rem] font-semibold">{dateLabel}</div>
+            <div className="px-3.5 text-[0.88rem] font-semibold">{dateLabel}</div>
             <button
               type="button"
               onClick={() => setSelectedDate((current) => addDays(current, 1))}
-              className="grid h-8 w-8 place-items-center rounded-[8px] transition hover:bg-[var(--surface-hover)]"
+              className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
               aria-label="Next day"
             >
-              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" style={{ stroke: "currentColor" }}>
-                <path d="m6 4 4 4-4 4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 4 4 4-4 4" />
               </svg>
             </button>
           </div>
+          <button
+            type="button"
+            onClick={() => openDraft("backlog")}
+            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] px-4 text-[0.86rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
+            style={{ background: "var(--accent)", boxShadow: "0 1px 2px rgba(0,122,255,0.25)" }}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+              <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
+            </svg>
+            New Task
+          </button>
         </div>
       </header>
 
@@ -370,22 +391,6 @@ export default function BoardPage() {
         </section>
       ) : null}
 
-      {showSoftWipWarning ? (
-        <section
-          className="mb-4 flex items-center gap-2 rounded-[12px] border px-4 py-2.5 text-[0.82rem] font-medium"
-          style={{
-            background: "rgba(255, 149, 0, 0.08)",
-            borderColor: "rgba(255, 149, 0, 0.22)",
-            color: "#ff9500",
-          }}
-        >
-          <svg viewBox="0 0 16 16" className="h-3.5 w-3.5 fill-current">
-            <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 4zm0 7a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z" />
-          </svg>
-          You currently have multiple tasks in progress. Monotasking works best with one.
-        </section>
-      ) : null}
-
       {toastMessage ? (
         <section
           className="mb-4 rounded-[12px] border px-4 py-2.5 text-[0.82rem] font-medium"
@@ -394,45 +399,6 @@ export default function BoardPage() {
           {toastMessage}
         </section>
       ) : null}
-
-      <section
-        className="mb-5 rounded-[14px] border px-4 py-4"
-        style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-      >
-        <form className="flex flex-wrap items-center gap-2" onSubmit={handleCreateTask}>
-          <input
-            value={draftName}
-            onChange={(event) => setDraftName(event.target.value)}
-            placeholder="Add a new task..."
-            className="h-10 min-w-[260px] flex-1 rounded-[10px] border px-3.5 text-[0.9rem] outline-none"
-            style={{
-              borderColor: "var(--line)",
-              background: "var(--surface-solid)",
-              color: "var(--text)",
-            }}
-          />
-          <select
-            value={draftStatus}
-            onChange={(event) => setDraftStatus(event.target.value as BoardStatus)}
-            className="h-10 rounded-[10px] border px-3 text-[0.86rem] font-medium outline-none"
-            style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-          >
-            {BOARD_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {statusMeta[status].title}
-              </option>
-            ))}
-          </select>
-          <button
-            type="submit"
-            disabled={isCreating}
-            className="h-10 rounded-[10px] px-4 text-[0.85rem] font-semibold text-white transition active:scale-[0.97]"
-            style={{ background: "var(--accent)", opacity: isCreating ? 0.65 : 1 }}
-          >
-            {isCreating ? "Adding..." : "Add task"}
-          </button>
-        </form>
-      </section>
 
       {errorMessage ? (
         <p className="mb-4 text-[0.84rem]" style={{ color: "var(--danger)" }}>
@@ -445,108 +411,204 @@ export default function BoardPage() {
           {BOARD_STATUSES.map((status) => (
             <div
               key={status}
-              className="min-h-[380px] animate-pulse rounded-[16px] border"
-              style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+              className="min-h-[420px] animate-pulse rounded-[16px]"
+              style={{ background: "var(--column-bg)" }}
             />
           ))}
         </div>
       ) : (
         <div className="grid grid-cols-4 gap-4 max-[1100px]:grid-cols-2 max-[700px]:grid-cols-1">
-          {BOARD_STATUSES.map((status) => (
-            <section
-              key={status}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={async (event) => {
-                event.preventDefault();
-                if (!draggingTaskId || !draggingFromStatus) return;
-                await moveTaskToStatus(draggingTaskId, draggingFromStatus, status);
-                setDraggingTaskId(null);
-                setDraggingFromStatus(null);
-              }}
-              className="min-h-[420px] rounded-[16px] border p-3"
-              style={{
-                background: statusMeta[status].softBackground,
-                borderColor: status === "in_progress" ? "rgba(255,149,0,0.3)" : "var(--line)",
-              }}
-            >
-              <header className="mb-2.5 flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2 w-2 rounded-full"
-                    style={{
-                      background: statusMeta[status].dot,
-                    }}
-                  />
-                  <h2 className="text-[0.78rem] font-bold uppercase tracking-[0.03em]">
-                    {statusMeta[status].title}
-                  </h2>
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[0.72rem] font-semibold"
-                    style={{ background: "var(--surface-solid)", color: "var(--text-3)" }}
-                  >
-                    {tasksByStatus[status].length}
-                  </span>
-                </div>
-              </header>
+          {BOARD_STATUSES.map((status) => {
+            const isProgress = status === "in_progress";
+            const isOver = dragOverStatus === status;
+            const showColumnWip = isProgress && tasksByStatus.in_progress.length > 0;
+            const showColumnWarn = showColumnWip && (showSoftWipWarning || tasksByStatus.in_progress.length > 1);
+            const isDrafting = draftStatus === status;
 
-              <div className="space-y-2">
-                {tasksByStatus[status].map((task) => (
-                  <article
-                    key={task.id}
-                    draggable
-                    onDragStart={() => {
-                      setDraggingTaskId(task.id);
-                      setDraggingFromStatus(status);
-                    }}
-                    onDragEnd={() => {
-                      setDraggingTaskId(null);
-                      setDraggingFromStatus(null);
-                    }}
-                    className="cursor-grab rounded-[12px] border p-3 shadow-[var(--shadow-sm)] transition hover:-translate-y-[1px] hover:shadow-[var(--shadow-md)]"
-                    style={{
-                      background: "var(--surface-solid)",
-                      borderColor: "var(--line)",
-                      opacity: draggingTaskId === task.id ? 0.65 : 1,
-                    }}
+            return (
+              <section
+                key={status}
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  if (dragOverStatus !== status) setDragOverStatus(status);
+                }}
+                onDragLeave={() => {
+                  if (dragOverStatus === status) setDragOverStatus(null);
+                }}
+                onDrop={async (event) => {
+                  event.preventDefault();
+                  setDragOverStatus(null);
+                  if (!draggingTaskId || !draggingFromStatus) return;
+                  await moveTaskToStatus(draggingTaskId, draggingFromStatus, status);
+                  setDraggingTaskId(null);
+                  setDraggingFromStatus(null);
+                }}
+                className="flex min-h-[420px] flex-col rounded-[16px] p-3.5 transition-[background,outline] duration-200"
+                style={{
+                  background: "var(--column-bg)",
+                  outline: isOver
+                    ? "2px solid var(--accent)"
+                    : isProgress
+                      ? "1.5px solid var(--warn)"
+                      : "none",
+                  outlineOffset: isOver ? "-2px" : isProgress ? "-1.5px" : "0",
+                }}
+              >
+                <header className="mb-3 flex items-center justify-between px-1">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{ background: statusMeta[status].dot }}
+                    />
+                    <h2 className="text-[0.82rem] font-bold uppercase tracking-[0.02em]">
+                      {statusMeta[status].title}
+                    </h2>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[0.72rem] font-semibold"
+                      style={{ background: "var(--surface-solid)", color: "var(--text-3)" }}
+                    >
+                      {tasksByStatus[status].length}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => (isDrafting ? cancelDraft() : openDraft(status))}
+                    aria-label={isDrafting ? "Cancel add task" : `Add task to ${statusMeta[status].title}`}
+                    className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-3)] transition-[background,color] duration-200 hover:bg-[var(--surface-solid)] hover:text-[var(--accent)]"
                   >
-                    <p
-                      className="text-[0.9rem] font-medium leading-[1.4]"
+                    {isDrafting ? (
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
+                      </svg>
+                    ) : (
+                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+                        <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
+                      </svg>
+                    )}
+                  </button>
+                </header>
+
+                {isDrafting ? (
+                  <form onSubmit={handleCreateTask} className="mb-2 flex flex-col gap-1.5">
+                    <input
+                      autoFocus
+                      value={draftName}
+                      onChange={(event) => setDraftName(event.target.value)}
+                      placeholder="Add a task..."
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") cancelDraft();
+                      }}
+                      className="h-9 rounded-[10px] border px-3 text-[0.86rem] outline-none focus:border-[var(--accent)]"
                       style={{
-                        color: status === "done" ? "var(--text-3)" : "var(--text)",
-                        textDecoration: status === "done" ? "line-through" : "none",
+                        borderColor: "var(--line)",
+                        background: "var(--surface-solid)",
+                      }}
+                    />
+                    <div className="flex gap-1.5">
+                      <button
+                        type="submit"
+                        disabled={isCreating}
+                        className="h-7 rounded-[8px] px-3 text-[0.76rem] font-semibold text-white"
+                        style={{
+                          background: "var(--accent)",
+                          opacity: isCreating ? 0.65 : 1,
+                        }}
+                      >
+                        {isCreating ? "Adding..." : "Add"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={cancelDraft}
+                        className="h-7 rounded-[8px] border px-3 text-[0.76rem] font-medium"
+                        style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </form>
+                ) : null}
+
+                <div className="flex flex-col gap-2">
+                  {tasksByStatus[status].map((task) => (
+                    <article
+                      key={task.id}
+                      draggable
+                      onDragStart={() => {
+                        setDraggingTaskId(task.id);
+                        setDraggingFromStatus(status);
+                      }}
+                      onDragEnd={() => {
+                        setDraggingTaskId(null);
+                        setDraggingFromStatus(null);
+                        setDragOverStatus(null);
+                      }}
+                      className="cursor-grab rounded-[12px] border p-3 transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-[1px]"
+                      style={{
+                        background: "var(--surface-solid)",
+                        borderColor: isProgress ? "var(--warn)" : "var(--line)",
+                        boxShadow: isProgress
+                          ? "var(--shadow-sm), 0 0 0 3px var(--warn-soft)"
+                          : "var(--shadow-sm)",
+                        opacity: draggingTaskId === task.id ? 0.5 : status === "done" ? 0.78 : 1,
                       }}
                     >
-                      {task.name}
-                    </p>
-                    {task.meta ? (
-                      <p className="mt-1 text-[0.78rem]" style={{ color: "var(--text-3)" }}>
-                        {task.meta}
+                      <p
+                        className="text-[0.92rem] font-medium leading-[1.4]"
+                        style={{
+                          color: status === "done" ? "var(--text-3)" : "var(--text)",
+                          textDecoration: status === "done" ? "line-through" : "none",
+                        }}
+                      >
+                        {task.name}
                       </p>
-                    ) : null}
-                    <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                      {task.studyBlockId ? (
-                        <span
-                          className="rounded-full px-2 py-0.5 text-[0.7rem] font-medium"
-                          style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-                        >
-                          Linked to block
-                        </span>
+                      {task.meta ? (
+                        <p className="mt-1 text-[0.78rem]" style={{ color: "var(--text-3)" }}>
+                          {task.meta}
+                        </p>
                       ) : null}
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              {tasksByStatus[status].length === 0 ? (
-                <div
-                  className="mt-2 rounded-[12px] border border-dashed px-3 py-6 text-center text-[0.8rem]"
-                  style={{ borderColor: "var(--line-strong)", color: "var(--text-3)" }}
-                >
-                  {statusMeta[status].empty}
+                      {task.studyBlockId ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          <span
+                            className="inline-flex items-center gap-1 rounded-full px-2 py-[3px] text-[0.7rem] font-medium"
+                            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                          >
+                            Linked to block
+                          </span>
+                        </div>
+                      ) : null}
+                    </article>
+                  ))}
                 </div>
-              ) : null}
-            </section>
-          ))}
+
+                {tasksByStatus[status].length === 0 && !isDrafting ? (
+                  <div
+                    className="mt-2 rounded-[12px] border px-4 py-5 text-center text-[0.82rem]"
+                    style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-3)" }}
+                  >
+                    {statusMeta[status].empty}
+                  </div>
+                ) : null}
+
+                {showColumnWip ? (
+                  <div
+                    className="mt-3 flex items-center gap-1.5 rounded-[10px] border px-3 py-2.5 text-[0.76rem] font-medium"
+                    style={{
+                      background: showColumnWarn ? "var(--warn-soft)" : "rgba(255, 149, 0, 0.05)",
+                      borderColor: "rgba(255, 149, 0, 0.20)",
+                      color: "var(--warn)",
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
+                      <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm0 4a.5.5 0 0 1 .5.5v4a.5.5 0 0 1-1 0v-4A.5.5 0 0 1 8 4zm0 7a.75.75 0 1 1 0 1.5.75.75 0 0 1 0-1.5z" />
+                    </svg>
+                    {showColumnWarn
+                      ? "Multiple tasks in progress — try monotasking."
+                      : "One task in progress — stay focused."}
+                  </div>
+                ) : null}
+              </section>
+            );
+          })}
         </div>
       )}
 

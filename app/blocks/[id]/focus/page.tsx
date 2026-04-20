@@ -47,6 +47,17 @@ function formatClock(seconds: number) {
   return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
 }
 
+function formatDurationLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${remainder}m`;
+  if (remainder === 0) return `${hours}h block`;
+  return `${hours}h ${remainder}m block`;
+}
+
+const RING_RADIUS = 133;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
 export default function FocusModePage() {
   const router = useRouter();
   const params = useParams<{ id: string }>();
@@ -258,216 +269,294 @@ export default function FocusModePage() {
 
   if (isLoading) {
     return (
-      <div className="mx-auto max-w-[760px] py-10">
-        <div className="h-[420px] animate-pulse rounded-[18px] border" style={{ borderColor: "var(--line)" }} />
+      <div className="focus-bg -mx-6 -mt-10 min-h-[calc(100vh-56px)] px-6 py-10">
+        <div className="mx-auto max-w-[760px]">
+          <div
+            className="h-[420px] animate-pulse rounded-[18px] border"
+            style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+          />
+        </div>
       </div>
     );
   }
 
   if (!block) {
     return (
-      <div className="mx-auto max-w-[760px] py-10">
-        <p className="text-[0.92rem]" style={{ color: "var(--danger)" }}>
-          Focus block not found.
-        </p>
+      <div className="focus-bg -mx-6 -mt-10 min-h-[calc(100vh-56px)] px-6 py-10">
+        <div className="mx-auto max-w-[760px]">
+          <p className="text-[0.92rem]" style={{ color: "var(--danger)" }}>
+            Focus block not found.
+          </p>
+        </div>
       </div>
     );
   }
 
+  const totalSeconds = block.durationMin * 60;
   const progressPercent =
-    block.durationMin > 0
-      ? Math.min(100, Math.max(0, (displayRemainingSeconds / (block.durationMin * 60)) * 100))
-      : 0;
+    totalSeconds > 0 ? Math.min(100, Math.max(0, (displayRemainingSeconds / totalSeconds) * 100)) : 0;
+  const ringDashOffset = RING_CIRCUMFERENCE - (RING_CIRCUMFERENCE * progressPercent) / 100;
+  const isComplete = displayRemainingSeconds <= 0;
 
   return (
-    <div className="mx-auto max-w-[760px] py-10 text-center">
-      <button
-        type="button"
-        onClick={() => router.push("/blocks")}
-        className="mb-7 inline-flex items-center gap-1 rounded-[8px] px-3 py-1.5 text-[0.84rem] font-medium"
-        style={{ background: "var(--surface-solid)", color: "var(--text-2)" }}
-      >
-        <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" style={{ stroke: "currentColor" }}>
-          <path d="M10 12 6 8l4-4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-        Exit focus
-      </button>
+    <div className="focus-bg -mx-6 -mt-10 min-h-[calc(100vh-56px)] px-6 pb-16 pt-10">
+      <div className="mx-auto max-w-[760px]">
+        <div className="mb-6 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => router.push("/blocks")}
+            className="inline-flex items-center gap-1.5 rounded-[8px] px-3 py-1.5 text-[0.84rem] font-medium transition-colors hover:bg-[var(--surface-solid)]"
+            style={{ color: "var(--text-2)" }}
+          >
+            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 12 6 8l4-4" />
+            </svg>
+            Exit focus
+          </button>
+          <div
+            className="inline-flex items-center text-[0.82rem] font-semibold"
+            style={{ color: "var(--text-2)" }}
+          >
+            <span
+              className="pulse-dot mr-2 inline-block h-1.5 w-1.5 rounded-full"
+              style={{ background: "var(--warn)" }}
+            />
+            {block.timerState === "running" ? "Focus session running" : "Focus session paused"}
+          </div>
+        </div>
 
-      <p className="text-[0.78rem] font-semibold uppercase tracking-[0.05em]" style={{ color: "var(--accent)" }}>
-        Active block
-      </p>
-      <h1 className="mt-2 text-[2.3rem] font-bold tracking-[-0.035em]">{block.title}</h1>
-      <p className="mt-2 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
-        {toHumanTime(block.startMinutes)} - {toHumanTime(block.startMinutes + block.durationMin)} · {block.durationMin}m
-      </p>
+        <div className="anim text-center">
+          <p
+            className="text-[0.82rem] font-semibold uppercase tracking-[0.05em]"
+            style={{ color: "var(--accent)" }}
+          >
+            Active block
+          </p>
+          <h1 className="mt-3 text-[2.4rem] font-bold leading-[1.1] tracking-[-0.035em]">
+            {block.title}
+          </h1>
+          <p className="mt-2 text-[1rem]" style={{ color: "var(--text-2)" }}>
+            {toHumanTime(block.startMinutes)} – {toHumanTime(block.startMinutes + block.durationMin)}
+          </p>
+        </div>
 
-      <div className="relative mx-auto mt-10 h-[280px] w-[280px]">
-        <svg viewBox="0 0 280 280" className="h-full w-full -rotate-90">
-          <circle cx="140" cy="140" r="133" fill="none" stroke="var(--line)" strokeWidth="6" />
-          <circle
-            cx="140"
-            cy="140"
-            r="133"
-            fill="none"
-            stroke="var(--accent)"
-            strokeWidth="6"
-            strokeLinecap="round"
-            strokeDasharray={835.66}
-            strokeDashoffset={835.66 - (835.66 * progressPercent) / 100}
-          />
-        </svg>
-        <div className="absolute inset-0 grid place-items-center">
-          <div>
-            <div className="text-[3.2rem] font-bold leading-none tracking-[-0.05em]">
-              {formatClock(displayRemainingSeconds)}
-            </div>
-            <div className="mt-2 text-[0.82rem]" style={{ color: "var(--text-2)" }}>
-              {block.timerState === "running" ? "running" : "paused"} · remaining in this block
+        <div className="anim anim-d1 relative mx-auto mt-14 mb-9 h-[280px] w-[280px]">
+          <svg viewBox="0 0 280 280" className="h-full w-full -rotate-90">
+            <circle cx="140" cy="140" r={RING_RADIUS} fill="none" stroke="var(--line)" strokeWidth="6" />
+            <circle
+              cx="140"
+              cy="140"
+              r={RING_RADIUS}
+              fill="none"
+              stroke="var(--accent)"
+              strokeWidth="6"
+              strokeLinecap="round"
+              strokeDasharray={RING_CIRCUMFERENCE}
+              strokeDashoffset={ringDashOffset}
+              style={{ transition: "stroke-dashoffset 1s linear" }}
+            />
+          </svg>
+          <div className="absolute inset-0 grid place-items-center">
+            <div className="text-center">
+              <div className="text-[3.6rem] font-bold leading-none tracking-[-0.05em] tabular-nums">
+                {formatClock(displayRemainingSeconds)}
+              </div>
+              <div className="mt-2 text-[0.88rem]" style={{ color: "var(--text-2)" }}>
+                {isComplete
+                  ? "session complete"
+                  : `remaining of ${formatDurationLabel(block.durationMin)}`}
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {activeTask ? (
-        <section
-          className="mx-auto mt-8 max-w-[500px] rounded-[16px] border px-5 py-4 text-left"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-        >
-          <p className="text-[0.74rem] font-semibold uppercase tracking-[0.05em]" style={{ color: "#ff9500" }}>
-            Now working on
+        {activeTask ? (
+          <section
+            className="anim anim-d2 mx-auto mb-8 max-w-[480px] rounded-[16px] border px-5 py-[18px] text-left"
+            style={{
+              background: "var(--surface-solid)",
+              borderColor: "var(--line)",
+              boxShadow: "0 1px 3px rgba(0,0,0,.04), 0 4px 16px rgba(0,0,0,.05)",
+            }}
+          >
+            <div
+              className="mb-1.5 inline-flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.04em]"
+              style={{ color: "var(--warn)" }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--warn)" }} />
+              Now working on
+            </div>
+            <p className="text-[1.1rem] font-semibold tracking-[-0.01em]">{activeTask.name}</p>
+            <div className="mt-3.5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => void handleMarkDone(activeTask)}
+                className="h-8 rounded-[8px] px-3 text-[0.82rem] font-semibold text-white"
+                style={{ background: "var(--done)", opacity: isSaving ? 0.65 : 1 }}
+              >
+                Mark done
+              </button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => void setActiveTask(null)}
+                className="h-8 rounded-[8px] border px-3 text-[0.82rem] font-medium"
+                style={{ borderColor: "var(--line)", background: "transparent", color: "var(--text)" }}
+              >
+                Clear active task
+              </button>
+            </div>
+          </section>
+        ) : null}
+
+        <div className="anim anim-d2 mb-8 flex flex-wrap justify-center gap-3">
+          <button
+            type="button"
+            disabled={isSaving || isComplete || block.timerState === "running"}
+            onClick={() => void updateTimerState("resume")}
+            className="inline-flex h-12 items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white"
+            style={{
+              background: "var(--accent)",
+              boxShadow: "0 2px 8px rgba(0,122,255,0.25)",
+              opacity: isSaving || isComplete || block.timerState === "running" ? 0.5 : 1,
+            }}
+          >
+            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
+              <path d="M5 3.5v9a.5.5 0 0 0 .76.43l7.5-4.5a.5.5 0 0 0 0-.86l-7.5-4.5A.5.5 0 0 0 5 3.5z" />
+            </svg>
+            {isComplete ? "Complete" : block.timerState === "running" ? "Running" : "Resume"}
+          </button>
+          <button
+            type="button"
+            disabled={isSaving || block.timerState !== "running"}
+            onClick={() => void updateTimerState("pause")}
+            className="h-12 rounded-[12px] border px-6 text-[0.92rem] font-semibold"
+            style={{
+              background: "var(--surface-solid)",
+              borderColor: "var(--line)",
+              color: "var(--text)",
+              opacity: isSaving || block.timerState !== "running" ? 0.6 : 1,
+            }}
+          >
+            Pause
+          </button>
+          <button
+            type="button"
+            disabled={isSaving}
+            onClick={() => void handleEndBlock()}
+            className="h-12 rounded-[12px] border px-6 text-[0.92rem] font-semibold"
+            style={{
+              background: "var(--surface-solid)",
+              borderColor: "var(--line)",
+              color: "var(--text)",
+              opacity: isSaving ? 0.6 : 1,
+            }}
+          >
+            End block
+          </button>
+        </div>
+
+        {errorMessage ? (
+          <p className="mb-4 text-center text-[0.84rem]" style={{ color: "var(--danger)" }}>
+            {errorMessage}
           </p>
-          <p className="mt-1 text-[1.02rem] font-semibold">{activeTask.name}</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={() => void handleMarkDone(activeTask)}
-              className="h-8 rounded-[8px] bg-[var(--done)] px-3 text-[0.78rem] font-semibold text-white"
-            >
-              Mark done
-            </button>
-            <button
-              type="button"
-              disabled={isSaving}
-              onClick={() => void setActiveTask(null)}
-              className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-semibold"
-              style={{ borderColor: "var(--line)" }}
-            >
-              Clear active task
-            </button>
-          </div>
-        </section>
-      ) : null}
+        ) : null}
+        {notice ? (
+          <p className="mb-4 text-center text-[0.84rem]" style={{ color: "var(--done)" }}>
+            {notice}
+          </p>
+        ) : null}
 
-      <div className="mt-7 flex justify-center gap-2">
-        <button
-          type="button"
-          disabled={isSaving || displayRemainingSeconds <= 0 || block.timerState === "running"}
-          onClick={() => void updateTimerState("resume")}
-          className="h-10 rounded-[10px] px-5 text-[0.86rem] font-semibold text-white"
-          style={{
-            background: "var(--accent)",
-            opacity: isSaving || displayRemainingSeconds <= 0 || block.timerState === "running" ? 0.6 : 1,
-          }}
-        >
-          {displayRemainingSeconds <= 0 ? "Complete" : "Resume"}
-        </button>
-        <button
-          type="button"
-          disabled={isSaving || block.timerState !== "running"}
-          onClick={() => void updateTimerState("pause")}
-          className="h-10 rounded-[10px] border px-5 text-[0.86rem] font-semibold"
-          style={{
-            borderColor: "var(--line)",
-            opacity: isSaving || block.timerState !== "running" ? 0.6 : 1,
-          }}
-        >
-          Pause
-        </button>
-        <button
-          type="button"
-          disabled={isSaving}
-          onClick={() => void handleEndBlock()}
-          className="h-10 rounded-[10px] border px-5 text-[0.86rem] font-semibold"
-          style={{ borderColor: "var(--line)" }}
-        >
-          End block
-        </button>
-      </div>
-
-      {errorMessage ? (
-        <p className="mt-4 text-[0.84rem]" style={{ color: "var(--danger)" }}>
-          {errorMessage}
-        </p>
-      ) : null}
-      {notice ? (
-        <p className="mt-4 text-[0.84rem]" style={{ color: "var(--done)" }}>
-          {notice}
-        </p>
-      ) : null}
-
-      <section className="mx-auto mt-10 max-w-[500px] text-left">
-        <h2 className="mb-2 text-[0.75rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-          Tasks in this block
-        </h2>
-        <div className="space-y-1.5">
+        <section className="anim anim-d3 mx-auto max-w-[480px] text-left">
+          <h2
+            className="mb-2 text-[0.72rem] font-semibold uppercase tracking-[0.04em]"
+            style={{ color: "var(--text-3)" }}
+          >
+            Tasks in this block
+          </h2>
           {tasks.length === 0 ? (
-            <p className="text-[0.84rem]" style={{ color: "var(--text-2)" }}>
+            <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
               No tasks linked to this block yet.
             </p>
           ) : (
-            tasks.map((task) => (
-              <div
-                key={task.id}
-                className="flex items-center justify-between gap-2 rounded-[10px] border px-3 py-2.5"
-                style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-              >
-                <div className="min-w-0">
-                  <p
-                    className="truncate text-[0.9rem] font-medium"
-                    style={{
-                      textDecoration: task.status === "done" ? "line-through" : "none",
-                      color: task.status === "done" ? "var(--text-3)" : "var(--text)",
-                    }}
+            <div>
+              {tasks.map((task, index) => {
+                const isActive = block.activeTaskId === task.id;
+                const isDone = task.status === "done";
+                return (
+                  <div
+                    key={task.id}
+                    className="flex items-center justify-between gap-3 border-b py-3 last:border-b-0"
+                    style={{ borderBottomColor: index === tasks.length - 1 ? "transparent" : "var(--line)" }}
                   >
-                    {task.name}
-                  </p>
-                  {task.meta ? (
-                    <p className="text-[0.75rem]" style={{ color: "var(--text-3)" }}>
-                      {task.meta}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="flex gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => void setActiveTask(task.id)}
-                    className="h-7 rounded-[8px] border px-2.5 text-[0.72rem] font-semibold"
-                    style={{
-                      borderColor: "var(--line)",
-                      background: block.activeTaskId === task.id ? "var(--accent-soft)" : "transparent",
-                      color: block.activeTaskId === task.id ? "var(--accent)" : "var(--text-2)",
-                    }}
-                    disabled={isSaving}
-                  >
-                    {block.activeTaskId === task.id ? "Active" : "Set active"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleMarkDone(task)}
-                    className="h-7 rounded-[8px] border px-2.5 text-[0.72rem] font-semibold"
-                    style={{ borderColor: "var(--line)" }}
-                    disabled={isSaving}
-                  >
-                    Mark done
-                  </button>
-                </div>
-              </div>
-            ))
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => void handleMarkDone(task)}
+                        aria-label={`Toggle ${task.name}`}
+                        className="grid h-[20px] w-[20px] flex-shrink-0 place-items-center rounded-full border-2"
+                        style={{
+                          borderColor: isDone ? "var(--done)" : isActive ? "var(--warn)" : "var(--text-3)",
+                          background: isDone
+                            ? "var(--done)"
+                            : isActive
+                              ? "var(--warn)"
+                              : "transparent",
+                          boxShadow: isActive ? "0 0 0 4px rgba(255,149,0,0.15)" : "none",
+                        }}
+                      >
+                        {isDone || isActive ? (
+                          <svg viewBox="0 0 16 16" className="h-2.5 w-2.5 fill-white">
+                            {isDone ? (
+                              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                            ) : null}
+                          </svg>
+                        ) : null}
+                      </button>
+                      <p
+                        className="truncate text-[0.92rem]"
+                        style={{
+                          color: isDone ? "var(--text-3)" : "var(--text)",
+                          textDecoration: isDone ? "line-through" : "none",
+                          fontWeight: isActive ? 600 : 400,
+                        }}
+                      >
+                        {task.name}
+                      </p>
+                    </div>
+                    <div className="flex flex-shrink-0 gap-1.5">
+                      {!isActive && !isDone ? (
+                        <button
+                          type="button"
+                          onClick={() => void setActiveTask(task.id)}
+                          className="h-7 rounded-[8px] border px-2.5 text-[0.74rem] font-medium"
+                          style={{
+                            borderColor: "var(--line)",
+                            background: "transparent",
+                            color: "var(--text-2)",
+                          }}
+                          disabled={isSaving}
+                        >
+                          Set active
+                        </button>
+                      ) : null}
+                      {isActive ? (
+                        <span
+                          className="inline-flex h-7 items-center rounded-[8px] px-2.5 text-[0.74rem] font-semibold"
+                          style={{ background: "var(--warn-soft)", color: "var(--warn)" }}
+                        >
+                          Active
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   );
 }
-

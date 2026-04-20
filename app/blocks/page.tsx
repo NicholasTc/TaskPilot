@@ -47,15 +47,15 @@ function addDays(date: Date, amount: number) {
 function formatDateLabel(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     weekday: "short",
-    month: "short",
+    month: "long",
     day: "numeric",
   }).format(date);
 }
 
-function toTimeInputValue(startMinutes: number) {
-  const hours = Math.floor(startMinutes / 60);
+function toHumanTimeShort(startMinutes: number) {
+  const hour12 = ((Math.floor(startMinutes / 60) + 11) % 12) + 1;
   const minutes = startMinutes % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  return `${hour12}:${String(minutes).padStart(2, "0")}`;
 }
 
 function toHumanTime(startMinutes: number) {
@@ -94,6 +94,14 @@ function normalizeTask(task: Task): BoardTask {
   };
 }
 
+function formatDurationLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${remainder}m`;
+  if (remainder === 0) return `${hours}h`;
+  return `${hours}h ${remainder}m`;
+}
+
 export default function BlocksPage() {
   const router = useRouter();
   const [selectedDate, setSelectedDate] = useState(() => new Date());
@@ -113,6 +121,7 @@ export default function BlocksPage() {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const [openAssignBlockId, setOpenAssignBlockId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
+  const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
   const [draftTitle, setDraftTitle] = useState("");
   const [draftStartTime, setDraftStartTime] = useState("10:00");
   const [draftDuration, setDraftDuration] = useState<number>(120);
@@ -124,6 +133,7 @@ export default function BlocksPage() {
     () => blocks.find((block) => block.status === "active") ?? null,
     [blocks],
   );
+
   const activeBlockRemainingSeconds = useMemo(() => {
     if (!activeBlock) return 0;
 
@@ -272,6 +282,7 @@ export default function BlocksPage() {
         [...prev, created].sort((a, b) => a.startMinutes - b.startMinutes || a.durationMin - b.durationMin),
       );
       setDraftTitle("");
+      setIsAddBlockOpen(false);
       setSuccessMessage("Block created.");
     } catch (error) {
       console.error("Creating block failed", error);
@@ -423,14 +434,28 @@ export default function BlocksPage() {
       .filter((task) => task.studyBlockId === blockId)
       .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
 
+  const totalBlocksToday = blocks.length;
+  const activeBlockIndex = activeBlock
+    ? blocks.findIndex((block) => block.id === activeBlock.id) + 1
+    : 0;
+
   return (
-    <div>
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto w-full max-w-[1040px]">
+      <header className="anim mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.9rem] font-bold leading-[1.1] tracking-[-0.03em]">Study Blocks</h1>
-          <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
+          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Study Blocks</h1>
+          <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
             Two hours of focused, single-task work. No multitasking.
           </p>
+          <div
+            className="mt-3.5 inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.82rem] font-medium"
+            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+          >
+            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
+              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.97 5.97a.75.75 0 0 0-1.06 0L7 9.88 5.09 8a.75.75 0 1 0-1.06 1.06l2.44 2.44a.75.75 0 0 0 1.06 0l4.44-4.44a.75.75 0 0 0 0-1.06z" />
+            </svg>
+            Single-focus mode · 2-hour blocks
+          </div>
         </div>
         <div
           className="flex items-center gap-1 rounded-[12px] border p-1"
@@ -439,22 +464,22 @@ export default function BlocksPage() {
           <button
             type="button"
             onClick={() => setSelectedDate((current) => addDays(current, -1))}
-            className="grid h-8 w-8 place-items-center rounded-[8px] transition hover:bg-[var(--surface-hover)]"
+            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
             aria-label="Previous day"
           >
-            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" style={{ stroke: "currentColor" }}>
-              <path d="M10 12 6 8l4-4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10 12 6 8l4-4" />
             </svg>
           </button>
-          <div className="px-2 text-[0.86rem] font-semibold">{dateLabel}</div>
+          <div className="px-3.5 text-[0.88rem] font-semibold">{dateLabel}</div>
           <button
             type="button"
             onClick={() => setSelectedDate((current) => addDays(current, 1))}
-            className="grid h-8 w-8 place-items-center rounded-[8px] transition hover:bg-[var(--surface-hover)]"
+            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
             aria-label="Next day"
           >
-            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" style={{ stroke: "currentColor" }}>
-              <path d="m6 4 4 4-4 4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 4 4 4-4 4" />
             </svg>
           </button>
         </div>
@@ -473,321 +498,441 @@ export default function BlocksPage() {
 
       {activeBlock ? (
         <section
-          className="mb-6 rounded-[18px] border px-6 py-6 text-white shadow-[0_8px_24px_rgba(0,122,255,0.2)]"
+          className="anim anim-d1 relative mb-8 overflow-hidden rounded-[18px] px-7 py-7 text-white"
           style={{
             background: "linear-gradient(135deg, #007aff, #5856d6)",
-            borderColor: "transparent",
+            boxShadow: "0 8px 24px rgba(0,122,255,0.25)",
           }}
         >
-          <p className="text-[0.75rem] font-semibold uppercase tracking-[0.05em] opacity-85">Active block</p>
-          <h2 className="mt-1 text-[1.42rem] font-bold tracking-[-0.02em]">{activeBlock.title}</h2>
-          <p className="mt-1 text-[0.9rem] opacity-90">
-            {toHumanTime(activeBlock.startMinutes)} -{" "}
-            {toHumanTime(activeBlock.startMinutes + activeBlock.durationMin)} · {activeBlock.durationMin} min
-          </p>
-          <p className="mt-2 text-[0.82rem] opacity-90">
-            Remaining: {formatClock(activeBlockRemainingSeconds)}
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() =>
-                void handleTogglePauseBlock(
-                  activeBlock.id,
-                  activeBlock.timerState === "running" ? "pause" : "resume",
-                )
-              }
-              disabled={isUpdatingTimer || activeBlockRemainingSeconds <= 0}
-              className="h-9 rounded-[10px] px-4 text-[0.84rem] font-semibold"
-              style={{
-                background: "rgba(255,255,255,0.2)",
-                color: "#fff",
-                opacity: isUpdatingTimer || activeBlockRemainingSeconds <= 0 ? 0.6 : 1,
-              }}
-            >
-              {activeBlock.timerState === "running" ? "Pause" : "Resume"}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleEndBlock(activeBlock.id)}
-              className="h-9 rounded-[10px] bg-white px-4 text-[0.84rem] font-semibold"
-              style={{ color: "var(--accent)" }}
-            >
-              End block
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push(`/blocks/${activeBlock.id}/focus`)}
-              className="h-9 rounded-[10px] px-4 text-[0.84rem] font-semibold"
-              style={{ background: "rgba(255,255,255,0.2)", color: "#fff" }}
-            >
-              Open focus mode
-            </button>
+          <span
+            aria-hidden
+            className="pointer-events-none absolute -right-[40px] -top-[40px] h-[200px] w-[200px] rounded-full"
+            style={{ background: "rgba(255,255,255,0.08)" }}
+          />
+          <div className="relative">
+            <div className="mb-2 inline-flex items-center gap-2 text-[0.78rem] font-semibold uppercase tracking-[0.05em] opacity-80">
+              <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-white" />
+              Active block{totalBlocksToday > 0 ? ` · ${activeBlockIndex} of ${totalBlocksToday}` : ""}
+            </div>
+            <h2 className="text-[1.45rem] font-bold tracking-[-0.02em]">{activeBlock.title}</h2>
+            <p className="mt-1 text-[0.92rem] opacity-90">
+              {toHumanTime(activeBlock.startMinutes)} – {toHumanTime(activeBlock.startMinutes + activeBlock.durationMin)} · {formatDurationLabel(activeBlock.durationMin)}
+            </p>
+
+            <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-6 max-[640px]:grid-cols-1 max-[640px]:items-start">
+              <div className="flex flex-col gap-2 text-[0.92rem]">
+                {getBlockTasks(activeBlock.id).length === 0 ? (
+                  <p className="opacity-85">No tasks linked to this block yet.</p>
+                ) : (
+                  getBlockTasks(activeBlock.id)
+                    .slice(0, 3)
+                    .map((task) => (
+                      <div key={task.id} className="flex items-center gap-2.5">
+                        <span
+                          className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full border-2"
+                          style={{
+                            borderColor: task.completed ? "#fff" : "rgba(255,255,255,0.5)",
+                            background: task.completed ? "#fff" : "transparent",
+                          }}
+                        >
+                          {task.completed ? (
+                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="var(--accent)">
+                              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
+                            </svg>
+                          ) : null}
+                        </span>
+                        <span
+                          style={{
+                            opacity: task.completed ? 0.65 : 1,
+                            textDecoration: task.completed ? "line-through" : "none",
+                          }}
+                        >
+                          {task.name}
+                        </span>
+                      </div>
+                    ))
+                )}
+              </div>
+              <div className="text-right max-[640px]:text-left">
+                <div className="text-[2.4rem] font-bold leading-none tracking-[-0.04em] tabular-nums">
+                  {formatClock(activeBlockRemainingSeconds)}
+                </div>
+                <div className="mt-1 text-[0.8rem] opacity-80">
+                  {activeBlock.timerState === "running" ? "running" : "paused"} · time remaining
+                </div>
+              </div>
+            </div>
+
+            <div className="relative mt-5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  void handleTogglePauseBlock(
+                    activeBlock.id,
+                    activeBlock.timerState === "running" ? "pause" : "resume",
+                  )
+                }
+                disabled={isUpdatingTimer || activeBlockRemainingSeconds <= 0}
+                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold"
+                style={{
+                  background: "#fff",
+                  color: "var(--accent)",
+                  opacity: isUpdatingTimer || activeBlockRemainingSeconds <= 0 ? 0.65 : 1,
+                }}
+              >
+                {activeBlock.timerState === "running" ? "Pause" : "Resume"}
+              </button>
+              <button
+                type="button"
+                onClick={() => router.push(`/blocks/${activeBlock.id}/focus`)}
+                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
+                style={{ background: "rgba(255,255,255,0.18)" }}
+              >
+                Open focus mode
+              </button>
+              <button
+                type="button"
+                onClick={() => handleEndBlock(activeBlock.id)}
+                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
+                style={{ background: "rgba(255,255,255,0.18)" }}
+              >
+                End block
+              </button>
+            </div>
           </div>
         </section>
       ) : null}
 
-      <section
-        className="mb-6 rounded-[16px] border px-4 py-4"
-        style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+      <h3
+        className="anim anim-d2 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
+        style={{ color: "var(--text-3)" }}
       >
-        <form className="space-y-3" onSubmit={handleCreateBlock}>
-          <div>
-            <label className="mb-1 block text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
-              New block
-            </label>
-            <input
-              value={draftTitle}
-              onChange={(event) => setDraftTitle(event.target.value)}
-              placeholder="e.g. TypeScript Deep Work"
-              className="h-10 w-full rounded-[10px] border px-3.5 text-[0.9rem] outline-none"
-              style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+        Today&apos;s schedule
+      </h3>
+
+      {isLoading ? (
+        <div className="space-y-3">
+          {[0, 1, 2].map((skeleton) => (
+            <div
+              key={skeleton}
+              className="h-[120px] animate-pulse rounded-[16px] border"
+              style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
             />
-          </div>
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
-              <label className="mb-1 block text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
-                Start
-              </label>
-              <input
-                type="time"
-                value={draftStartTime}
-                onChange={(event) => setDraftStartTime(event.target.value)}
-                className="h-10 rounded-[10px] border px-3 text-[0.86rem] outline-none"
-                style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
-                Duration
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {durationPresets.map((preset) => (
-                  <button
-                    key={preset}
-                    type="button"
-                    onClick={() => setDraftDuration(preset)}
-                    className="h-8 rounded-[8px] px-2.5 text-[0.78rem] font-semibold"
-                    style={{
-                      background: draftDuration === preset ? "var(--accent-soft)" : "var(--surface-hover)",
-                      color: draftDuration === preset ? "var(--accent)" : "var(--text-2)",
-                    }}
+          ))}
+        </div>
+      ) : blocks.length === 0 ? (
+        <div
+          className="rounded-[16px] border px-4 py-8 text-center text-[0.86rem]"
+          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-3)" }}
+        >
+          No blocks planned for this day.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {blocks.map((block, index) => {
+            const blockTasks = getBlockTasks(block.id);
+            const isAssignOpen = openAssignBlockId === block.id;
+            const animClass = `anim anim-d${Math.min(4, index + 1)}`;
+            const statusLabel =
+              block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming";
+            const statusBg =
+              block.status === "active"
+                ? "var(--warn-soft)"
+                : block.status === "done"
+                  ? "var(--done-soft)"
+                  : "var(--accent-soft)";
+            const statusColor =
+              block.status === "active"
+                ? "var(--warn)"
+                : block.status === "done"
+                  ? "var(--done)"
+                  : "var(--accent)";
+
+            return (
+              <article
+                key={block.id}
+                className={`${animClass} rounded-[16px] border px-5 py-5 transition-[box-shadow,border-color] duration-200 hover:border-[var(--line-strong)]`}
+                style={{
+                  background: "var(--surface-solid)",
+                  borderColor: "var(--line)",
+                  boxShadow: "var(--shadow-sm)",
+                }}
+              >
+                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-5 max-[700px]:grid-cols-1 max-[700px]:gap-3">
+                  <div
+                    className="min-w-[88px] border-r pr-5 text-center max-[700px]:border-r-0 max-[700px]:pr-0 max-[700px]:text-left"
+                    style={{ borderColor: "var(--line)" }}
                   >
-                    {preset}m
-                  </button>
-                ))}
-                <input
-                  type="number"
-                  min={15}
-                  max={720}
-                  value={draftDuration}
-                  onChange={(event) => setDraftDuration(Number(event.target.value))}
-                  className="h-8 w-[88px] rounded-[8px] border px-2 text-[0.78rem] outline-none"
-                  style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-                />
-              </div>
-            </div>
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="h-10 rounded-[10px] px-4 text-[0.84rem] font-semibold text-white transition active:scale-[0.97]"
-              style={{ background: "var(--accent)", opacity: isSubmitting ? 0.65 : 1 }}
-            >
-              {isSubmitting ? "Creating..." : "Add block"}
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section>
-        <h3 className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
-          Today&apos;s schedule
-        </h3>
-        {isLoading ? (
-          <div className="space-y-2">
-            {[0, 1, 2].map((skeleton) => (
-              <div
-                key={skeleton}
-                className="h-[110px] animate-pulse rounded-[14px] border"
-                style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-              />
-            ))}
-          </div>
-        ) : blocks.length === 0 ? (
-          <div
-            className="rounded-[14px] border border-dashed px-4 py-7 text-center text-[0.86rem]"
-            style={{ borderColor: "var(--line-strong)", color: "var(--text-3)" }}
-          >
-            No blocks planned for this day.
-          </div>
-        ) : (
-          <div className="space-y-2.5">
-            {blocks.map((block) => {
-              const blockTasks = getBlockTasks(block.id);
-              const isAssignOpen = openAssignBlockId === block.id;
-
-              return (
-                <article
-                  key={block.id}
-                  className="rounded-[14px] border px-4 py-4"
-                  style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
-                        {toHumanTime(block.startMinutes)} -{" "}
-                        {toHumanTime(block.startMinutes + block.durationMin)} · {block.durationMin}m
-                      </div>
-                      <h4 className="mt-1 text-[1.02rem] font-semibold tracking-[-0.01em]">{block.title}</h4>
-                      <p className="mt-1 text-[0.8rem]" style={{ color: "var(--text-2)" }}>
-                        {blockTasks.length} task{blockTasks.length === 1 ? "" : "s"} linked
-                      </p>
+                    <div className="text-[1.4rem] font-bold leading-none tracking-[-0.02em] tabular-nums">
+                      {toHumanTimeShort(block.startMinutes)}
                     </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      <span
-                        className="h-7 rounded-full px-2.5 text-[0.72rem] font-semibold uppercase tracking-[0.03em] leading-[28px]"
-                        style={{
-                          background:
-                            block.status === "active"
-                              ? "rgba(255,149,0,0.12)"
-                              : block.status === "done"
-                                ? "var(--done-soft)"
-                                : "var(--accent-soft)",
-                          color:
-                            block.status === "active"
-                              ? "#ff9500"
-                              : block.status === "done"
-                                ? "var(--done)"
-                                : "var(--accent)",
-                        }}
-                      >
-                        {block.status}
-                      </span>
-                      {block.status !== "active" ? (
+                    <div className="mt-1 text-[0.78rem]" style={{ color: "var(--text-3)" }}>
+                      – {toHumanTime(block.startMinutes + block.durationMin)}
+                    </div>
+                    <div
+                      className="mt-1.5 inline-block rounded-full px-2 py-[2px] text-[0.72rem] font-semibold"
+                      style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
+                    >
+                      {formatDurationLabel(block.durationMin)}
+                    </div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <h4 className="text-[1.05rem] font-semibold tracking-[-0.01em]">{block.title}</h4>
+                    <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-2)" }}>
+                      {blockTasks.length === 0
+                        ? "No tasks assigned"
+                        : `${blockTasks.length} task${blockTasks.length === 1 ? "" : "s"}`}
+                    </p>
+                    {blockTasks.length > 0 ? (
+                      <div className="mt-2 flex flex-col gap-1">
+                        {blockTasks.slice(0, 3).map((task) => (
+                          <div key={task.id} className="flex items-center gap-2 text-[0.85rem]" style={{ color: "var(--text-2)" }}>
+                            <span
+                              className="h-1.5 w-1.5 rounded-full"
+                              style={{
+                                background:
+                                  task.status === "done"
+                                    ? "var(--done)"
+                                    : task.status === "in_progress"
+                                      ? "var(--warn)"
+                                      : "var(--text-3)",
+                              }}
+                            />
+                            <span
+                              style={{
+                                textDecoration: task.completed ? "line-through" : "none",
+                                opacity: task.completed ? 0.6 : 1,
+                              }}
+                            >
+                              {task.name}
+                            </span>
+                          </div>
+                        ))}
+                        {blockTasks.length > 3 ? (
+                          <span className="text-[0.78rem]" style={{ color: "var(--text-3)" }}>
+                            +{blockTasks.length - 3} more
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-col items-end gap-2 max-[700px]:flex-row max-[700px]:items-center max-[700px]:flex-wrap">
+                    <span
+                      className="rounded-full px-2.5 py-[3px] text-[0.72rem] font-semibold uppercase tracking-[0.04em]"
+                      style={{ background: statusBg, color: statusColor }}
+                    >
+                      {statusLabel}
+                    </span>
+                    <div className="flex flex-wrap justify-end gap-1.5">
+                      {block.status !== "active" && block.status !== "done" ? (
                         <button
                           type="button"
                           onClick={() => void handleStartBlock(block.id)}
-                          className="h-7 rounded-[8px] px-2.5 text-[0.74rem] font-semibold text-white"
+                          className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
                           style={{ background: "var(--accent)" }}
                         >
                           Start
                         </button>
-                      ) : (
+                      ) : null}
+                      {block.status === "active" ? (
                         <button
                           type="button"
-                          onClick={() => void handleEndBlock(block.id)}
-                          className="h-7 rounded-[8px] px-2.5 text-[0.74rem] font-semibold text-white"
-                          style={{ background: "var(--done)" }}
+                          onClick={() => router.push(`/blocks/${block.id}/focus`)}
+                          className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
+                          style={{ background: "var(--accent)" }}
                         >
-                          End
+                          Open
                         </button>
-                      )}
+                      ) : null}
                       <button
                         type="button"
                         onClick={() => (isAssignOpen ? setOpenAssignBlockId(null) : openAssignPanel(block))}
-                        className="h-7 rounded-[8px] border px-2.5 text-[0.74rem] font-semibold"
-                        style={{ borderColor: "var(--line)" }}
+                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
+                        style={{
+                          borderColor: "var(--line)",
+                          background: "var(--surface-solid)",
+                          color: "var(--text)",
+                        }}
                       >
-                        {isAssignOpen ? "Close assign" : "Assign tasks"}
+                        {isAssignOpen ? "Close" : "Assign"}
                       </button>
                       <button
                         type="button"
                         onClick={() => void handleDeleteBlock(block.id)}
-                        className="h-7 rounded-[8px] border px-2.5 text-[0.74rem] font-semibold"
+                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
                         style={{ borderColor: "var(--line)", color: "var(--danger)" }}
                       >
                         Delete
                       </button>
                     </div>
                   </div>
+                </div>
 
-                  {blockTasks.length > 0 ? (
-                    <div className="mt-3 space-y-1.5">
-                      {blockTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          className="flex items-center gap-2 rounded-[9px] px-2 py-1.5 text-[0.84rem]"
-                          style={{ background: "var(--surface-hover)" }}
-                        >
-                          <span
-                            className="h-1.5 w-1.5 rounded-full"
-                            style={{
-                              background:
-                                task.status === "done"
-                                  ? "var(--done)"
-                                  : task.status === "in_progress"
-                                    ? "#ff9500"
-                                    : "var(--text-3)",
-                            }}
-                          />
-                          <span>{task.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {isAssignOpen ? (
-                    <div
-                      className="mt-3 rounded-[10px] border px-3 py-3"
-                      style={{ background: "var(--surface-hover)", borderColor: "var(--line)" }}
-                    >
-                      <p className="mb-2 text-[0.78rem] font-semibold uppercase tracking-[0.04em] text-[var(--text-3)]">
-                        Assign from Backlog + Planned
+                {isAssignOpen ? (
+                  <div
+                    className="mt-4 rounded-[12px] border px-3.5 py-3"
+                    style={{ background: "var(--surface-hover)", borderColor: "var(--line)" }}
+                  >
+                    <p className="mb-2 text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+                      Assign from Backlog + Planned
+                    </p>
+                    {assignmentPool.length === 0 ? (
+                      <p className="text-[0.82rem]" style={{ color: "var(--text-2)" }}>
+                        No eligible tasks. Add tasks in Backlog/Planned on the Board.
                       </p>
-                      {assignmentPool.length === 0 ? (
-                        <p className="text-[0.82rem]" style={{ color: "var(--text-2)" }}>
-                          No eligible tasks. Add tasks in Backlog/Planned on the Board.
-                        </p>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {assignmentPool.map((task) => (
-                            <label key={task.id} className="flex items-center gap-2 text-[0.84rem]">
-                              <input
-                                type="checkbox"
-                                checked={selectedTaskIds.includes(task.id)}
-                                onChange={(event) => {
-                                  setSelectedTaskIds((prev) =>
-                                    event.target.checked
-                                      ? [...prev, task.id]
-                                      : prev.filter((itemId) => itemId !== task.id),
-                                  );
-                                }}
-                              />
-                              <span>{task.name}</span>
-                            </label>
-                          ))}
-                        </div>
-                      )}
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => void handleSaveAssignments(block.id)}
-                          disabled={isSavingAssignments}
-                          className="h-8 rounded-[8px] px-3 text-[0.76rem] font-semibold text-white"
-                          style={{ background: "var(--accent)", opacity: isSavingAssignments ? 0.65 : 1 }}
-                        >
-                          {isSavingAssignments ? "Saving..." : "Save assignments"}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenAssignBlockId(null);
-                            setSelectedTaskIds([]);
-                          }}
-                          className="h-8 rounded-[8px] border px-3 text-[0.76rem] font-semibold"
-                          style={{ borderColor: "var(--line)" }}
-                        >
-                          Cancel
-                        </button>
+                    ) : (
+                      <div className="flex flex-col gap-1.5">
+                        {assignmentPool.map((task) => (
+                          <label
+                            key={task.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[0.84rem] hover:bg-[var(--surface-solid)]"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTaskIds.includes(task.id)}
+                              onChange={(event) => {
+                                setSelectedTaskIds((prev) =>
+                                  event.target.checked
+                                    ? [...prev, task.id]
+                                    : prev.filter((itemId) => itemId !== task.id),
+                                );
+                              }}
+                              className="accent-[var(--accent)]"
+                            />
+                            <span>{task.name}</span>
+                          </label>
+                        ))}
                       </div>
+                    )}
+                    <div className="mt-3 flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleSaveAssignments(block.id)}
+                        disabled={isSavingAssignments}
+                        className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
+                        style={{ background: "var(--accent)", opacity: isSavingAssignments ? 0.65 : 1 }}
+                      >
+                        {isSavingAssignments ? "Saving..." : "Save assignments"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenAssignBlockId(null);
+                          setSelectedTaskIds([]);
+                        }}
+                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
+                        style={{ borderColor: "var(--line)" }}
+                      >
+                        Cancel
+                      </button>
                     </div>
-                  ) : null}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                  </div>
+                ) : null}
+              </article>
+            );
+          })}
+        </div>
+      )}
+
+      {isAddBlockOpen ? (
+        <section
+          className="anim mt-4 rounded-[16px] border px-5 py-5"
+          style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <form className="space-y-3" onSubmit={handleCreateBlock}>
+            <div>
+              <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+                Block name
+              </label>
+              <input
+                autoFocus
+                value={draftTitle}
+                onChange={(event) => setDraftTitle(event.target.value)}
+                placeholder="e.g. TypeScript Deep Work"
+                className="h-10 w-full rounded-[10px] border px-3.5 text-[0.9rem] outline-none focus:border-[var(--accent)]"
+                style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+              />
+            </div>
+            <div className="flex flex-wrap items-end gap-4">
+              <div>
+                <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+                  Start
+                </label>
+                <input
+                  type="time"
+                  value={draftStartTime}
+                  onChange={(event) => setDraftStartTime(event.target.value)}
+                  className="h-10 rounded-[10px] border px-3 text-[0.86rem] outline-none focus:border-[var(--accent)]"
+                  style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
+                  Duration
+                </label>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {durationPresets.map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setDraftDuration(preset)}
+                      className="h-9 rounded-[8px] px-3 text-[0.8rem] font-semibold transition-colors"
+                      style={{
+                        background: draftDuration === preset ? "var(--accent-soft)" : "var(--surface-hover)",
+                        color: draftDuration === preset ? "var(--accent)" : "var(--text-2)",
+                      }}
+                    >
+                      {preset}m
+                    </button>
+                  ))}
+                  <input
+                    type="number"
+                    min={15}
+                    max={720}
+                    value={draftDuration}
+                    onChange={(event) => setDraftDuration(Number(event.target.value))}
+                    className="h-9 w-[90px] rounded-[8px] border px-2.5 text-[0.8rem] outline-none focus:border-[var(--accent)]"
+                    style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+                    aria-label="Custom duration in minutes"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="h-10 rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
+                  style={{ background: "var(--accent)", opacity: isSubmitting ? 0.65 : 1 }}
+                >
+                  {isSubmitting ? "Creating..." : "Create block"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsAddBlockOpen(false)}
+                  className="h-10 rounded-[10px] border px-4 text-[0.86rem] font-medium"
+                  style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </form>
+        </section>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setIsAddBlockOpen(true)}
+          className="mt-4 flex w-full items-center justify-center gap-2 rounded-[16px] border-[1.5px] px-4 py-[18px] text-[0.92rem] font-medium transition-[border-color,color] duration-200 hover:border-[var(--accent)] hover:text-[var(--accent)]"
+          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-2)" }}
+        >
+          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
+            <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
+          </svg>
+          Add new block
+        </button>
+      )}
     </div>
   );
 }

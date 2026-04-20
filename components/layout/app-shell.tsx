@@ -55,7 +55,7 @@ export function AppShell({ children }: PropsWithChildren) {
         className="sticky top-0 z-50 border-b backdrop-blur-xl"
         style={{ background: "var(--surface)", borderColor: "var(--line)" }}
       >
-        <div className="mx-auto flex h-14 w-full max-w-[1040px] items-center justify-between px-6">
+        <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between px-6">
           <div className="text-base font-bold tracking-[-0.02em]">TaskPilot</div>
 
           <div className="flex gap-0.5">
@@ -65,7 +65,7 @@ export function AppShell({ children }: PropsWithChildren) {
                 <Link
                   key={tab.href}
                   href={tab.href}
-                  className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors"
+                  className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
                   style={{
                     color: isActive ? "var(--accent)" : "var(--text-2)",
                     background: isActive ? "var(--accent-soft)" : "transparent",
@@ -81,8 +81,8 @@ export function AppShell({ children }: PropsWithChildren) {
             <button
               type="button"
               onClick={handleLogout}
-              className="rounded-[10px] px-3 py-1.5 text-[0.82rem] font-medium transition-colors"
-              style={{ color: "var(--text-2)", background: "transparent" }}
+              className="h-[30px] rounded-[8px] border px-3 text-[0.82rem] font-medium transition-colors hover:text-[var(--text)]"
+              style={{ borderColor: "var(--line)", color: "var(--text-2)", background: "transparent" }}
             >
               Logout
             </button>
@@ -98,6 +98,7 @@ export function AppShell({ children }: PropsWithChildren) {
                 style={{
                   background: "var(--toggle-knob)",
                   transform: theme === "dark" ? "translateX(16px)" : "translateX(0)",
+                  boxShadow: "0 1px 3px rgba(0,0,0,.2)",
                 }}
               />
             </button>
@@ -106,7 +107,7 @@ export function AppShell({ children }: PropsWithChildren) {
         </div>
       </nav>
 
-      <main className="mx-auto w-full max-w-[1040px] px-6 pb-14 pt-10">{children}</main>
+      <main className="mx-auto w-full max-w-[1280px] px-6 pb-14 pt-10">{children}</main>
     </>
   );
 }

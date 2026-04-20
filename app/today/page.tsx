@@ -228,21 +228,31 @@ export default function TodayPage() {
 
   return (
     <div>
-      <section className="mb-10">
-        <h1 className="text-[2.25rem] font-bold leading-[1.1] tracking-[-0.035em]">
+      <section className="anim mb-10">
+        <p
+          className="mb-2 text-[0.82rem] font-semibold uppercase tracking-[0.05em]"
+          style={{ color: "var(--accent)" }}
+        >
+          Today&apos;s list
+        </p>
+        <h1 className="text-[2.4rem] font-bold leading-[1.1] tracking-[-0.035em]">
           Good afternoon, Nicholas
         </h1>
-        <p className="mt-2.5 text-base" style={{ color: "var(--text-2)" }}>
+        <p className="mt-2.5 text-[1rem]" style={{ color: "var(--text-2)" }}>
           You&apos;re off to a good start — keep the momentum going.
         </p>
 
         <div
-          className="mt-6 rounded-[14px] border px-6 py-4 shadow-[var(--shadow-sm)]"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+          className="mt-6 rounded-[16px] border px-6 py-[18px]"
+          style={{
+            background: "var(--surface-solid)",
+            borderColor: "var(--line)",
+            boxShadow: "var(--shadow-sm)",
+          }}
         >
           <div className="mb-2.5 flex items-baseline justify-between">
             <span
-              className="text-[0.82rem] font-semibold uppercase tracking-[0.04em]"
+              className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
               style={{ color: "var(--text-2)" }}
             >
               Today&apos;s progress
@@ -253,7 +263,7 @@ export default function TodayPage() {
           </div>
           <div className="h-2 w-full overflow-hidden rounded-full" style={{ background: "var(--line)" }}>
             <div
-              className="h-full rounded-full"
+              className="h-full rounded-full transition-all duration-500"
               style={{
                 width: `${progress}%`,
                 background: "linear-gradient(90deg, var(--done), #4cd964)",
@@ -263,9 +273,15 @@ export default function TodayPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-[1fr_300px] gap-10 max-[880px]:grid-cols-1">
-        <section>
-          <h2 className="mb-4 text-[1.4rem] font-bold tracking-[-0.02em]">Today</h2>
+      <div className="grid grid-cols-[1fr_320px] gap-10 max-[880px]:grid-cols-1">
+        <section className="anim anim-d1">
+          <div className="mb-4 flex items-center gap-2.5">
+            <span
+              className="pulse-dot inline-block h-2 w-2 rounded-full"
+              style={{ background: "var(--accent)" }}
+            />
+            <h2 className="text-[1.4rem] font-bold tracking-[-0.02em]">Today</h2>
+          </div>
 
           <form className="mb-6 flex gap-3" onSubmit={handleAddTask}>
             <input
@@ -336,9 +352,10 @@ export default function TodayPage() {
               ? activeTasks.map((task, idx) => (
                   <article
                     key={task.id}
-                    className="mx-[-12px] flex items-center gap-3 rounded-[10px] border-b px-3 py-[14px] transition hover:bg-[var(--surface-hover)]"
+                    className="group mx-[-12px] flex items-center gap-3 rounded-[10px] border-b px-3 py-[14px] transition hover:bg-[var(--surface-hover)]"
                     style={{
                       borderBottomColor: idx === activeTasks.length - 1 ? "transparent" : "var(--line)",
+                      transitionDuration: "var(--t)",
                     }}
                   >
                     <button
@@ -346,7 +363,7 @@ export default function TodayPage() {
                       aria-label={`Toggle ${task.name}`}
                       onClick={() => handleToggleTask(task.id)}
                       disabled={updatingIds.has(task.id)}
-                      className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full border-2 transition"
+                      className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full border-2 transition group-hover:border-[var(--accent)]"
                       style={{
                         borderColor: "var(--text-3)",
                         opacity: updatingIds.has(task.id) ? 0.45 : 1,
@@ -388,12 +405,18 @@ export default function TodayPage() {
           </div>
 
           <section className="mt-10">
-            <h3
-              className="mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-              style={{ color: "var(--text-3)" }}
-            >
-              Completed
-            </h3>
+            <div className="mb-3 flex items-center gap-2">
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full"
+                style={{ background: "var(--done)" }}
+              />
+              <h3
+                className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
+                style={{ color: "var(--text-3)" }}
+              >
+                Completed
+              </h3>
+            </div>
             {!isLoading
               ? completedTasks.map((task) => (
               <article
@@ -448,17 +471,27 @@ export default function TodayPage() {
           </section>
         </section>
 
-        <aside className="flex flex-col gap-6">
+        <aside className="anim anim-d2 flex flex-col gap-6">
           <section
-            className="rounded-[18px] border px-6 py-6 shadow-[var(--shadow-md)]"
-            style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+            className="rounded-[18px] border px-6 py-6"
+            style={{
+              background: "var(--surface-solid)",
+              borderColor: "var(--line)",
+              boxShadow: "var(--shadow-md)",
+            }}
           >
-            <h3
-              className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-              style={{ color: "var(--text-3)" }}
-            >
-              Focus timer
-            </h3>
+            <div className="mb-4 flex items-center gap-2">
+              <span
+                className={`inline-block h-1.5 w-1.5 rounded-full ${isTimerRunning ? "pulse-dot" : ""}`}
+                style={{ background: isTimerRunning ? "var(--warn)" : "var(--text-3)" }}
+              />
+              <h3
+                className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
+                style={{ color: "var(--text-3)" }}
+              >
+                Focus timer
+              </h3>
+            </div>
             <div className="text-center">
               <p className="text-[2.6rem] font-bold leading-none tracking-[-0.04em]">{formattedTimer}</p>
               <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-3)" }}>
@@ -506,15 +539,25 @@ export default function TodayPage() {
           </section>
 
           <section
-            className="rounded-[18px] border px-6 py-6 shadow-[var(--shadow-md)]"
-            style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+            className="rounded-[18px] border px-6 py-6"
+            style={{
+              background: "var(--surface-solid)",
+              borderColor: "var(--line)",
+              boxShadow: "var(--shadow-md)",
+            }}
           >
-            <h3
-              className="mb-4 text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-              style={{ color: "var(--text-3)" }}
-            >
-              Reminders
-            </h3>
+            <div className="mb-4 flex items-center gap-2">
+              <span
+                className="inline-block h-1.5 w-1.5 rounded-full"
+                style={{ background: "var(--warn)" }}
+              />
+              <h3
+                className="text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
+                style={{ color: "var(--text-3)" }}
+              >
+                Reminders
+              </h3>
+            </div>
             {reminders.map((reminder, idx) => (
               <article
                 key={reminder.name}

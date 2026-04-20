@@ -5,6 +5,7 @@
   --surface-solid: #ffffff;
   --surface: rgba(255, 255, 255, 0.82);
   --surface-hover: #f8f9fb;
+  --column-bg: #eef0f4;
   --line: rgba(0, 0, 0, 0.06);
   --line-strong: rgba(0, 0, 0, 0.1);
   --text: #1d1d1f;
@@ -14,7 +15,9 @@
   --accent-hover: #0066d6;
   --accent-soft: rgba(0, 122, 255, 0.08);
   --done: #34c759;
-  --done-soft: rgba(52, 199, 89, 0.1);
+  --done-soft: rgba(52, 199, 89, 0.12);
+  --warn: #ff9500;
+  --warn-soft: rgba(255, 149, 0, 0.1);
   --danger: #ff3b30;
   --danger-soft: rgba(255, 59, 48, 0.08);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -22,6 +25,7 @@
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
   --toggle-bg: #e5e5ea;
   --toggle-knob: #fff;
+  --t: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 html[data-theme="dark"] {
@@ -29,6 +33,7 @@ html[data-theme="dark"] {
   --surface-solid: #1c1c1e;
   --surface: rgba(28, 28, 30, 0.82);
   --surface-hover: #2c2c2e;
+  --column-bg: #131316;
   --line: rgba(255, 255, 255, 0.08);
   --line-strong: rgba(255, 255, 255, 0.14);
   --text: #f5f5f7;
@@ -38,7 +43,9 @@ html[data-theme="dark"] {
   --accent-hover: #3b9eff;
   --accent-soft: rgba(10, 132, 255, 0.14);
   --done: #30d158;
-  --done-soft: rgba(48, 209, 88, 0.14);
+  --done-soft: rgba(48, 209, 88, 0.16);
+  --warn: #ff9f0a;
+  --warn-soft: rgba(255, 159, 10, 0.16);
   --danger: #ff453a;
   --danger-soft: rgba(255, 69, 58, 0.14);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -64,4 +71,51 @@ body {
   border: 1px solid var(--line);
   border-radius: 18px;
   box-shadow: var(--shadow-md);
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulseDot {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(1.4);
+  }
+}
+
+.anim {
+  animation: fadeUp 350ms ease both;
+}
+.anim-d1 {
+  animation-delay: 60ms;
+}
+.anim-d2 {
+  animation-delay: 120ms;
+}
+.anim-d3 {
+  animation-delay: 180ms;
+}
+.anim-d4 {
+  animation-delay: 240ms;
+}
+
+.pulse-dot {
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+.focus-bg {
+  background: radial-gradient(ellipse at 50% 0%, var(--accent-soft) 0%, transparent 60%), var(--bg);
 }
