@@ -1,0 +1,2531 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — 3-Nav Integrated Mock (v3)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =========================================================
+         INTEGRATED MOCK V3
+         Same page designs as v1 integrated (Board, Blocks, Home,
+         Today) — only the top nav changes.
+
+         New nav model:
+           1. Home      (existing landing / focus surface = Step 3)
+           2. Start Day (primary pill → routes to Board = Step 1,
+                        flow strip walks you through Board → Blocks
+                        → Home → Today via in-page CTAs)
+           3. Tasks     (new library page — create + view all)
+
+         Board, Blocks, Today are *sub-pages* of the Start Day flow
+         and are reached only via the flow strip's "Next" link, not
+         as standalone nav items.
+         ========================================================= */
+
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --t: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface-solid: #ffffff;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-hover: #f8f9fb;
+        --column-bg: #eef0f4;
+        --line: rgba(0, 0, 0, 0.06);
+        --line-strong: rgba(0, 0, 0, 0.1);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0, 122, 255, 0.08);
+        --done: #34c759;
+        --done-soft: rgba(52, 199, 89, 0.12);
+        --warn: #ff9500;
+        --warn-soft: rgba(255, 149, 0, 0.1);
+        --danger: #ff3b30;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
+        --toggle-bg: #e5e5ea;
+        --toggle-knob: #fff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #000;
+        --surface-solid: #1c1c1e;
+        --surface: rgba(28, 28, 30, 0.82);
+        --surface-hover: #2c2c2e;
+        --column-bg: #131316;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10, 132, 255, 0.14);
+        --done: #30d158;
+        --done-soft: rgba(48, 209, 88, 0.16);
+        --warn: #ff9f0a;
+        --warn-soft: rgba(255, 159, 10, 0.16);
+        --danger: #ff453a;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
+        --toggle-bg: #39393d;
+        --toggle-knob: #f5f5f7;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+      }
+
+      /* =================================================================
+         NAV — only 3 destinations
+         ================================================================= */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        height: 60px;
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: -0.02em;
+        cursor: pointer;
+        background: none;
+        border: none;
+        color: var(--text);
+        font-family: inherit;
+      }
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.72rem;
+        font-weight: 800;
+      }
+
+      .nav-center {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .nav-tab {
+        height: 36px;
+        padding: 0 14px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--text-2);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        transition: var(--t);
+      }
+      .nav-tab:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+      }
+      .nav-tab.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      /* The Start Day pill — visually unmistakable as the primary path */
+      .start-day-btn {
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #fff;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(0, 122, 255, 0.24);
+        transition: var(--t);
+      }
+      .start-day-btn:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+      .start-day-btn .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #fff;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .start-day-btn.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        box-shadow: none;
+      }
+      .start-day-btn.active .dot {
+        background: var(--accent);
+      }
+      .start-day-btn .badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.22);
+        padding: 2px 7px;
+        border-radius: 999px;
+      }
+      .start-day-btn.active .badge {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .nav-r {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .ghost-btn {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text-2);
+        background: transparent;
+        border: 1px solid var(--line);
+        cursor: pointer;
+        font-family: inherit;
+        transition: var(--t);
+      }
+      .ghost-btn:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+      }
+      .toggle {
+        position: relative;
+        width: 40px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--toggle-bg);
+        border: none;
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--toggle-knob);
+        transition: var(--t);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      [data-theme="dark"] .toggle::after {
+        transform: translateX(16px);
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.55; transform: scale(1.4); }
+      }
+
+      /* =================================================================
+         FLOW STRIP — only renders on flow sub-pages (Board/Blocks/Today
+         and Home-when-active). Hidden on the Tasks page.
+         ================================================================= */
+      .flow-strip {
+        position: sticky;
+        top: 60px;
+        z-index: 55;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .flow-strip.hidden {
+        display: none;
+      }
+      .flow-inner {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 10px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .stepper {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .step {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text-3);
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        transition: var(--t);
+        white-space: nowrap;
+      }
+      .step .num {
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--surface-hover);
+        color: var(--text-3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.68rem;
+        font-weight: 700;
+        transition: var(--t);
+      }
+      .step.done {
+        color: var(--done);
+      }
+      .step.done .num {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+      .step.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+        font-weight: 600;
+      }
+      .step.active .num {
+        background: var(--accent);
+        color: #fff;
+      }
+      .step-arrow {
+        color: var(--text-3);
+        font-size: 0.78rem;
+      }
+      .next-hint {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: var(--text-2);
+      }
+      .next-hint strong {
+        color: var(--text);
+        font-weight: 600;
+      }
+      .next-hint .ndot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .next-hint .go {
+        color: var(--accent);
+        font-weight: 600;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .next-hint .go:hover {
+        text-decoration: underline;
+      }
+
+      /* =================================================================
+         SHELL
+         ================================================================= */
+      .shell {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 28px 24px 64px;
+      }
+      .page {
+        display: none;
+        animation: fadeUp 320ms ease both;
+      }
+      .page.visible {
+        display: block;
+      }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* =================================================================
+         REUSABLE: NEXT-ACTION BANNER (preserved from v1 integrated)
+         ================================================================= */
+      .next-banner {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 14px 18px;
+        margin-bottom: 24px;
+        border-radius: 14px;
+        background: linear-gradient(
+          90deg,
+          var(--accent-soft) 0%,
+          rgba(0, 122, 255, 0.02) 100%
+        );
+        border: 1px solid rgba(0, 122, 255, 0.16);
+      }
+      .next-banner .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .next-banner .label::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--accent);
+      }
+      .next-banner .question {
+        margin-top: 4px;
+        font-size: 1rem;
+        font-weight: 600;
+        color: var(--text);
+        letter-spacing: -0.01em;
+      }
+      .next-banner .desc {
+        margin-top: 2px;
+        font-size: 0.84rem;
+        color: var(--text-2);
+      }
+      .next-banner .cta {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        height: 40px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        background: var(--accent);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        box-shadow: 0 6px 16px rgba(0, 122, 255, 0.24);
+        transition: var(--t);
+        white-space: nowrap;
+      }
+      .next-banner .cta:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+      .next-banner .cta:disabled {
+        background: var(--surface-hover);
+        color: var(--text-3);
+        box-shadow: none;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      /* =================================================================
+         PAGE HEADERS
+         ================================================================= */
+      .page-head {
+        margin-bottom: 24px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .page-head h1 {
+        font-size: 1.85rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+      .page-head .sub {
+        margin-top: 6px;
+        color: var(--text-2);
+        font-size: 0.92rem;
+      }
+      .date-nav {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 4px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface-solid);
+      }
+      .date-btn {
+        height: 32px;
+        min-width: 32px;
+        border: none;
+        background: transparent;
+        color: var(--text-2);
+        cursor: pointer;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: var(--t);
+      }
+      .date-btn:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+      .date-label {
+        padding: 0 12px;
+        font-size: 0.86rem;
+        font-weight: 600;
+      }
+
+      /* =================================================================
+         CARDS / SURFACES
+         ================================================================= */
+      .card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        box-shadow: var(--shadow-sm);
+        padding: 20px;
+      }
+      .card + .card {
+        margin-top: 16px;
+      }
+
+      /* =================================================================
+         BOARD PAGE — kanban (preserved from v1)
+         ================================================================= */
+      .kanban {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 16px;
+      }
+      .col {
+        background: var(--column-bg);
+        border-radius: 16px;
+        padding: 14px;
+        min-height: 380px;
+      }
+      .col-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 12px;
+        padding: 0 4px;
+      }
+      .col-title {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.02em;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+      }
+      .count {
+        background: var(--surface-solid);
+        color: var(--text-3);
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 600;
+      }
+      .task-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 12px;
+        margin-bottom: 8px;
+        box-shadow: var(--shadow-sm);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .task-card:hover {
+        transform: translateY(-1px);
+        border-color: var(--line-strong);
+      }
+      .task-card.in-progress {
+        border-color: var(--warn);
+        box-shadow: var(--shadow-sm), 0 0 0 3px var(--warn-soft);
+      }
+      .task-card.done {
+        opacity: 0.7;
+      }
+      .task-card.done .task-name {
+        text-decoration: line-through;
+        color: var(--text-3);
+      }
+      .task-card.selectable {
+        position: relative;
+      }
+      .task-card.selected {
+        border-color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .task-name {
+        font-size: 0.92rem;
+        font-weight: 500;
+        line-height: 1.4;
+      }
+      .task-meta {
+        margin-top: 4px;
+        font-size: 0.76rem;
+        color: var(--text-3);
+      }
+      .task-tags {
+        margin-top: 8px;
+        display: flex;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+      .tag {
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 600;
+      }
+      .tag.linked {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .empty-col {
+        margin-top: 8px;
+        border: 1.5px dashed var(--line-strong);
+        border-radius: 12px;
+        padding: 18px;
+        text-align: center;
+        font-size: 0.8rem;
+        color: var(--text-3);
+      }
+
+      .selection-bar {
+        display: none;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 14px;
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: var(--text);
+        color: var(--bg);
+      }
+      .selection-bar.visible {
+        display: flex;
+      }
+      .selection-bar .count-pill {
+        font-size: 0.88rem;
+        font-weight: 600;
+      }
+      .selection-bar .actions {
+        display: flex;
+        gap: 8px;
+      }
+      .selection-bar .actions button {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+      }
+      .selection-bar .actions .primary {
+        background: var(--accent);
+        color: #fff;
+      }
+      .selection-bar .actions .ghost {
+        background: rgba(255, 255, 255, 0.12);
+        color: var(--bg);
+      }
+
+      /* =================================================================
+         BLOCKS PAGE (preserved)
+         ================================================================= */
+      .block-card {
+        display: grid;
+        grid-template-columns: 100px 1fr auto;
+        align-items: center;
+        gap: 20px;
+        padding: 18px 20px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 12px;
+      }
+      .block-card.target {
+        border-color: var(--accent);
+        box-shadow: var(--shadow-sm), 0 0 0 3px var(--accent-soft);
+      }
+      .block-time {
+        text-align: center;
+        border-right: 1px solid var(--line);
+        padding-right: 16px;
+      }
+      .block-time .start {
+        font-size: 1.3rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .block-time .end {
+        margin-top: 4px;
+        font-size: 0.74rem;
+        color: var(--text-3);
+      }
+      .block-time .dur {
+        margin-top: 6px;
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 999px;
+        font-size: 0.68rem;
+        font-weight: 600;
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .block-body h4 {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .block-body .meta {
+        margin-top: 4px;
+        font-size: 0.8rem;
+        color: var(--text-2);
+      }
+      .block-body .tasks {
+        margin-top: 8px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+      .block-body .task-row {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.84rem;
+        color: var(--text-2);
+      }
+      .block-body .task-row .tdot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+      }
+      .block-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-end;
+        gap: 8px;
+      }
+      .status-pill {
+        padding: 3px 10px;
+        border-radius: 999px;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+      }
+      .status-pill.upcoming {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .status-pill.active {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .status-pill.done {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+      .small-btn {
+        height: 30px;
+        padding: 0 12px;
+        border-radius: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        border: 1px solid var(--line);
+        background: var(--surface-solid);
+        color: var(--text);
+        cursor: pointer;
+        font-family: inherit;
+        transition: var(--t);
+      }
+      .small-btn.primary {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .small-btn:hover {
+        background: var(--surface-hover);
+      }
+      .small-btn.primary:hover {
+        background: var(--accent-hover);
+      }
+
+      .assign-panel {
+        display: none;
+        margin-top: 14px;
+        padding: 14px;
+        background: var(--surface-hover);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+      }
+      .assign-panel.visible {
+        display: block;
+      }
+      .assign-panel h5 {
+        font-size: 0.74rem;
+        font-weight: 700;
+        color: var(--text-3);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        margin-bottom: 8px;
+      }
+      .check-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 4px;
+        font-size: 0.86rem;
+        cursor: pointer;
+        border-radius: 6px;
+      }
+      .check-row:hover {
+        background: var(--surface-solid);
+      }
+      .check-row input {
+        accent-color: var(--accent);
+        cursor: pointer;
+      }
+
+      /* =================================================================
+         HOME PAGE — gradient hero (preserved)
+         ================================================================= */
+      .greet h1 {
+        font-size: 1.95rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+      .greet p {
+        margin-top: 6px;
+        font-size: 0.95rem;
+        color: var(--text-2);
+      }
+      .hero {
+        position: relative;
+        margin-top: 22px;
+        margin-bottom: 18px;
+        padding: 28px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        color: #fff;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0, 122, 255, 0.2);
+      }
+      .hero::after {
+        content: "";
+        position: absolute;
+        top: -60px;
+        right: -30px;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.07);
+      }
+      .hero .eyebrow {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.9;
+      }
+      .hero .eyebrow .lp {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #fff;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .hero h2 {
+        position: relative;
+        margin-top: 10px;
+        font-size: 1.6rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .hero .row {
+        position: relative;
+        margin-top: 18px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+      }
+      .hero .now {
+        font-size: 0.94rem;
+        opacity: 0.92;
+      }
+      .hero .timer {
+        text-align: right;
+      }
+      .hero .timer .clock {
+        font-size: 2.4rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+      }
+      .hero .timer .meta {
+        margin-top: 6px;
+        font-size: 0.78rem;
+        opacity: 0.85;
+      }
+      .hero .ctas {
+        position: relative;
+        margin-top: 22px;
+        display: flex;
+        gap: 10px;
+      }
+      .hero .ctas button {
+        height: 38px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 0.86rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        border: none;
+        transition: var(--t);
+      }
+      .hero .ctas .primary {
+        background: #fff;
+        color: var(--accent);
+      }
+      .hero .ctas .primary:hover {
+        transform: translateY(-1px);
+      }
+      .hero .ctas .ghost {
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+      }
+
+      /* "Idle" Home variant — when nothing is in progress */
+      .home-idle-cta {
+        margin-top: 22px;
+        padding: 28px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 24px rgba(0, 122, 255, 0.2);
+      }
+      .home-idle-cta::after {
+        content: "";
+        position: absolute;
+        top: -60px;
+        right: -30px;
+        width: 220px;
+        height: 220px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.07);
+      }
+      .home-idle-cta h2 {
+        position: relative;
+        font-size: 1.6rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .home-idle-cta p {
+        position: relative;
+        margin-top: 8px;
+        font-size: 0.94rem;
+        opacity: 0.92;
+        max-width: 460px;
+      }
+      .home-idle-cta .ctas {
+        position: relative;
+        margin-top: 20px;
+        display: flex;
+        gap: 10px;
+      }
+      .home-idle-cta button {
+        height: 42px;
+        padding: 0 20px;
+        border-radius: 10px;
+        font-size: 0.92rem;
+        font-weight: 600;
+        cursor: pointer;
+        font-family: inherit;
+        border: none;
+        transition: var(--t);
+      }
+      .home-idle-cta .primary {
+        background: #fff;
+        color: var(--accent);
+      }
+      .home-idle-cta .primary:hover {
+        transform: translateY(-1px);
+      }
+      .home-idle-cta .ghost {
+        background: rgba(255, 255, 255, 0.18);
+        color: #fff;
+      }
+
+      .snapshot {
+        margin-top: 24px;
+        padding: 20px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+      }
+      .snapshot-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 14px;
+      }
+      .snapshot-head h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .snapshot-link {
+        font-size: 0.84rem;
+        color: var(--accent);
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+      }
+      .snapshot-grid {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 10px;
+      }
+      .snap-card {
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface-hover);
+      }
+      .snap-card.warn {
+        background: var(--warn-soft);
+        border-color: var(--warn);
+      }
+      .snap-card .label {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-2);
+      }
+      .snap-card.warn .label {
+        color: var(--warn);
+      }
+      .snap-card .num {
+        margin-top: 8px;
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .snap-card.warn .num {
+        color: var(--warn);
+      }
+      .snap-card .tip {
+        margin-top: 4px;
+        font-size: 0.74rem;
+        color: var(--text-3);
+      }
+
+      .two-col {
+        display: grid;
+        grid-template-columns: 1.5fr 1fr;
+        gap: 24px;
+      }
+      @media (max-width: 980px) {
+        .two-col,
+        .snapshot-grid,
+        .kanban {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+      @media (max-width: 720px) {
+        .two-col,
+        .snapshot-grid,
+        .kanban {
+          grid-template-columns: 1fr;
+        }
+        .flow-inner {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .block-card {
+          grid-template-columns: 1fr;
+        }
+        .block-time {
+          border-right: none;
+          border-bottom: 1px solid var(--line);
+          padding-right: 0;
+          padding-bottom: 12px;
+          text-align: left;
+        }
+      }
+
+      /* =================================================================
+         TODAY PAGE (preserved)
+         ================================================================= */
+      .progress-card { padding: 22px; }
+      .progress-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 12px;
+      }
+      .progress-row .label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-2);
+      }
+      .progress-row .stat {
+        font-size: 0.94rem;
+        font-weight: 600;
+      }
+      .progress-row .stat .done-num {
+        color: var(--done);
+        font-weight: 700;
+      }
+      .progress-bar {
+        height: 8px;
+        background: var(--line);
+        border-radius: 999px;
+        overflow: hidden;
+      }
+      .progress-bar .fill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--done), #4cd964);
+        border-radius: 999px;
+        transition: width 600ms ease;
+      }
+
+      .reflect-list .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .reflect-list .row:last-child {
+        border-bottom: none;
+      }
+      .reflect-list .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid var(--text-3);
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--surface-solid);
+      }
+      .reflect-list .row.done .check {
+        background: var(--done);
+        border-color: var(--done);
+        color: #fff;
+      }
+      .reflect-list .row.done .name {
+        text-decoration: line-through;
+        color: var(--text-3);
+      }
+      .reflect-list .check svg {
+        width: 12px;
+        height: 12px;
+        opacity: 0;
+      }
+      .reflect-list .row.done .check svg {
+        opacity: 1;
+      }
+      .reflect-list .name {
+        flex: 1;
+        font-size: 0.94rem;
+      }
+      .reflect-list .right {
+        font-size: 0.78rem;
+        color: var(--text-3);
+      }
+
+      .week {
+        margin-top: 24px;
+        padding: 20px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+      }
+      .week-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 14px;
+      }
+      .week-head h3 {
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      .week-head .range {
+        font-size: 0.8rem;
+        color: var(--text-3);
+      }
+      .week-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 8px;
+      }
+      .week-day {
+        text-align: center;
+      }
+      .week-day .wd {
+        font-size: 0.66rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-3);
+        margin-bottom: 6px;
+      }
+      .week-day.today .wd {
+        color: var(--accent);
+      }
+      .week-day .bar {
+        position: relative;
+        height: 38px;
+        border-radius: 10px;
+        background: var(--surface-hover);
+        overflow: hidden;
+      }
+      .week-day.today .bar {
+        background: var(--accent-soft);
+        outline: 2px solid var(--accent);
+        outline-offset: 2px;
+      }
+      .week-day .bar .fill {
+        position: absolute;
+        inset: auto 0 0 0;
+        background: var(--done);
+        border-radius: 10px;
+      }
+      .week-day.today .bar .fill {
+        background: var(--accent);
+      }
+      .week-day .ratio {
+        margin-top: 6px;
+        font-size: 0.74rem;
+        color: var(--text-2);
+      }
+
+      /* =================================================================
+         TASKS PAGE — new library / inbox
+         ================================================================= */
+      .tasks-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      .tasks-head h1 {
+        font-size: 1.85rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+      .tasks-head p {
+        margin-top: 6px;
+        font-size: 0.92rem;
+        color: var(--text-2);
+      }
+
+      .quick-add {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 18px;
+        padding: 6px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+      }
+      .quick-add input {
+        flex: 1;
+        height: 46px;
+        padding: 0 14px;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 0.96rem;
+        color: var(--text);
+        outline: none;
+      }
+      .quick-add input::placeholder {
+        color: var(--text-3);
+      }
+      .quick-add .meta-input {
+        height: 46px;
+        padding: 0 12px;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 0.86rem;
+        color: var(--text-2);
+        outline: none;
+        width: 160px;
+        border-left: 1px solid var(--line);
+      }
+      .quick-add button {
+        height: 46px;
+        padding: 0 22px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-family: inherit;
+        font-size: 0.92rem;
+        border: none;
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .quick-add button:hover {
+        background: var(--accent-hover);
+      }
+
+      .filters {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+      }
+      .filter-pill {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text-2);
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: var(--t);
+      }
+      .filter-pill:hover {
+        background: var(--surface-hover);
+      }
+      .filter-pill.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: rgba(0, 122, 255, 0.24);
+      }
+      .filter-pill .fcount {
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: var(--surface-hover);
+        padding: 1px 7px;
+        border-radius: 999px;
+      }
+      .filter-pill.active .fcount {
+        background: rgba(0, 122, 255, 0.16);
+      }
+
+      .task-table {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+      }
+      .task-row-2 {
+        display: grid;
+        grid-template-columns: 28px 1fr auto auto auto;
+        gap: 14px;
+        align-items: center;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .task-row-2:last-child {
+        border-bottom: none;
+      }
+      .task-row-2:hover {
+        background: var(--surface-hover);
+      }
+      .task-row-2 .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid var(--text-3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+      }
+      .task-row-2.done .check {
+        background: var(--done);
+        border-color: var(--done);
+      }
+      .task-row-2 .check svg {
+        width: 12px;
+        height: 12px;
+        opacity: 0;
+      }
+      .task-row-2.done .check svg {
+        opacity: 1;
+      }
+      .task-row-2 .body .n {
+        font-size: 0.94rem;
+        font-weight: 500;
+      }
+      .task-row-2.done .body .n {
+        text-decoration: line-through;
+        color: var(--text-3);
+      }
+      .task-row-2 .body .m {
+        margin-top: 2px;
+        font-size: 0.78rem;
+        color: var(--text-3);
+      }
+      .pill {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+      }
+      .pill.backlog {
+        background: var(--surface-hover);
+        color: var(--text-2);
+      }
+      .pill.planned {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .pill.progress {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .pill.done {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+      .icon-btn {
+        width: 30px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-3);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .icon-btn:hover {
+        background: var(--surface-solid);
+        color: var(--danger);
+      }
+      .empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-2);
+      }
+      .empty .icon {
+        font-size: 2rem;
+        margin-bottom: 8px;
+      }
+
+      /* =================================================================
+         TOAST
+         ================================================================= */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--text);
+        color: var(--bg);
+        padding: 12px 20px;
+        border-radius: 999px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        opacity: 0;
+        pointer-events: none;
+        transition: var(--t);
+        z-index: 100;
+        box-shadow: var(--shadow-lg);
+      }
+      .toast.visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============================================================
+         NAV — only 3 destinations
+         ============================================================ -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <button class="brand" data-goto="home">
+          <span class="brand-mark">T</span>
+          TaskPilot
+        </button>
+
+        <div class="nav-center">
+          <button class="nav-tab active" data-goto="home">Home</button>
+
+          <!-- The hero CTA — visually the most important nav item.
+               Clicking this routes to the BOARD (Step 1 of the flow). -->
+          <button class="start-day-btn" id="startDayBtn" data-goto="board">
+            <span class="dot"></span>
+            <span id="startDayLabel">Start Day</span>
+            <span class="badge" id="startDayBadge" style="display: none">Step 2</span>
+          </button>
+
+          <button class="nav-tab" data-goto="tasks">Tasks</button>
+        </div>
+
+        <div class="nav-r">
+          <button class="ghost-btn">Logout</button>
+          <button class="toggle" id="themeToggle" aria-label="Toggle theme"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ============================================================
+         FLOW STRIP — only visible on flow sub-pages
+         (Board, Blocks, Today, and Home when a focus block is active)
+         ============================================================ -->
+    <div class="flow-strip hidden" id="flowStrip">
+      <div class="flow-inner">
+        <div class="stepper" id="stepper">
+          <button class="step active" data-step="board">
+            <span class="num">1</span> Plan
+          </button>
+          <span class="step-arrow">›</span>
+          <button class="step" data-step="blocks">
+            <span class="num">2</span> Commit
+          </button>
+          <span class="step-arrow">›</span>
+          <button class="step" data-step="home">
+            <span class="num">3</span> Execute
+          </button>
+          <span class="step-arrow">›</span>
+          <button class="step" data-step="today">
+            <span class="num">4</span> Reflect
+          </button>
+        </div>
+        <div class="next-hint" id="nextHint">
+          <span class="ndot"></span>
+          <span><strong>Next:</strong> Pick the few tasks that matter today.</span>
+        </div>
+      </div>
+    </div>
+
+    <main class="shell">
+      <!-- ============================================================
+           HOME — landing / focus surface (Step 3 = Execute)
+           When idle: shows a clean welcome + Start Day CTA
+           When mid-flow: shows the active focus block hero
+           ============================================================ -->
+      <section class="page visible" id="page-home">
+        <div class="greet">
+          <h1 id="greetTitle">Good afternoon, Nicholas</h1>
+          <p id="greetSub">Sunday, April 19 — let's make it count.</p>
+        </div>
+
+        <!-- Idle variant — shown when no focus is active -->
+        <div class="home-idle-cta" id="homeIdle">
+          <h2>Ready to start your day?</h2>
+          <p>
+            Tap <strong>Start Day</strong> to walk through Plan → Commit → Execute → Reflect.
+            We'll guide you through each step.
+          </p>
+          <div class="ctas">
+            <button class="primary" data-goto="board">
+              Start Day →
+            </button>
+            <button class="ghost" data-goto="tasks">Browse tasks</button>
+          </div>
+        </div>
+
+        <!-- Active variant — shown when there's an in-progress task / focus block -->
+        <div class="hero" id="homeActive" style="display: none">
+          <div class="eyebrow">
+            <span class="lp"></span>
+            Active block · 1 of 2 today
+          </div>
+          <h2 id="heroBlockTitle">Morning focus block</h2>
+          <div class="row">
+            <div>
+              <div class="now" id="heroNow">Now: Finish CS 200 problem set</div>
+            </div>
+            <div class="timer">
+              <div class="clock">01:42:18</div>
+              <div class="meta">remaining · 10:00 – 12:00 PM</div>
+            </div>
+          </div>
+          <div class="ctas">
+            <button class="primary" data-goto="focus">Open focus mode</button>
+            <button class="ghost" data-goto="blocks">Manage blocks</button>
+          </div>
+        </div>
+
+        <!-- Snapshot — preserved, but only when there's something to snapshot -->
+        <div class="snapshot" id="homeSnapshot" style="display: none">
+          <div class="snapshot-head">
+            <h3>Today's Board <span style="color: var(--text-3); font-weight: 400; font-size: 0.78rem; margin-left: 6px">snapshot</span></h3>
+            <a class="snapshot-link" data-goto="board">Open Board →</a>
+          </div>
+          <div class="snapshot-grid">
+            <div class="snap-card">
+              <div class="label"><span class="dot" style="background: var(--text-3)"></span> Backlog</div>
+              <div class="num" id="snapBacklog">0</div>
+              <div class="tip">unscheduled</div>
+            </div>
+            <div class="snap-card">
+              <div class="label"><span class="dot" style="background: var(--accent)"></span> Planned</div>
+              <div class="num" id="snapPlanned">0</div>
+              <div class="tip">in upcoming blocks</div>
+            </div>
+            <div class="snap-card warn">
+              <div class="label"><span class="dot" style="background: var(--warn)"></span> In Progress</div>
+              <div class="num" id="snapProgress">0</div>
+              <div class="tip">single focus</div>
+            </div>
+            <div class="snap-card">
+              <div class="label"><span class="dot" style="background: var(--done)"></span> Done</div>
+              <div class="num" id="snapDone">0</div>
+              <div class="tip">today</div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           BOARD (PLAN / Step 1) — preserved kanban + flow banner
+           Reached via Start Day button OR flow strip
+           ============================================================ -->
+      <section class="page" id="page-board">
+        <div class="next-banner">
+          <div>
+            <div class="label">Step 1 · Plan</div>
+            <div class="question">What will you work on today?</div>
+            <div class="desc">Tap tasks in Backlog to select them, then plan your day.</div>
+          </div>
+          <button class="cta" id="planBtn" disabled>Plan My Day</button>
+        </div>
+
+        <div class="page-head">
+          <div>
+            <h1>Today's Board</h1>
+            <p class="sub">Plan, focus, and finish — one task at a time.</p>
+          </div>
+          <div class="date-nav">
+            <button class="date-btn">‹</button>
+            <span class="date-label">Sun, April 19</span>
+            <button class="date-btn">›</button>
+          </div>
+        </div>
+
+        <div class="selection-bar" id="selectionBar">
+          <span class="count-pill"><span id="selCount">0</span> selected for today</span>
+          <div class="actions">
+            <button class="ghost" id="clearSelBtn">Clear</button>
+            <button class="primary" id="planSelBtn">Move to Planned</button>
+          </div>
+        </div>
+
+        <div class="kanban">
+          <div class="col">
+            <div class="col-head">
+              <div class="col-title"><span class="dot" style="background: var(--text-3)"></span> Backlog</div>
+              <span class="count" id="backlogCount">5</span>
+            </div>
+            <div id="backlogList"></div>
+          </div>
+          <div class="col">
+            <div class="col-head">
+              <div class="col-title"><span class="dot" style="background: var(--accent)"></span> Planned</div>
+              <span class="count" id="plannedCount">0</span>
+            </div>
+            <div id="plannedList"><div class="empty-col">Plan tasks to schedule them today.</div></div>
+          </div>
+          <div class="col">
+            <div class="col-head">
+              <div class="col-title"><span class="dot" style="background: var(--warn)"></span> In Progress</div>
+              <span class="count" id="progressCount">0</span>
+            </div>
+            <div id="progressList"><div class="empty-col">One task here at a time. Start from a block.</div></div>
+          </div>
+          <div class="col">
+            <div class="col-head">
+              <div class="col-title"><span class="dot" style="background: var(--done)"></span> Done</div>
+              <span class="count" id="doneCount">0</span>
+            </div>
+            <div id="doneList"><div class="empty-col">Completed tasks land here.</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           BLOCKS (COMMIT / Step 2) — preserved
+           ============================================================ -->
+      <section class="page" id="page-blocks">
+        <div class="next-banner">
+          <div>
+            <div class="label">Step 2 · Commit</div>
+            <div class="question">When will you do them?</div>
+            <div class="desc">Drop your planned tasks into a real time block.</div>
+          </div>
+          <button class="cta" id="commitBtn">Commit to Block</button>
+        </div>
+
+        <div class="page-head">
+          <div>
+            <h1>Study Blocks</h1>
+            <p class="sub">Two hours of focused, single-task work. No multitasking.</p>
+          </div>
+          <div class="date-nav">
+            <button class="date-btn">‹</button>
+            <span class="date-label">Sun, April 19</span>
+            <button class="date-btn">›</button>
+          </div>
+        </div>
+
+        <h3 style="margin-bottom: 12px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-3)">
+          Today's schedule
+        </h3>
+
+        <article class="block-card target" id="targetBlock">
+          <div class="block-time">
+            <div class="start">10:00</div>
+            <div class="end">– 12:00 PM</div>
+            <div class="dur">2h</div>
+          </div>
+          <div class="block-body">
+            <h4>Morning focus block</h4>
+            <p class="meta" id="blockTaskCount">No tasks assigned · suggested target</p>
+            <div class="tasks" id="blockTaskList"></div>
+          </div>
+          <div class="block-actions">
+            <span class="status-pill upcoming">Upcoming</span>
+            <div style="display: flex; gap: 6px">
+              <button class="small-btn" id="toggleAssign">Assign</button>
+              <button class="small-btn primary" id="startBlockBtn" disabled>Start</button>
+            </div>
+          </div>
+          <div class="assign-panel" id="assignPanel" style="grid-column: 1 / -1">
+            <h5>Assign from your planned tasks</h5>
+            <div id="assignRows"></div>
+            <div style="margin-top: 10px; display: flex; gap: 8px">
+              <button class="small-btn primary" id="saveAssignBtn">Save assignments</button>
+              <button class="small-btn" id="cancelAssignBtn">Cancel</button>
+            </div>
+          </div>
+        </article>
+
+        <article class="block-card">
+          <div class="block-time">
+            <div class="start">2:30</div>
+            <div class="end">– 4:00 PM</div>
+            <div class="dur">90m</div>
+          </div>
+          <div class="block-body">
+            <h4>Deep work · writing</h4>
+            <p class="meta">No tasks assigned</p>
+          </div>
+          <div class="block-actions">
+            <span class="status-pill upcoming">Upcoming</span>
+            <div style="display: flex; gap: 6px">
+              <button class="small-btn">Assign</button>
+              <button class="small-btn">Delete</button>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- ============================================================
+           TODAY (REFLECT / Step 4) — preserved
+           ============================================================ -->
+      <section class="page" id="page-today">
+        <div class="next-banner">
+          <div>
+            <div class="label">Step 4 · Reflect</div>
+            <div class="question">How did today go?</div>
+            <div class="desc">A clean look at what you actually shipped.</div>
+          </div>
+          <button class="cta" data-goto="board">Plan Tomorrow →</button>
+        </div>
+
+        <div class="greet">
+          <h1>Today's Reflection</h1>
+          <p id="reflectSub">Sunday, April 19 · 0 of 0 committed tasks done</p>
+        </div>
+
+        <div class="card progress-card" style="margin-top: 22px">
+          <div class="progress-row">
+            <span class="label">Today's progress</span>
+            <span class="stat"><span class="done-num" id="reflectDone">0</span> of <span id="reflectTotal">0</span> done</span>
+          </div>
+          <div class="progress-bar">
+            <div class="fill" id="reflectFill" style="width: 0%"></div>
+          </div>
+        </div>
+
+        <div class="two-col" style="margin-top: 16px">
+          <div class="card">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px">Today's tasks</h3>
+            <div class="reflect-list" id="reflectTasks">
+              <div class="empty">Nothing committed yet.</div>
+            </div>
+          </div>
+
+          <div class="card">
+            <h3 style="font-size: 1rem; font-weight: 600; margin-bottom: 12px">Reminders</h3>
+            <div class="reflect-list">
+              <div class="row">
+                <span class="check"></span>
+                <div class="name" style="font-weight: 500">Group meeting</div>
+                <div class="right">Today, 6 PM</div>
+              </div>
+              <div class="row">
+                <span class="check"></span>
+                <div class="name" style="font-weight: 500">Office hours</div>
+                <div class="right">Thu, 2 PM</div>
+              </div>
+              <div class="row">
+                <span class="check"></span>
+                <div class="name" style="font-weight: 500">Dentist</div>
+                <div class="right">Sat, 10 AM</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="week">
+          <div class="week-head">
+            <h3>This week</h3>
+            <span class="range">April 14 – 20</span>
+          </div>
+          <div class="week-grid">
+            <div class="week-day"><div class="wd">Mon</div><div class="bar"><div class="fill" style="height: 60%"></div></div><div class="ratio">3/5</div></div>
+            <div class="week-day"><div class="wd">Tue</div><div class="bar"><div class="fill" style="height: 80%"></div></div><div class="ratio">4/5</div></div>
+            <div class="week-day"><div class="wd">Wed</div><div class="bar"><div class="fill" style="height: 50%"></div></div><div class="ratio">2/4</div></div>
+            <div class="week-day"><div class="wd">Thu</div><div class="bar"><div class="fill" style="height: 100%"></div></div><div class="ratio">3/3</div></div>
+            <div class="week-day"><div class="wd">Fri</div><div class="bar"><div class="fill" style="height: 25%"></div></div><div class="ratio">1/4</div></div>
+            <div class="week-day"><div class="wd">Sat</div><div class="bar"><div class="fill" style="height: 0%"></div></div><div class="ratio">0/2</div></div>
+            <div class="week-day today"><div class="wd">Sun</div><div class="bar"><div class="fill" id="weekTodayFill" style="height: 0%"></div></div><div class="ratio" id="weekTodayRatio">0/0</div></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           TASKS — new library / inbox (no flow strip here)
+           ============================================================ -->
+      <section class="page" id="page-tasks">
+        <div class="tasks-head">
+          <div>
+            <h1>Tasks</h1>
+            <p>Capture anything. Pick what matters during Start Day.</p>
+          </div>
+        </div>
+
+        <form class="quick-add" id="quickAddForm">
+          <input
+            type="text"
+            id="newTaskName"
+            placeholder="Add a task… e.g. Review chemistry notes"
+            autocomplete="off"
+          />
+          <input
+            type="text"
+            id="newTaskMeta"
+            placeholder="Project · 30 min"
+            class="meta-input"
+            autocomplete="off"
+          />
+          <button type="submit">Add</button>
+        </form>
+
+        <div class="filters" id="filters">
+          <button class="filter-pill active" data-filter="all">All <span class="fcount" id="cAll">5</span></button>
+          <button class="filter-pill" data-filter="backlog">Backlog <span class="fcount" id="cBacklog">5</span></button>
+          <button class="filter-pill" data-filter="planned">Planned <span class="fcount" id="cPlanned">0</span></button>
+          <button class="filter-pill" data-filter="in_progress">In progress <span class="fcount" id="cProgress">0</span></button>
+          <button class="filter-pill" data-filter="done">Done <span class="fcount" id="cDone">0</span></button>
+        </div>
+
+        <div class="task-table" id="taskTable"></div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      /* =========================================================
+         SHARED STATE — same status machine as the real app
+         ========================================================= */
+      const state = {
+        currentPage: "home",
+        tasks: [
+          { id: "t1", name: "Write Bio 102 study guide",  meta: "Bio · 45 min",     status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t2", name: "Finish CS 200 problem set",  meta: "CS · 60 min",      status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t3", name: "Read History chapter 4",     meta: "History · 30 min", status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t4", name: "Outline essay introduction", meta: "English · 25 min", status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t5", name: "Reply to advisor email",     meta: "Admin · 5 min",    status: "backlog", studyBlockId: null, _selected: false },
+        ],
+        targetBlockId: "b1",
+        filter: "all",
+      };
+
+      // Pages that participate in the daily flow (show stepper)
+      const FLOW_PAGES = new Set(["board", "blocks", "home", "today"]);
+
+      const $ = (s) => document.querySelector(s);
+      const $$ = (s) => document.querySelectorAll(s);
+
+      function showToast(msg) {
+        const el = $("#toast");
+        el.textContent = msg;
+        el.classList.add("visible");
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove("visible"), 2200);
+      }
+
+      /* ---- Derive flow state (mirrors lib/daily-flow plan) ---- */
+      function deriveFlow() {
+        const planned = state.tasks.filter((t) =>
+          ["planned", "in_progress", "done"].includes(t.status)
+        );
+        const committed = state.tasks.filter((t) => t.studyBlockId !== null);
+        const done = state.tasks.filter((t) => t.status === "done");
+
+        let step;
+        if (planned.length === 0) step = "board";
+        else if (committed.length === 0) step = "blocks";
+        else if (done.length < committed.length) step = "home";
+        else step = "today";
+
+        return {
+          step,
+          plannedCount: planned.length,
+          committedCount: committed.length,
+          doneCount: done.length,
+          backlogCount: state.tasks.length - planned.length,
+          inProgress: state.tasks.find((t) => t.status === "in_progress"),
+          hasStarted: planned.length > 0,
+        };
+      }
+
+      /* ---- Flow strip (only on flow pages) ---- */
+      function renderFlow() {
+        const flow = deriveFlow();
+        const strip = $("#flowStrip");
+
+        // Hide on Tasks; hide on Home unless the user has actually started
+        const showStrip =
+          FLOW_PAGES.has(state.currentPage) &&
+          (state.currentPage !== "home" || flow.hasStarted);
+        strip.classList.toggle("hidden", !showStrip);
+
+        const order = ["board", "blocks", "home", "today"];
+        const currentIdx = order.indexOf(flow.step);
+
+        $$("#stepper .step").forEach((btn) => {
+          const idx = order.indexOf(btn.dataset.step);
+          btn.classList.remove("active", "done");
+          if (btn.dataset.step === state.currentPage) btn.classList.add("active");
+          else if (idx < currentIdx) btn.classList.add("done");
+          const num = btn.querySelector(".num");
+          num.textContent =
+            idx < currentIdx && btn.dataset.step !== state.currentPage
+              ? "✓"
+              : idx + 1;
+        });
+
+        const hints = {
+          board: `<strong>Next:</strong> Pick the few tasks that matter today.`,
+          blocks: `<strong>Next:</strong> Assign your ${flow.plannedCount} planned task${flow.plannedCount === 1 ? "" : "s"} to a time block.`,
+          home: `<strong>Next:</strong> Start your focus block.`,
+          today: `<strong>Next:</strong> Reflect, then plan tomorrow.`,
+        };
+        const goLabel = {
+          board: "Go to Board →",
+          blocks: "Go to Blocks →",
+          home: "Go to Home →",
+          today: "Go to Today →",
+        };
+
+        const hint = $("#nextHint");
+        if (flow.step === state.currentPage) {
+          hint.innerHTML = `<span class="ndot"></span><span>You're on the right step. ${hints[
+            flow.step
+          ].replace("<strong>Next:</strong> ", "")}</span>`;
+        } else {
+          hint.innerHTML = `<span class="ndot"></span><span>${hints[flow.step]}</span> <a class="go" data-goto-flow="${flow.step}">${goLabel[flow.step]}</a>`;
+          const link = hint.querySelector(".go");
+          if (link) link.addEventListener("click", (e) => {
+            e.preventDefault();
+            goTo(flow.step);
+          });
+        }
+      }
+
+      /* ---- Top nav state ---- */
+      function renderNavState() {
+        const flow = deriveFlow();
+
+        // Home is "active" both on Home page and as Step 3 (Execute) when in flow
+        $$(".nav-tab").forEach((t) => {
+          const target = t.dataset.goto;
+          let active = target === state.currentPage;
+          // Tasks tab: only active when on tasks
+          // Home tab: active on home OR on any flow page where step 3 is current
+          if (target === "home") {
+            active = state.currentPage === "home";
+          }
+          t.classList.toggle("active", active);
+        });
+
+        // Start Day button: active when on any flow sub-page (board/blocks/today)
+        // because the user is actively in the daily flow
+        const inFlow =
+          ["board", "blocks", "today"].includes(state.currentPage) ||
+          (state.currentPage === "home" && flow.hasStarted);
+        $("#startDayBtn").classList.toggle("active", inFlow);
+
+        // Rebrand the Start Day button if mid-flow
+        const label = $("#startDayLabel");
+        const badge = $("#startDayBadge");
+        if (flow.hasStarted && flow.step !== "board") {
+          label.textContent = "Continue Day";
+          badge.style.display = "inline-block";
+          badge.textContent = "Step " + ({ board: 1, blocks: 2, home: 3, today: 4 }[flow.step]);
+        } else {
+          label.textContent = "Start Day";
+          badge.style.display = "none";
+        }
+      }
+
+      /* ---- Navigation ---- */
+      function goTo(page) {
+        if (page === "focus") {
+          showToast("→ Opens /blocks/[id]/focus in the real app");
+          return;
+        }
+
+        // Special: Start Day button always lands on the right flow step
+        if (page === "start") {
+          const flow = deriveFlow();
+          page = flow.hasStarted ? flow.step : "board";
+        }
+
+        state.currentPage = page;
+        $$(".page").forEach((p) => p.classList.remove("visible"));
+        $("#page-" + page).classList.add("visible");
+
+        if (page === "home") renderHome();
+        if (page === "board") renderBoard();
+        if (page === "blocks") renderBlocks();
+        if (page === "today") renderToday();
+        if (page === "tasks") renderTasks();
+
+        renderFlow();
+        renderNavState();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      /* =========================================================
+         HOME
+         ========================================================= */
+      function renderHome() {
+        const flow = deriveFlow();
+        const next = flow.inProgress;
+
+        // Idle vs active variant
+        $("#homeIdle").style.display = flow.hasStarted ? "none" : "block";
+        $("#homeActive").style.display = next ? "block" : "none";
+        $("#homeSnapshot").style.display = flow.hasStarted ? "block" : "none";
+
+        if (next) $("#heroNow").textContent = `Now: ${next.name}`;
+
+        // Snapshot numbers
+        $("#snapBacklog").textContent = state.tasks.filter((t) => t.status === "backlog").length;
+        $("#snapPlanned").textContent = state.tasks.filter((t) => t.status === "planned").length;
+        $("#snapProgress").textContent = state.tasks.filter((t) => t.status === "in_progress").length;
+        $("#snapDone").textContent = flow.doneCount;
+      }
+
+      /* =========================================================
+         BOARD
+         ========================================================= */
+      function renderBoard() {
+        const groups = {
+          backlog: state.tasks.filter((t) => t.status === "backlog"),
+          planned: state.tasks.filter((t) => t.status === "planned"),
+          in_progress: state.tasks.filter((t) => t.status === "in_progress"),
+          done: state.tasks.filter((t) => t.status === "done"),
+        };
+
+        // Backlog (selectable)
+        $("#backlogList").innerHTML = groups.backlog.length
+          ? groups.backlog
+              .map(
+                (t) => `
+                  <div class="task-card selectable ${t._selected ? "selected" : ""}" data-id="${t.id}">
+                    <div class="task-name">${t.name}</div>
+                    <div class="task-meta">${t.meta}</div>
+                  </div>`
+              )
+              .join("")
+          : `<div class="empty-col">All tasks scheduled. Nice.</div>`;
+
+        $$("#backlogList .task-card").forEach((card) => {
+          card.addEventListener("click", () => {
+            const t = state.tasks.find((x) => x.id === card.dataset.id);
+            t._selected = !t._selected;
+            renderBoard();
+          });
+        });
+
+        // Other columns (read-only)
+        const renderCol = (sel, list) => {
+          const el = $(sel);
+          el.innerHTML = list.length
+            ? list
+                .map(
+                  (t) => `
+                    <div class="task-card ${t.status === "in_progress" ? "in-progress" : ""} ${t.status === "done" ? "done" : ""}">
+                      <div class="task-name">${t.name}</div>
+                      <div class="task-meta">${t.meta}</div>
+                      ${t.studyBlockId ? '<div class="task-tags"><span class="tag linked">Linked to block</span></div>' : ""}
+                    </div>`
+                )
+                .join("")
+            : `<div class="empty-col">${{
+                planned: "Plan tasks to schedule them today.",
+                in_progress: "One task here at a time. Start from a block.",
+                done: "Completed tasks land here.",
+              }[sel.replace("#", "").replace("List", "")] || ""}</div>`;
+        };
+        renderCol("#plannedList", groups.planned);
+        renderCol("#progressList", groups.in_progress);
+        renderCol("#doneList", groups.done);
+
+        $("#backlogCount").textContent = groups.backlog.length;
+        $("#plannedCount").textContent = groups.planned.length;
+        $("#progressCount").textContent = groups.in_progress.length;
+        $("#doneCount").textContent = groups.done.length;
+
+        const selectedCount = state.tasks.filter((t) => t._selected).length;
+        $("#selectionBar").classList.toggle("visible", selectedCount > 0);
+        $("#selCount").textContent = selectedCount;
+        $("#planBtn").disabled = selectedCount === 0;
+      }
+
+      function planSelected() {
+        const sel = state.tasks.filter((t) => t._selected);
+        if (sel.length === 0) return;
+        sel.forEach((t) => {
+          t.status = "planned";
+          t._selected = false;
+        });
+        showToast(`${sel.length} task${sel.length > 1 ? "s" : ""} planned`);
+        renderBoard();
+        renderFlow();
+        renderNavState();
+      }
+
+      /* =========================================================
+         BLOCKS
+         ========================================================= */
+      let assignOpen = false;
+      let assignSelections = new Set();
+
+      function renderBlocks() {
+        const planned = state.tasks.filter((t) => t.status === "planned");
+        const inBlock = state.tasks.filter((t) => t.studyBlockId === state.targetBlockId);
+
+        const taskList = $("#blockTaskList");
+        const blockMeta = $("#blockTaskCount");
+        if (inBlock.length === 0) {
+          taskList.innerHTML = "";
+          blockMeta.textContent = "No tasks assigned · suggested target";
+        } else {
+          blockMeta.textContent = `${inBlock.length} task${inBlock.length === 1 ? "" : "s"} assigned`;
+          taskList.innerHTML = inBlock
+            .map(
+              (t) => `
+                <div class="task-row">
+                  <span class="tdot" style="background: var(--accent)"></span>
+                  <span>${t.name}</span>
+                </div>`
+            )
+            .join("");
+        }
+
+        const commitBtn = $("#commitBtn");
+        if (planned.length === 0 && inBlock.length === 0) {
+          commitBtn.disabled = true;
+          commitBtn.textContent = "Plan tasks first";
+        } else if (inBlock.length === 0) {
+          commitBtn.disabled = false;
+          commitBtn.textContent = "Commit to Block";
+        } else {
+          commitBtn.disabled = false;
+          commitBtn.textContent = "Continue to Focus →";
+        }
+
+        $("#startBlockBtn").disabled = inBlock.length === 0;
+
+        $("#assignPanel").classList.toggle("visible", assignOpen);
+        const allAssignable = state.tasks.filter(
+          (t) => t.status === "planned" || t.studyBlockId === state.targetBlockId
+        );
+        $("#assignRows").innerHTML = allAssignable.length
+          ? allAssignable
+              .map(
+                (t) => `
+                  <label class="check-row">
+                    <input type="checkbox" data-id="${t.id}" ${assignSelections.has(t.id) ? "checked" : ""} />
+                    <span>${t.name} <span style="color: var(--text-3)">· ${t.meta}</span></span>
+                  </label>`
+              )
+              .join("")
+          : `<div style="font-size: 0.84rem; color: var(--text-2)">No planned tasks yet. Plan tasks on the Board first.</div>`;
+
+        $$("#assignRows input").forEach((cb) => {
+          cb.addEventListener("change", () => {
+            if (cb.checked) assignSelections.add(cb.dataset.id);
+            else assignSelections.delete(cb.dataset.id);
+          });
+        });
+      }
+
+      /* =========================================================
+         TODAY
+         ========================================================= */
+      function renderToday() {
+        const committed = state.tasks.filter((t) => t.studyBlockId !== null);
+        const done = committed.filter((t) => t.status === "done");
+        const total = committed.length;
+        const pct = total === 0 ? 0 : Math.round((done.length / total) * 100);
+
+        $("#reflectSub").textContent = `Sunday, April 19 · ${done.length} of ${total} committed task${total === 1 ? "" : "s"} done`;
+        $("#reflectDone").textContent = done.length;
+        $("#reflectTotal").textContent = total;
+        $("#reflectFill").style.width = pct + "%";
+        $("#weekTodayFill").style.height = pct + "%";
+        $("#weekTodayRatio").textContent = `${done.length}/${total}`;
+
+        const list = $("#reflectTasks");
+        list.innerHTML = committed.length
+          ? committed
+              .map(
+                (t) => `
+                  <div class="row ${t.status === "done" ? "done" : ""}">
+                    <span class="check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <div class="name">${t.name}</div>
+                    <div class="right">${
+                      t.status === "done"
+                        ? "Done"
+                        : t.status === "in_progress"
+                          ? '<span style="color: var(--warn); font-weight: 600">In progress</span>'
+                          : "Pending"
+                    }</div>
+                  </div>`
+              )
+              .join("")
+          : `<div class="empty">Nothing committed yet.</div>`;
+      }
+
+      /* =========================================================
+         TASKS LIBRARY
+         ========================================================= */
+      function renderTasks() {
+        const tasksBy = (s) => state.tasks.filter((t) => t.status === s);
+        $("#cAll").textContent = state.tasks.length;
+        $("#cBacklog").textContent = tasksBy("backlog").length;
+        $("#cPlanned").textContent = tasksBy("planned").length;
+        $("#cProgress").textContent = tasksBy("in_progress").length;
+        $("#cDone").textContent = tasksBy("done").length;
+
+        $$("#filters .filter-pill").forEach((p) =>
+          p.classList.toggle("active", p.dataset.filter === state.filter)
+        );
+
+        const filtered =
+          state.filter === "all"
+            ? state.tasks
+            : state.tasks.filter((t) => t.status === state.filter);
+
+        const table = $("#taskTable");
+        if (filtered.length === 0) {
+          table.innerHTML = `<div class="empty"><div class="icon">📭</div>No tasks here yet.</div>`;
+          return;
+        }
+
+        const pillFor = (s) => ({
+          backlog: { cls: "backlog", text: "Backlog" },
+          planned: { cls: "planned", text: "Planned" },
+          in_progress: { cls: "progress", text: "In progress" },
+          done: { cls: "done", text: "Done" },
+        }[s] || { cls: "backlog", text: "Backlog" });
+
+        table.innerHTML = filtered
+          .map((t) => {
+            const p = pillFor(t.status);
+            return `
+              <div class="task-row-2 ${t.status === "done" ? "done" : ""}" data-id="${t.id}">
+                <span class="check">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                <div class="body">
+                  <div class="n">${t.name}</div>
+                  <div class="m">${t.meta}</div>
+                </div>
+                <span class="pill ${p.cls}">${p.text}</span>
+                <span style="color: var(--text-3); font-size: 0.78rem">${t.studyBlockId ? "in block" : "—"}</span>
+                <button class="icon-btn" data-del="${t.id}" aria-label="Delete">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                  </svg>
+                </button>
+              </div>`;
+          })
+          .join("");
+
+        $$("#taskTable .task-row-2").forEach((row) => {
+          row.addEventListener("click", (e) => {
+            if (e.target.closest("[data-del]")) return;
+            const t = state.tasks.find((x) => x.id === row.dataset.id);
+            if (!t) return;
+            t.status = t.status === "done" ? "backlog" : "done";
+            renderTasks();
+          });
+        });
+
+        $$("#taskTable [data-del]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            state.tasks = state.tasks.filter((t) => t.id !== btn.dataset.del);
+            renderTasks();
+          });
+        });
+      }
+
+      /* =========================================================
+         WIRING
+         ========================================================= */
+      // Top-level [data-goto] links — single delegated handler so
+      // dynamically-rendered links also work
+      document.addEventListener("click", (e) => {
+        const target = e.target.closest("[data-goto]");
+        if (target) {
+          e.preventDefault();
+          goTo(target.dataset.goto);
+        }
+      });
+
+      $$("#stepper .step").forEach((btn) => {
+        btn.addEventListener("click", () => goTo(btn.dataset.step));
+      });
+
+      $("#planBtn").addEventListener("click", planSelected);
+      $("#planSelBtn").addEventListener("click", planSelected);
+      $("#clearSelBtn").addEventListener("click", () => {
+        state.tasks.forEach((t) => (t._selected = false));
+        renderBoard();
+      });
+
+      $("#toggleAssign").addEventListener("click", () => {
+        assignOpen = !assignOpen;
+        if (assignOpen) {
+          assignSelections = new Set(
+            state.tasks.filter((t) => t.studyBlockId === state.targetBlockId).map((t) => t.id)
+          );
+        }
+        renderBlocks();
+      });
+
+      $("#cancelAssignBtn").addEventListener("click", () => {
+        assignOpen = false;
+        assignSelections.clear();
+        renderBlocks();
+      });
+
+      $("#saveAssignBtn").addEventListener("click", () => {
+        state.tasks.forEach((t) => {
+          if (assignSelections.has(t.id)) t.studyBlockId = state.targetBlockId;
+          else if (t.studyBlockId === state.targetBlockId) t.studyBlockId = null;
+        });
+        assignOpen = false;
+        assignSelections.clear();
+        showToast("Block tasks updated.");
+        renderBlocks();
+        renderFlow();
+        renderNavState();
+      });
+
+      $("#commitBtn").addEventListener("click", () => {
+        const planned = state.tasks.filter((t) => t.status === "planned");
+        const inBlock = state.tasks.filter((t) => t.studyBlockId === state.targetBlockId);
+        if (planned.length === 0 && inBlock.length === 0) return;
+
+        if (inBlock.length === 0) {
+          state.tasks.forEach((t) => {
+            if (t.status === "planned") t.studyBlockId = state.targetBlockId;
+          });
+          showToast("Committed to morning block.");
+          renderBlocks();
+          renderFlow();
+          renderNavState();
+        } else {
+          goTo("home");
+        }
+      });
+
+      $("#startBlockBtn").addEventListener("click", () => {
+        const inBlock = state.tasks.filter((t) => t.studyBlockId === state.targetBlockId);
+        if (inBlock.length > 0) inBlock[0].status = "in_progress";
+        showToast("Block started.");
+        goTo("home");
+      });
+
+      $("#quickAddForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = $("#newTaskName").value.trim();
+        const meta = $("#newTaskMeta").value.trim() || "Unscheduled";
+        if (!name) return;
+        state.tasks.unshift({
+          id: "t" + Date.now(),
+          name,
+          meta,
+          status: "backlog",
+          studyBlockId: null,
+          _selected: false,
+        });
+        $("#newTaskName").value = "";
+        $("#newTaskMeta").value = "";
+        showToast("Added to library");
+        renderTasks();
+      });
+
+      $$("#filters .filter-pill").forEach((p) => {
+        p.addEventListener("click", () => {
+          state.filter = p.dataset.filter;
+          renderTasks();
+        });
+      });
+
+      $("#themeToggle").addEventListener("click", () => {
+        const html = document.documentElement;
+        html.dataset.theme = html.dataset.theme === "dark" ? "light" : "dark";
+      });
+
+      // Boot — start on Home so the user sees the new landing
+      renderHome();
+      renderBoard();
+      renderBlocks();
+      renderToday();
+      renderTasks();
+      renderFlow();
+      renderNavState();
+    </script>
+  </body>
+</html>

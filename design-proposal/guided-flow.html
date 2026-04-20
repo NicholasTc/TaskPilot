@@ -1,0 +1,1494 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Guided Flow Prototype</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =========================================================
+         TaskPilot — Guided Flow Prototype
+         A single-file, frameworkless mock for the
+         Plan → Commit → Execute → Reflect experience.
+         ========================================================= */
+
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --t: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+        --r-sm: 8px;
+        --r-md: 12px;
+        --r-lg: 16px;
+        --r-xl: 22px;
+      }
+
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --bg-grad-1: #eaf3ff;
+        --bg-grad-2: #f2edff;
+        --surface-solid: #ffffff;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-hover: #f8f9fb;
+        --line: rgba(0, 0, 0, 0.06);
+        --line-strong: rgba(0, 0, 0, 0.1);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0, 122, 255, 0.08);
+        --done: #34c759;
+        --done-soft: rgba(52, 199, 89, 0.12);
+        --warn: #ff9500;
+        --warn-soft: rgba(255, 149, 0, 0.1);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 24px 48px rgba(15, 23, 42, 0.08);
+      }
+
+      [data-theme="dark"] {
+        --bg: #000000;
+        --bg-grad-1: #0a1a2f;
+        --bg-grad-2: #1a0f2e;
+        --surface-solid: #1c1c1e;
+        --surface: rgba(28, 28, 30, 0.82);
+        --surface-hover: #2c2c2e;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10, 132, 255, 0.14);
+        --done: #30d158;
+        --done-soft: rgba(48, 209, 88, 0.16);
+        --warn: #ff9f0a;
+        --warn-soft: rgba(255, 159, 10, 0.16);
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.3), 0 24px 48px rgba(0, 0, 0, 0.5);
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background:
+          radial-gradient(circle at 8% -5%, var(--bg-grad-1) 0%, transparent 42%),
+          radial-gradient(circle at 92% 8%, var(--bg-grad-2) 0%, transparent 38%),
+          var(--bg);
+        -webkit-font-smoothing: antialiased;
+      }
+
+      /* ---------- Top navigation ---------- */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 0 24px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: -0.02em;
+      }
+      .brand-mark {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        background: linear-gradient(135deg, var(--accent), #5856d6);
+      }
+      .nav-tabs {
+        display: flex;
+        gap: 2px;
+      }
+      .nav-tab {
+        padding: 6px 14px;
+        border-radius: 10px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        color: var(--text-2);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        transition: var(--t);
+        font-family: inherit;
+      }
+      .nav-tab:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+      }
+      .nav-tab.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .theme-toggle {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 10px;
+        font-size: 0.8rem;
+        font-weight: 500;
+        color: var(--text-2);
+        background: transparent;
+        border: 1px solid var(--line);
+        cursor: pointer;
+        font-family: inherit;
+        transition: var(--t);
+      }
+      .theme-toggle:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+      }
+
+      /* ---------- Shell ---------- */
+      .shell {
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 28px 24px 64px;
+      }
+
+      /* ---------- Step indicator ---------- */
+      .stepper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin-bottom: 28px;
+        padding: 8px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        box-shadow: var(--shadow-sm);
+        max-width: 720px;
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 0.84rem;
+        font-weight: 500;
+        color: var(--text-3);
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        transition: var(--t);
+        white-space: nowrap;
+      }
+      .step .num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--surface-hover);
+        color: var(--text-3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        transition: var(--t);
+      }
+      .step.done {
+        color: var(--done);
+      }
+      .step.done .num {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+      .step.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+        font-weight: 600;
+      }
+      .step.active .num {
+        background: var(--accent);
+        color: #ffffff;
+      }
+      .step.locked {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .step-arrow {
+        color: var(--text-3);
+        font-size: 0.86rem;
+        user-select: none;
+      }
+
+      /* ---------- Page header ---------- */
+      .page {
+        display: none;
+        animation: fade-in 280ms ease;
+      }
+      .page.visible {
+        display: block;
+      }
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .page-head {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+      .page-eyebrow {
+        display: inline-block;
+        font-size: 0.74rem;
+        font-weight: 600;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--accent);
+        background: var(--accent-soft);
+        padding: 4px 10px;
+        border-radius: 999px;
+        margin-bottom: 12px;
+      }
+      .page-title {
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+      .page-question {
+        margin-top: 8px;
+        color: var(--text-2);
+        font-size: 1rem;
+        line-height: 1.5;
+      }
+
+      /* ---------- Card ---------- */
+      .card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-xl);
+        box-shadow: var(--shadow-md);
+        padding: 22px;
+      }
+      .card + .card {
+        margin-top: 16px;
+      }
+      .card-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 14px;
+      }
+      .card-title {
+        font-size: 0.92rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .card-meta {
+        font-size: 0.8rem;
+        color: var(--text-2);
+      }
+
+      /* ---------- Task rows ---------- */
+      .task-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .task {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: var(--r-md);
+        background: var(--surface-solid);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .task:hover {
+        background: var(--surface-hover);
+        border-color: var(--line-strong);
+      }
+      .task.selected {
+        background: var(--accent-soft);
+        border-color: rgba(0, 122, 255, 0.3);
+      }
+      .task.done {
+        opacity: 0.7;
+      }
+      .task.done .task-title {
+        text-decoration: line-through;
+        color: var(--text-2);
+      }
+      .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        border: 1.5px solid var(--line-strong);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex-shrink: 0;
+        transition: var(--t);
+        background: var(--surface-solid);
+      }
+      .task.selected .check,
+      .task.done .check {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .task.done .check {
+        background: var(--done);
+        border-color: var(--done);
+      }
+      .check svg {
+        width: 14px;
+        height: 14px;
+        opacity: 0;
+        transition: var(--t);
+      }
+      .task.selected .check svg,
+      .task.done .check svg {
+        opacity: 1;
+      }
+      .task-body {
+        flex: 1;
+        min-width: 0;
+      }
+      .task-title {
+        font-size: 0.94rem;
+        font-weight: 500;
+        color: var(--text);
+      }
+      .task-sub {
+        margin-top: 2px;
+        font-size: 0.78rem;
+        color: var(--text-2);
+      }
+      .task-tag {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 999px;
+        background: var(--surface-hover);
+        color: var(--text-2);
+      }
+      .task-tag.warn {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .task-tag.done {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+
+      /* ---------- Buttons ---------- */
+      .actions {
+        margin-top: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 46px;
+        padding: 0 22px;
+        border-radius: 12px;
+        font-size: 0.94rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: var(--t);
+      }
+      .btn-primary {
+        background: var(--accent);
+        color: #ffffff;
+        box-shadow: 0 6px 18px rgba(0, 122, 255, 0.28);
+      }
+      .btn-primary:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+      .btn-primary:disabled {
+        background: var(--surface-hover);
+        color: var(--text-3);
+        box-shadow: none;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .btn-ghost {
+        background: transparent;
+        color: var(--text-2);
+        border-color: var(--line-strong);
+      }
+      .btn-ghost:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      /* ---------- Guidance message ---------- */
+      .guidance {
+        margin-top: 18px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 16px;
+        border-radius: 14px;
+        background: var(--accent-soft);
+        color: var(--accent);
+        font-size: 0.88rem;
+        font-weight: 500;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: var(--t);
+        pointer-events: none;
+      }
+      .guidance.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      .guidance .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--accent);
+        animation: pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); opacity: 1; }
+        50% { transform: scale(1.4); opacity: 0.55; }
+      }
+
+      /* ---------- Counter pill ---------- */
+      .counter {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--surface-hover);
+        border-radius: 999px;
+        font-size: 0.78rem;
+        color: var(--text-2);
+        font-weight: 500;
+      }
+      .counter strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      /* ---------- Blocks page ---------- */
+      .block {
+        position: relative;
+        border: 1px dashed var(--line-strong);
+        border-radius: var(--r-lg);
+        padding: 18px;
+        background: var(--surface-hover);
+        min-height: 140px;
+      }
+      .block-time {
+        position: absolute;
+        top: 14px;
+        right: 18px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--text-2);
+        letter-spacing: 0.01em;
+      }
+      .block-label {
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--accent);
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        margin-bottom: 12px;
+      }
+      .block-empty {
+        color: var(--text-3);
+        font-size: 0.88rem;
+        padding: 18px 0;
+        text-align: center;
+      }
+      .pool {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        font-size: 0.84rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .chip:hover {
+        background: var(--accent-soft);
+        border-color: rgba(0, 122, 255, 0.3);
+        color: var(--accent);
+      }
+      .chip.assigned {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+      .chip-plus {
+        font-size: 1rem;
+        line-height: 1;
+      }
+
+      /* ---------- Home (Execute) ---------- */
+      .focus-card {
+        background: linear-gradient(160deg, var(--surface-solid) 0%, var(--surface-hover) 100%);
+        border: 1px solid var(--line);
+        border-radius: 28px;
+        padding: 40px 32px;
+        box-shadow: var(--shadow-lg);
+        text-align: center;
+        position: relative;
+        overflow: hidden;
+      }
+      .focus-card::before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        background: radial-gradient(
+          circle at 50% -20%,
+          rgba(0, 122, 255, 0.16),
+          transparent 55%
+        );
+        pointer-events: none;
+      }
+      .focus-eyebrow {
+        position: relative;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.78rem;
+        font-weight: 600;
+        color: var(--accent);
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        background: var(--accent-soft);
+        padding: 6px 12px;
+        border-radius: 999px;
+        margin-bottom: 20px;
+      }
+      .focus-title {
+        position: relative;
+        font-size: clamp(1.8rem, 4vw, 2.6rem);
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1.2;
+      }
+      .focus-meta {
+        position: relative;
+        margin-top: 14px;
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--text-2);
+        font-size: 0.96rem;
+      }
+      .focus-meta .sep {
+        color: var(--text-3);
+      }
+      .focus-cta {
+        position: relative;
+        margin-top: 28px;
+      }
+      .focus-cta .btn {
+        height: 54px;
+        padding: 0 32px;
+        font-size: 1rem;
+        border-radius: 14px;
+      }
+
+      .timer {
+        position: relative;
+        display: none;
+        margin-top: 28px;
+      }
+      .timer.visible {
+        display: block;
+      }
+      .timer-display {
+        font-size: clamp(3rem, 8vw, 4.4rem);
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .timer-status {
+        margin-top: 10px;
+        color: var(--text-2);
+        font-size: 0.92rem;
+      }
+      .timer-actions {
+        margin-top: 20px;
+        display: inline-flex;
+        gap: 10px;
+      }
+
+      .empty-state {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-2);
+      }
+      .empty-state .icon {
+        font-size: 2rem;
+        margin-bottom: 10px;
+      }
+      .empty-state .hint {
+        margin-top: 10px;
+        font-size: 0.88rem;
+      }
+      .empty-state a {
+        color: var(--accent);
+        text-decoration: none;
+        font-weight: 600;
+      }
+
+      /* ---------- Today (Reflect) ---------- */
+      .progress-card {
+        text-align: center;
+        padding: 28px;
+      }
+      .progress-ring {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto 18px;
+      }
+      .progress-ring svg {
+        transform: rotate(-90deg);
+      }
+      .progress-ring circle {
+        fill: none;
+        stroke-width: 10;
+      }
+      .progress-ring .track {
+        stroke: var(--surface-hover);
+      }
+      .progress-ring .bar {
+        stroke: var(--accent);
+        stroke-linecap: round;
+        transition: stroke-dashoffset 600ms ease;
+      }
+      .progress-ring .label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .progress-ring .pct {
+        font-size: 1.6rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .progress-ring .sub {
+        font-size: 0.76rem;
+        color: var(--text-2);
+        margin-top: 2px;
+      }
+
+      .reflect-headline {
+        font-size: 1.1rem;
+        font-weight: 600;
+      }
+      .reflect-sub {
+        margin-top: 6px;
+        color: var(--text-2);
+        font-size: 0.92rem;
+      }
+
+      .next-step {
+        margin-top: 24px;
+        padding: 18px;
+        border-radius: var(--r-lg);
+        background: var(--accent-soft);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .next-step .label {
+        font-size: 0.92rem;
+        font-weight: 600;
+        color: var(--accent);
+      }
+      .next-step .desc {
+        font-size: 0.82rem;
+        color: var(--text-2);
+        margin-top: 2px;
+      }
+      .next-step .btn {
+        height: 38px;
+        padding: 0 16px;
+        font-size: 0.86rem;
+      }
+
+      /* ---------- Toast ---------- */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--text);
+        color: var(--bg);
+        padding: 12px 20px;
+        border-radius: 999px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        opacity: 0;
+        pointer-events: none;
+        transition: var(--t);
+        z-index: 100;
+        box-shadow: var(--shadow-lg);
+      }
+      .toast.visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      /* ---------- Layout helpers ---------- */
+      .two-col {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 16px;
+      }
+      @media (max-width: 720px) {
+        .two-col {
+          grid-template-columns: 1fr;
+        }
+        .nav-tabs {
+          display: none;
+        }
+        .stepper {
+          gap: 2px;
+          padding: 6px;
+        }
+        .step {
+          padding: 6px 10px;
+          font-size: 0.78rem;
+        }
+        .step .num {
+          width: 18px;
+          height: 18px;
+          font-size: 0.66rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============================
+         TOP NAVIGATION
+         ============================ -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="brand">
+          <span class="brand-mark"></span>
+          TaskPilot
+        </div>
+        <div class="nav-tabs" id="navTabs">
+          <button class="nav-tab active" data-page="board">Board</button>
+          <button class="nav-tab" data-page="blocks">Blocks</button>
+          <button class="nav-tab" data-page="home">Home</button>
+          <button class="nav-tab" data-page="today">Today</button>
+        </div>
+        <button class="theme-toggle" id="themeToggle">Dark</button>
+      </div>
+    </nav>
+
+    <main class="shell">
+      <!-- ============================
+           GUIDED STEP INDICATOR
+           ============================ -->
+      <div class="stepper" id="stepper">
+        <button class="step active" data-step="board">
+          <span class="num">1</span> Plan
+        </button>
+        <span class="step-arrow">→</span>
+        <button class="step locked" data-step="blocks">
+          <span class="num">2</span> Commit
+        </button>
+        <span class="step-arrow">→</span>
+        <button class="step locked" data-step="home">
+          <span class="num">3</span> Execute
+        </button>
+        <span class="step-arrow">→</span>
+        <button class="step locked" data-step="today">
+          <span class="num">4</span> Reflect
+        </button>
+      </div>
+
+      <!-- ============================
+           1. BOARD — PLAN
+           One question: "What will you work on today?"
+           ============================ -->
+      <section class="page visible" id="page-board">
+        <div class="page-head">
+          <span class="page-eyebrow">Step 1 · Plan</span>
+          <h1 class="page-title">What will you work on today?</h1>
+          <p class="page-question">Pick the few tasks that actually matter. Leave the rest for later.</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Backlog</div>
+            <span class="counter">
+              <strong id="selectedCount">0</strong> selected
+            </span>
+          </div>
+          <div class="task-list" id="boardList"></div>
+          <div class="actions">
+            <button class="btn btn-primary" id="planBtn" disabled>
+              Plan My Day
+            </button>
+          </div>
+          <div class="guidance" id="boardGuidance">
+            <span class="dot"></span>
+            <span>Next: Assign these tasks to a time block.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================
+           2. BLOCKS — COMMIT
+           One question: "When will you do them?"
+           ============================ -->
+      <section class="page" id="page-blocks">
+        <div class="page-head">
+          <span class="page-eyebrow">Step 2 · Commit</span>
+          <h1 class="page-title">When will you do them?</h1>
+          <p class="page-question">Drop your planned tasks into a time block. A real time, not "later".</p>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Morning focus block</div>
+            <span class="counter">
+              <strong id="assignedCount">0</strong> in block
+            </span>
+          </div>
+
+          <div class="block">
+            <div class="block-label">Focus block</div>
+            <div class="block-time">10:00 — 12:00</div>
+            <div id="blockContents">
+              <div class="block-empty">No tasks committed yet. Tap one below to add it.</div>
+            </div>
+          </div>
+
+          <div class="card-head" style="margin-top: 22px; margin-bottom: 8px">
+            <div class="card-title" style="font-size: 0.82rem; color: var(--text-2)">
+              Planned today · tap to commit
+            </div>
+          </div>
+          <div class="pool" id="plannedPool"></div>
+
+          <div class="actions">
+            <button class="btn btn-primary" id="commitBtn" disabled>
+              Commit to Block
+            </button>
+          </div>
+          <div class="guidance" id="blocksGuidance">
+            <span class="dot"></span>
+            <span>You're ready to start focus. Head to Home.</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================
+           3. HOME — EXECUTE
+           One question: "What are you doing right now?"
+           ============================ -->
+      <section class="page" id="page-home">
+        <div class="page-head">
+          <span class="page-eyebrow">Step 3 · Execute</span>
+          <h1 class="page-title">Do this now.</h1>
+          <p class="page-question">No menus. No choices. Just one thing.</p>
+        </div>
+
+        <div id="homeContent">
+          <div class="card empty-state">
+            <div class="icon">🧭</div>
+            <div>Nothing committed yet.</div>
+            <div class="hint">
+              Start by <a href="#" data-goto="board">planning your day</a>.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================
+           4. TODAY — REFLECT
+           One question: "How did today go?"
+           ============================ -->
+      <section class="page" id="page-today">
+        <div class="page-head">
+          <span class="page-eyebrow">Step 4 · Reflect</span>
+          <h1 class="page-title">How did today go?</h1>
+          <p class="page-question">A clean look at what you actually shipped.</p>
+        </div>
+
+        <div class="card progress-card">
+          <div class="progress-ring">
+            <svg width="140" height="140" viewBox="0 0 140 140">
+              <circle class="track" cx="70" cy="70" r="60"></circle>
+              <circle
+                class="bar"
+                id="progressBar"
+                cx="70"
+                cy="70"
+                r="60"
+                stroke-dasharray="376.99"
+                stroke-dashoffset="376.99"
+              ></circle>
+            </svg>
+            <div class="label">
+              <div class="pct" id="progressPct">0%</div>
+              <div class="sub" id="progressSub">0 of 0 done</div>
+            </div>
+          </div>
+          <div class="reflect-headline" id="reflectHeadline">No tasks committed yet</div>
+          <div class="reflect-sub" id="reflectSub">
+            Plan your day to start tracking progress.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <div class="card-title">Today's tasks</div>
+          </div>
+          <div class="task-list" id="todayList">
+            <div class="empty-state" style="padding: 20px 0">
+              <div>Nothing here yet.</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="next-step" id="nextStep" style="display: none">
+          <div>
+            <div class="label">Keep the momentum</div>
+            <div class="desc">There's still focus time left in your block.</div>
+          </div>
+          <button class="btn btn-primary" data-goto="home">Back to focus</button>
+        </div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      /* =========================================================
+         STATE
+         A single source of truth keeps the four "pages" in sync.
+         Task state machine:
+           backlog → planned → committed → active → done
+         ========================================================= */
+      const state = {
+        currentStep: "board",
+        tasks: [
+          { id: "t1", title: "Write Bio 102 study guide",  meta: "Bio · 45 min", status: "backlog" },
+          { id: "t2", title: "Finish CS 200 problem set",  meta: "CS · 60 min",  status: "backlog" },
+          { id: "t3", title: "Read History chapter 4",     meta: "History · 30 min", status: "backlog" },
+          { id: "t4", title: "Outline essay introduction", meta: "English · 25 min", status: "backlog" },
+          { id: "t5", title: "Reply to advisor email",     meta: "Admin · 5 min",    status: "backlog" },
+        ],
+        timer: { id: null, remaining: 0, running: false, taskId: null },
+      };
+
+      /* ---------- Helpers ---------- */
+      const $ = (sel) => document.querySelector(sel);
+      const $$ = (sel) => document.querySelectorAll(sel);
+
+      const tasksBy = (status) => state.tasks.filter((t) => t.status === status);
+
+      function showToast(msg) {
+        const el = $("#toast");
+        el.textContent = msg;
+        el.classList.add("visible");
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove("visible"), 2200);
+      }
+
+      /* ---------- Navigation & step indicator ---------- */
+      function goTo(page) {
+        state.currentStep = page;
+
+        $$(".page").forEach((p) => p.classList.remove("visible"));
+        $("#page-" + page).classList.add("visible");
+
+        $$(".nav-tab").forEach((t) =>
+          t.classList.toggle("active", t.dataset.page === page)
+        );
+
+        renderStepper();
+
+        // Re-render the page being shown so it always reflects state.
+        if (page === "board") renderBoard();
+        if (page === "blocks") renderBlocks();
+        if (page === "home") renderHome();
+        if (page === "today") renderToday();
+      }
+
+      function stepStatus(step) {
+        // The step is "done" when its work is complete.
+        const planned = tasksBy("planned").length + tasksBy("committed").length + tasksBy("active").length + tasksBy("done").length;
+        const committed = tasksBy("committed").length + tasksBy("active").length + tasksBy("done").length;
+        const executed = tasksBy("done").length;
+
+        if (step === "board")  return planned > 0 ? "done" : "open";
+        if (step === "blocks") return committed > 0 ? "done" : (planned > 0 ? "open" : "locked");
+        if (step === "home")   return executed > 0 ? "done" : (committed > 0 ? "open" : "locked");
+        if (step === "today")  return committed > 0 ? "open" : "locked";
+        return "locked";
+      }
+
+      function renderStepper() {
+        $$("#stepper .step").forEach((btn) => {
+          const step = btn.dataset.step;
+          const status = stepStatus(step);
+          btn.classList.remove("active", "done", "locked");
+
+          if (step === state.currentStep) btn.classList.add("active");
+          else if (status === "done") btn.classList.add("done");
+          else if (status === "locked") btn.classList.add("locked");
+
+          // The check mark for completed steps
+          const num = btn.querySelector(".num");
+          num.textContent =
+            status === "done" && step !== state.currentStep
+              ? "✓"
+              : { board: 1, blocks: 2, home: 3, today: 4 }[step];
+        });
+      }
+
+      /* =========================================================
+         1. BOARD (PLAN)
+         ========================================================= */
+      function renderBoard() {
+        const list = $("#boardList");
+        const planned = tasksBy("planned");
+        const backlog = tasksBy("backlog");
+
+        // After planning, show planned tasks at the top as a confirmation.
+        const visible = [...planned, ...backlog];
+
+        list.innerHTML = visible.length
+          ? visible
+              .map(
+                (t) => `
+                  <div class="task ${
+                    t._selected || t.status === "planned" ? "selected" : ""
+                  }" data-id="${t.id}">
+                    <div class="check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div class="task-body">
+                      <div class="task-title">${t.title}</div>
+                      <div class="task-sub">${t.meta}</div>
+                    </div>
+                    ${
+                      t.status === "planned"
+                        ? '<span class="task-tag">Planned</span>'
+                        : ""
+                    }
+                  </div>`
+              )
+              .join("")
+          : `<div class="empty-state"><div>All clear. Add a task to begin.</div></div>`;
+
+        // Wire row clicks for selection (only on backlog rows).
+        $$("#boardList .task").forEach((row) => {
+          row.addEventListener("click", () => {
+            const task = state.tasks.find((t) => t.id === row.dataset.id);
+            if (task.status === "planned") return; // already planned, locked
+            task._selected = !task._selected;
+            renderBoard();
+          });
+        });
+
+        const selectedCount = state.tasks.filter((t) => t._selected).length;
+        $("#selectedCount").textContent = selectedCount;
+        $("#planBtn").disabled = selectedCount === 0;
+
+        // If anything is already planned, show the next-step guidance.
+        $("#boardGuidance").classList.toggle("visible", planned.length > 0);
+        $("#planBtn").textContent =
+          planned.length > 0 && selectedCount === 0 ? "Continue to Commit →" : "Plan My Day";
+      }
+
+      $("#planBtn").addEventListener("click", () => {
+        const selected = state.tasks.filter((t) => t._selected);
+        if (selected.length > 0) {
+          selected.forEach((t) => {
+            t.status = "planned";
+            t._selected = false;
+          });
+          renderBoard();
+          renderStepper();
+          showToast(`${selected.length} task${selected.length > 1 ? "s" : ""} planned`);
+          // Auto-advance after a short beat so the success state is visible.
+          setTimeout(() => goTo("blocks"), 700);
+        } else {
+          // The "Continue" path when planned items already exist.
+          goTo("blocks");
+        }
+      });
+
+      /* =========================================================
+         2. BLOCKS (COMMIT)
+         ========================================================= */
+      function renderBlocks() {
+        const planned = tasksBy("planned");
+        const committed = tasksBy("committed");
+        const active = tasksBy("active");
+        const inBlock = [...committed, ...active]; // already committed tasks live in the block
+
+        // Pool = planned tasks not yet committed
+        const pool = $("#plannedPool");
+        if (planned.length === 0) {
+          pool.innerHTML = `<div class="block-empty" style="padding:8px">All planned tasks are committed. ✓</div>`;
+        } else {
+          pool.innerHTML = planned
+            .map(
+              (t) => `
+                <button class="chip" data-id="${t.id}">
+                  <span class="chip-plus">＋</span> ${t.title}
+                </button>`
+            )
+            .join("");
+
+          $$("#plannedPool .chip").forEach((chip) => {
+            chip.addEventListener("click", () => {
+              const task = state.tasks.find((t) => t.id === chip.dataset.id);
+              task.status = "committed";
+              renderBlocks();
+              renderStepper();
+            });
+          });
+        }
+
+        // Block contents
+        const contents = $("#blockContents");
+        if (inBlock.length === 0) {
+          contents.innerHTML = `<div class="block-empty">No tasks committed yet. Tap one below to add it.</div>`;
+        } else {
+          contents.innerHTML = `
+            <div class="task-list">
+              ${inBlock
+                .map(
+                  (t) => `
+                    <div class="task selected" data-id="${t.id}">
+                      <div class="check">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      </div>
+                      <div class="task-body">
+                        <div class="task-title">${t.title}</div>
+                        <div class="task-sub">${t.meta}</div>
+                      </div>
+                      <span class="task-tag">In block</span>
+                    </div>`
+                )
+                .join("")}
+            </div>`;
+        }
+
+        $("#assignedCount").textContent = inBlock.length;
+        $("#commitBtn").disabled = inBlock.length === 0;
+        $("#blocksGuidance").classList.toggle(
+          "visible",
+          inBlock.length > 0 && state._blocksConfirmed
+        );
+        $("#commitBtn").textContent =
+          state._blocksConfirmed && inBlock.length > 0
+            ? "Continue to Focus →"
+            : "Commit to Block";
+      }
+
+      $("#commitBtn").addEventListener("click", () => {
+        if (state._blocksConfirmed) {
+          goTo("home");
+          return;
+        }
+        state._blocksConfirmed = true;
+        renderBlocks();
+        renderStepper();
+        showToast("Committed. You're ready to focus.");
+        setTimeout(() => goTo("home"), 800);
+      });
+
+      /* =========================================================
+         3. HOME (EXECUTE)
+         The page that answers: "What now?" — with one task only.
+         ========================================================= */
+      function renderHome() {
+        const container = $("#homeContent");
+        const active = tasksBy("active")[0];
+        const next = active || tasksBy("committed")[0];
+
+        if (!next) {
+          container.innerHTML = `
+            <div class="card empty-state">
+              <div class="icon">🧭</div>
+              <div>Nothing committed yet.</div>
+              <div class="hint">
+                Start by <a href="#" data-goto="board">planning your day</a>.
+              </div>
+            </div>`;
+          wireGotoLinks();
+          return;
+        }
+
+        const isRunning = state.timer.running && state.timer.taskId === next.id;
+        const remaining = state.timer.taskId === next.id ? state.timer.remaining : 25 * 60;
+
+        container.innerHTML = `
+          <div class="focus-card">
+            <div class="focus-eyebrow">🔥 Your focus now</div>
+            <div class="focus-title">${next.title}</div>
+            <div class="focus-meta">
+              <span>${next.meta}</span>
+              <span class="sep">·</span>
+              <span>10:00 — 12:00</span>
+            </div>
+
+            <div class="focus-cta" id="focusCta">
+              <button class="btn btn-primary" id="startFocus">
+                ${isRunning ? "Pause Focus" : "Start Focus"}
+              </button>
+            </div>
+
+            <div class="timer ${state.timer.taskId === next.id ? "visible" : ""}" id="timerBox">
+              <div class="timer-display" id="timerDisplay">${fmt(remaining)}</div>
+              <div class="timer-status">Working on: <strong>${next.title}</strong></div>
+              <div class="timer-actions">
+                <button class="btn btn-ghost" id="resetFocus">Reset</button>
+                <button class="btn btn-primary" id="completeFocus">Mark Done</button>
+              </div>
+            </div>
+          </div>`;
+
+        $("#startFocus").addEventListener("click", () => toggleTimer(next.id));
+        const resetBtn = $("#resetFocus");
+        const completeBtn = $("#completeFocus");
+        if (resetBtn) resetBtn.addEventListener("click", resetTimer);
+        if (completeBtn) completeBtn.addEventListener("click", () => completeTask(next.id));
+      }
+
+      function fmt(secs) {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      }
+
+      function toggleTimer(taskId) {
+        const task = state.tasks.find((t) => t.id === taskId);
+        if (!task) return;
+
+        if (state.timer.running && state.timer.taskId === taskId) {
+          // Pause
+          clearInterval(state.timer.id);
+          state.timer.running = false;
+          renderHome();
+          return;
+        }
+
+        // Start (or resume)
+        if (state.timer.taskId !== taskId) {
+          state.timer.taskId = taskId;
+          state.timer.remaining = 25 * 60;
+        }
+        task.status = "active";
+        state.timer.running = true;
+        state.timer.id = setInterval(tick, 1000);
+        renderHome();
+        renderStepper();
+      }
+
+      function tick() {
+        state.timer.remaining = Math.max(0, state.timer.remaining - 1);
+        const display = $("#timerDisplay");
+        if (display) display.textContent = fmt(state.timer.remaining);
+
+        if (state.timer.remaining === 0) {
+          clearInterval(state.timer.id);
+          state.timer.running = false;
+          showToast("Focus session complete. Mark it done?");
+        }
+      }
+
+      function resetTimer() {
+        clearInterval(state.timer.id);
+        state.timer.running = false;
+        state.timer.remaining = 25 * 60;
+        const display = $("#timerDisplay");
+        if (display) display.textContent = fmt(state.timer.remaining);
+        renderHome();
+      }
+
+      function completeTask(taskId) {
+        const task = state.tasks.find((t) => t.id === taskId);
+        if (!task) return;
+        task.status = "done";
+        clearInterval(state.timer.id);
+        state.timer = { id: null, remaining: 0, running: false, taskId: null };
+        showToast(`Done: ${task.title}`);
+
+        const remaining = tasksBy("committed").length;
+        if (remaining > 0) {
+          renderHome();
+          renderStepper();
+        } else {
+          renderStepper();
+          // No more committed tasks → go reflect.
+          setTimeout(() => goTo("today"), 600);
+        }
+      }
+
+      /* =========================================================
+         4. TODAY (REFLECT)
+         ========================================================= */
+      function renderToday() {
+        const all = state.tasks.filter((t) =>
+          ["committed", "active", "done"].includes(t.status)
+        );
+        const done = tasksBy("done");
+        const total = all.length;
+        const completed = done.length;
+        const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+        // Ring math: r = 60 → circumference ≈ 376.99
+        const circumference = 376.99;
+        const offset = circumference * (1 - pct / 100);
+        $("#progressBar").style.strokeDashoffset = offset;
+        $("#progressPct").textContent = pct + "%";
+        $("#progressSub").textContent = `${completed} of ${total} done`;
+
+        if (total === 0) {
+          $("#reflectHeadline").textContent = "No tasks committed yet";
+          $("#reflectSub").textContent = "Plan your day to start tracking progress.";
+        } else if (completed === total) {
+          $("#reflectHeadline").textContent = "Day complete. Nice work.";
+          $("#reflectSub").textContent = "Every committed task got done.";
+        } else {
+          $("#reflectHeadline").textContent = `${completed}/${total} done — keep going`;
+          $("#reflectSub").textContent = `${total - completed} task${total - completed > 1 ? "s" : ""} still in your block.`;
+        }
+
+        const list = $("#todayList");
+        if (all.length === 0) {
+          list.innerHTML = `<div class="empty-state" style="padding: 20px 0"><div>Nothing here yet.</div></div>`;
+        } else {
+          list.innerHTML = all
+            .map(
+              (t) => `
+                <div class="task ${t.status === "done" ? "done" : ""}">
+                  <div class="check">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </div>
+                  <div class="task-body">
+                    <div class="task-title">${t.title}</div>
+                    <div class="task-sub">${t.meta}</div>
+                  </div>
+                  <span class="task-tag ${t.status === "done" ? "done" : "warn"}">
+                    ${t.status === "done" ? "Done" : t.status === "active" ? "In progress" : "Pending"}
+                  </span>
+                </div>`
+            )
+            .join("");
+        }
+
+        // Show "back to focus" only if there's still work to do.
+        $("#nextStep").style.display = total > 0 && completed < total ? "flex" : "none";
+        wireGotoLinks();
+      }
+
+      /* ---------- Wiring ---------- */
+      function wireGotoLinks() {
+        $$("[data-goto]").forEach((el) => {
+          el.addEventListener("click", (e) => {
+            e.preventDefault();
+            goTo(el.dataset.goto);
+          });
+        });
+      }
+
+      // Top nav
+      $$("#navTabs .nav-tab").forEach((tab) => {
+        tab.addEventListener("click", () => goTo(tab.dataset.page));
+      });
+
+      // Step indicator nav (respect locked state)
+      $$("#stepper .step").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (btn.classList.contains("locked")) {
+            showToast("Finish the current step first.");
+            return;
+          }
+          goTo(btn.dataset.step);
+        });
+      });
+
+      // Theme toggle
+      $("#themeToggle").addEventListener("click", () => {
+        const html = document.documentElement;
+        const next = html.dataset.theme === "dark" ? "light" : "dark";
+        html.dataset.theme = next;
+        $("#themeToggle").textContent = next === "dark" ? "Light" : "Dark";
+      });
+
+      // Initial render
+      renderBoard();
+      renderStepper();
+      wireGotoLinks();
+    </script>
+  </body>
+</html>

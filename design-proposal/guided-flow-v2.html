@@ -1,0 +1,2092 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Simplified Navigation Mock</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* =========================================================
+         3-NAV INTEGRATION MOCK
+         Replaces the 6-tab nav with: Home · Start Day · Tasks
+         The 4-step flow (Plan → Commit → Execute → Reflect) lives
+         inside the "Start Day" page as a single guided wizard.
+         ========================================================= */
+
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --t: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface-solid: #ffffff;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-hover: #f8f9fb;
+        --column-bg: #eef0f4;
+        --line: rgba(0, 0, 0, 0.06);
+        --line-strong: rgba(0, 0, 0, 0.1);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0, 122, 255, 0.08);
+        --done: #34c759;
+        --done-soft: rgba(52, 199, 89, 0.12);
+        --warn: #ff9500;
+        --warn-soft: rgba(255, 149, 0, 0.1);
+        --danger: #ff3b30;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.06), 0 12px 32px rgba(0, 0, 0, 0.08);
+        --toggle-bg: #e5e5ea;
+        --toggle-knob: #fff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #000;
+        --surface-solid: #1c1c1e;
+        --surface: rgba(28, 28, 30, 0.82);
+        --surface-hover: #2c2c2e;
+        --column-bg: #131316;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10, 132, 255, 0.14);
+        --done: #30d158;
+        --done-soft: rgba(48, 209, 88, 0.16);
+        --warn: #ff9f0a;
+        --warn-soft: rgba(255, 159, 10, 0.16);
+        --danger: #ff453a;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.3), 0 12px 32px rgba(0, 0, 0, 0.4);
+        --toggle-bg: #39393d;
+        --toggle-knob: #f5f5f7;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        min-height: 100vh;
+      }
+
+      /* =========================================================
+         NAV — only 3 destinations
+         ========================================================= */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 60;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 1120px;
+        margin: 0 auto;
+        height: 60px;
+        padding: 0 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: -0.02em;
+        cursor: pointer;
+        background: none;
+        border: none;
+        color: var(--text);
+        font-family: inherit;
+      }
+      .brand-mark {
+        width: 24px;
+        height: 24px;
+        border-radius: 7px;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+        font-size: 0.7rem;
+        font-weight: 800;
+      }
+
+      .nav-center {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* Plain tab — Home and Tasks */
+      .nav-tab {
+        height: 36px;
+        padding: 0 14px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 500;
+        color: var(--text-2);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        font-family: inherit;
+        transition: var(--t);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .nav-tab:hover {
+        color: var(--text);
+        background: var(--surface-hover);
+      }
+      .nav-tab.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+
+      /* The hero CTA — visually unmistakable as the primary path */
+      .start-day-btn {
+        height: 36px;
+        padding: 0 18px;
+        border-radius: 10px;
+        font-size: 0.88rem;
+        font-weight: 600;
+        color: #fff;
+        background: var(--accent);
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        box-shadow: 0 4px 12px rgba(0, 122, 255, 0.24);
+        transition: var(--t);
+      }
+      .start-day-btn:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+      .start-day-btn .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #fff;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .start-day-btn.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        box-shadow: none;
+      }
+      .start-day-btn.active .dot {
+        background: var(--accent);
+      }
+      .start-day-btn .badge {
+        font-size: 0.7rem;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.22);
+        padding: 2px 7px;
+        border-radius: 999px;
+      }
+      .start-day-btn.active .badge {
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .nav-r {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .toggle {
+        position: relative;
+        width: 40px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--toggle-bg);
+        border: none;
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--toggle-knob);
+        transition: var(--t);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+      }
+      [data-theme="dark"] .toggle::after {
+        transform: translateX(16px);
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.4); }
+      }
+
+      /* =========================================================
+         SHELL
+         ========================================================= */
+      .shell {
+        max-width: 1120px;
+        margin: 0 auto;
+        padding: 32px 24px 64px;
+      }
+      .page {
+        display: none;
+        animation: fadeUp 320ms ease both;
+      }
+      .page.visible {
+        display: block;
+      }
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(6px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+
+      /* =========================================================
+         HOME — calm overview
+         ========================================================= */
+      .greet h1 {
+        font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+        line-height: 1.1;
+      }
+      .greet p {
+        margin-top: 8px;
+        color: var(--text-2);
+        font-size: 1rem;
+      }
+
+      /* The "what to do next" hero — single source of intent on Home */
+      .start-hero {
+        margin-top: 28px;
+        padding: 32px;
+        border-radius: 22px;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+        color: #fff;
+        position: relative;
+        overflow: hidden;
+        box-shadow: 0 8px 28px rgba(0, 122, 255, 0.2);
+      }
+      .start-hero::after {
+        content: "";
+        position: absolute;
+        top: -80px;
+        right: -40px;
+        width: 240px;
+        height: 240px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.07);
+      }
+      .start-hero .eyebrow {
+        position: relative;
+        font-size: 0.74rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.88;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .start-hero .eyebrow::before {
+        content: "";
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: #fff;
+        animation: pulse 1.6s ease-in-out infinite;
+      }
+      .start-hero h2 {
+        position: relative;
+        margin-top: 14px;
+        font-size: 2rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1.15;
+      }
+      .start-hero p {
+        position: relative;
+        margin-top: 10px;
+        font-size: 1rem;
+        opacity: 0.92;
+        max-width: 540px;
+      }
+      .start-hero .actions {
+        position: relative;
+        margin-top: 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+      .start-hero .primary {
+        height: 48px;
+        padding: 0 24px;
+        border-radius: 12px;
+        font-size: 1rem;
+        font-weight: 600;
+        background: #fff;
+        color: var(--accent);
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        transition: var(--t);
+      }
+      .start-hero .primary:hover {
+        transform: translateY(-1px);
+      }
+      .start-hero .ghost {
+        height: 48px;
+        padding: 0 20px;
+        border-radius: 12px;
+        font-size: 0.94rem;
+        font-weight: 500;
+        background: rgba(255, 255, 255, 0.16);
+        color: #fff;
+        border: none;
+        cursor: pointer;
+        font-family: inherit;
+        transition: var(--t);
+      }
+      .start-hero .ghost:hover {
+        background: rgba(255, 255, 255, 0.24);
+      }
+
+      /* Quick state strip on Home — calm, not noisy */
+      .state-row {
+        margin-top: 24px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+      }
+      .state-card {
+        padding: 18px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+      }
+      .state-card .label {
+        font-size: 0.74rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-2);
+      }
+      .state-card .num {
+        margin-top: 8px;
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .state-card .tip {
+        margin-top: 4px;
+        font-size: 0.78rem;
+        color: var(--text-3);
+      }
+
+      .home-section {
+        margin-top: 32px;
+      }
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin-bottom: 14px;
+      }
+      .section-head h3 {
+        font-size: 0.78rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-3);
+      }
+      .section-head a {
+        font-size: 0.84rem;
+        color: var(--accent);
+        font-weight: 500;
+        text-decoration: none;
+        cursor: pointer;
+      }
+
+      /* =========================================================
+         START DAY — the 4-step guided wizard, all in one page
+         ========================================================= */
+      .wizard-head {
+        text-align: center;
+        margin-bottom: 28px;
+      }
+      .wizard-head .eyebrow {
+        font-size: 0.74rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent);
+      }
+      .wizard-head h1 {
+        margin-top: 8px;
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+      }
+      .wizard-head p {
+        margin-top: 6px;
+        color: var(--text-2);
+        font-size: 0.96rem;
+      }
+
+      .stepper {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        margin: 0 auto 28px;
+        padding: 8px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        box-shadow: var(--shadow-sm);
+        max-width: fit-content;
+      }
+      .step {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 14px;
+        border-radius: 999px;
+        font-size: 0.84rem;
+        font-weight: 500;
+        color: var(--text-3);
+        cursor: pointer;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        transition: var(--t);
+        white-space: nowrap;
+      }
+      .step .num {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        background: var(--surface-hover);
+        color: var(--text-3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.72rem;
+        font-weight: 700;
+        transition: var(--t);
+      }
+      .step.done {
+        color: var(--done);
+      }
+      .step.done .num {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+      .step.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+        font-weight: 600;
+      }
+      .step.active .num {
+        background: var(--accent);
+        color: #fff;
+      }
+      .step.locked {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .step-arrow {
+        color: var(--text-3);
+        font-size: 0.86rem;
+      }
+
+      .wizard-body {
+        display: none;
+        animation: fadeUp 280ms ease both;
+      }
+      .wizard-body.visible {
+        display: block;
+      }
+
+      .wizard-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        box-shadow: var(--shadow-md);
+        padding: 28px;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .wizard-card .ask {
+        text-align: center;
+        margin-bottom: 24px;
+      }
+      .wizard-card .ask h2 {
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .wizard-card .ask p {
+        margin-top: 6px;
+        color: var(--text-2);
+        font-size: 0.9rem;
+      }
+
+      .pick-list {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .pick {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 14px 16px;
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        background: var(--surface-solid);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .pick:hover {
+        background: var(--surface-hover);
+        border-color: var(--line-strong);
+      }
+      .pick.selected {
+        background: var(--accent-soft);
+        border-color: rgba(0, 122, 255, 0.32);
+      }
+      .pick .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 6px;
+        border: 1.5px solid var(--line-strong);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--surface-solid);
+        flex-shrink: 0;
+        color: #fff;
+      }
+      .pick.selected .check {
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .pick .check svg {
+        width: 14px;
+        height: 14px;
+        opacity: 0;
+      }
+      .pick.selected .check svg {
+        opacity: 1;
+      }
+      .pick .name {
+        flex: 1;
+        font-size: 0.94rem;
+        font-weight: 500;
+      }
+      .pick .meta {
+        font-size: 0.78rem;
+        color: var(--text-3);
+      }
+
+      .wizard-actions {
+        margin-top: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .btn {
+        height: 46px;
+        padding: 0 22px;
+        border-radius: 12px;
+        font-size: 0.94rem;
+        font-weight: 600;
+        font-family: inherit;
+        cursor: pointer;
+        border: 1px solid transparent;
+        transition: var(--t);
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #fff;
+        box-shadow: 0 6px 18px rgba(0, 122, 255, 0.24);
+      }
+      .btn.primary:hover {
+        background: var(--accent-hover);
+        transform: translateY(-1px);
+      }
+      .btn.primary:disabled {
+        background: var(--surface-hover);
+        color: var(--text-3);
+        box-shadow: none;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .btn.ghost {
+        background: transparent;
+        color: var(--text-2);
+        border-color: var(--line-strong);
+      }
+      .btn.ghost:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+
+      .counter {
+        font-size: 0.84rem;
+        color: var(--text-2);
+      }
+      .counter strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      /* Block visual on Commit step */
+      .block-vis {
+        margin-top: 8px;
+        padding: 18px;
+        border-radius: 14px;
+        background: var(--surface-hover);
+        border: 1.5px dashed var(--line-strong);
+      }
+      .block-vis .title-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 10px;
+      }
+      .block-vis .label {
+        font-size: 0.74rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+      }
+      .block-vis .time {
+        font-size: 0.84rem;
+        font-weight: 600;
+        color: var(--text-2);
+      }
+      .block-vis .empty {
+        text-align: center;
+        color: var(--text-3);
+        font-size: 0.86rem;
+        padding: 14px 0;
+      }
+      .chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 14px;
+      }
+      .chip {
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        font-size: 0.84rem;
+        font-weight: 500;
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .chip:hover {
+        background: var(--accent-soft);
+        border-color: rgba(0, 122, 255, 0.32);
+        color: var(--accent);
+      }
+      .chip.assigned {
+        background: var(--accent);
+        color: #fff;
+        border-color: var(--accent);
+      }
+
+      /* Execute step — single focus surface */
+      .focus-surface {
+        text-align: center;
+        padding: 20px 0;
+      }
+      .focus-surface .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.76rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--accent);
+        background: var(--accent-soft);
+        padding: 6px 12px;
+        border-radius: 999px;
+        margin-bottom: 18px;
+      }
+      .focus-surface .task-title {
+        font-size: 1.8rem;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        line-height: 1.2;
+      }
+      .focus-surface .meta {
+        margin-top: 10px;
+        color: var(--text-2);
+        font-size: 0.96rem;
+      }
+      .timer-box {
+        display: none;
+        margin-top: 22px;
+      }
+      .timer-box.visible {
+        display: block;
+      }
+      .timer-box .clock {
+        font-size: 3.2rem;
+        font-weight: 700;
+        letter-spacing: -0.04em;
+        font-variant-numeric: tabular-nums;
+        line-height: 1;
+      }
+      .timer-box .status {
+        margin-top: 8px;
+        color: var(--text-2);
+        font-size: 0.9rem;
+      }
+
+      /* Reflect step */
+      .reflect-summary {
+        text-align: center;
+        padding: 16px 0 10px;
+      }
+      .ring {
+        position: relative;
+        width: 140px;
+        height: 140px;
+        margin: 0 auto 18px;
+      }
+      .ring svg {
+        transform: rotate(-90deg);
+      }
+      .ring circle {
+        fill: none;
+        stroke-width: 10;
+      }
+      .ring .track {
+        stroke: var(--surface-hover);
+      }
+      .ring .bar {
+        stroke: var(--accent);
+        stroke-linecap: round;
+        transition: stroke-dashoffset 600ms ease;
+      }
+      .ring .label {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .ring .pct {
+        font-size: 1.5rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+      }
+      .ring .sub {
+        font-size: 0.76rem;
+        color: var(--text-2);
+        margin-top: 2px;
+      }
+
+      .reflect-list {
+        margin-top: 14px;
+      }
+      .reflect-list .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .reflect-list .row:last-child {
+        border-bottom: none;
+      }
+      .reflect-list .row.done .name {
+        text-decoration: line-through;
+        color: var(--text-3);
+      }
+      .reflect-list .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid var(--text-3);
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--surface-solid);
+        color: #fff;
+      }
+      .reflect-list .row.done .check {
+        background: var(--done);
+        border-color: var(--done);
+      }
+      .reflect-list .check svg {
+        width: 12px;
+        height: 12px;
+        opacity: 0;
+      }
+      .reflect-list .row.done .check svg {
+        opacity: 1;
+      }
+      .reflect-list .name {
+        flex: 1;
+        font-size: 0.92rem;
+      }
+      .reflect-list .right {
+        font-size: 0.78rem;
+        color: var(--text-3);
+      }
+
+      /* =========================================================
+         TASKS — the library (create + view all)
+         ========================================================= */
+      .tasks-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 22px;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      .tasks-head h1 {
+        font-size: 1.85rem;
+        font-weight: 700;
+        letter-spacing: -0.03em;
+      }
+      .tasks-head p {
+        margin-top: 4px;
+        font-size: 0.92rem;
+        color: var(--text-2);
+      }
+
+      .quick-add {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 18px;
+        padding: 6px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow-sm);
+      }
+      .quick-add input {
+        flex: 1;
+        height: 46px;
+        padding: 0 14px;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 0.96rem;
+        color: var(--text);
+        outline: none;
+      }
+      .quick-add input::placeholder {
+        color: var(--text-3);
+      }
+      .quick-add .meta-input {
+        height: 46px;
+        padding: 0 12px;
+        border: none;
+        background: transparent;
+        font-family: inherit;
+        font-size: 0.86rem;
+        color: var(--text-2);
+        outline: none;
+        width: 130px;
+        border-left: 1px solid var(--line);
+      }
+      .quick-add button {
+        height: 46px;
+        padding: 0 20px;
+        border-radius: 10px;
+        background: var(--accent);
+        color: #fff;
+        font-weight: 600;
+        font-family: inherit;
+        font-size: 0.92rem;
+        border: none;
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .quick-add button:hover {
+        background: var(--accent-hover);
+      }
+
+      .filters {
+        display: flex;
+        gap: 6px;
+        margin-bottom: 14px;
+        flex-wrap: wrap;
+      }
+      .filter-pill {
+        height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: var(--text-2);
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        cursor: pointer;
+        font-family: inherit;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        transition: var(--t);
+      }
+      .filter-pill:hover {
+        background: var(--surface-hover);
+      }
+      .filter-pill.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: rgba(0, 122, 255, 0.24);
+      }
+      .filter-pill .count {
+        font-size: 0.72rem;
+        font-weight: 700;
+        background: var(--surface-hover);
+        padding: 1px 7px;
+        border-radius: 999px;
+      }
+      .filter-pill.active .count {
+        background: rgba(0, 122, 255, 0.16);
+      }
+
+      .task-table {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        box-shadow: var(--shadow-sm);
+        overflow: hidden;
+      }
+      .task-row-2 {
+        display: grid;
+        grid-template-columns: 28px 1fr auto auto auto;
+        gap: 14px;
+        align-items: center;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .task-row-2:last-child {
+        border-bottom: none;
+      }
+      .task-row-2:hover {
+        background: var(--surface-hover);
+      }
+      .task-row-2 .check {
+        width: 22px;
+        height: 22px;
+        border-radius: 50%;
+        border: 2px solid var(--text-3);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #fff;
+      }
+      .task-row-2.done .check {
+        background: var(--done);
+        border-color: var(--done);
+      }
+      .task-row-2 .check svg {
+        width: 12px;
+        height: 12px;
+        opacity: 0;
+      }
+      .task-row-2.done .check svg {
+        opacity: 1;
+      }
+      .task-row-2 .body .n {
+        font-size: 0.94rem;
+        font-weight: 500;
+      }
+      .task-row-2.done .body .n {
+        text-decoration: line-through;
+        color: var(--text-3);
+      }
+      .task-row-2 .body .m {
+        margin-top: 2px;
+        font-size: 0.78rem;
+        color: var(--text-3);
+      }
+      .pill {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 3px 10px;
+        border-radius: 999px;
+      }
+      .pill.backlog {
+        background: var(--surface-hover);
+        color: var(--text-2);
+      }
+      .pill.planned {
+        background: var(--accent-soft);
+        color: var(--accent);
+      }
+      .pill.progress {
+        background: var(--warn-soft);
+        color: var(--warn);
+      }
+      .pill.done {
+        background: var(--done-soft);
+        color: var(--done);
+      }
+      .icon-btn {
+        width: 30px;
+        height: 30px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: none;
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-3);
+        cursor: pointer;
+        transition: var(--t);
+      }
+      .icon-btn:hover {
+        background: var(--surface-solid);
+        color: var(--danger);
+      }
+
+      .empty {
+        text-align: center;
+        padding: 40px 20px;
+        color: var(--text-2);
+      }
+      .empty .icon {
+        font-size: 2rem;
+        margin-bottom: 8px;
+      }
+
+      /* =========================================================
+         TOAST
+         ========================================================= */
+      .toast {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%) translateY(20px);
+        background: var(--text);
+        color: var(--bg);
+        padding: 12px 20px;
+        border-radius: 999px;
+        font-size: 0.86rem;
+        font-weight: 500;
+        opacity: 0;
+        pointer-events: none;
+        transition: var(--t);
+        z-index: 100;
+        box-shadow: var(--shadow-lg);
+      }
+      .toast.visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+      }
+
+      @media (max-width: 720px) {
+        .nav-tab span.label-text {
+          display: none;
+        }
+        .start-day-btn .badge {
+          display: none;
+        }
+        .state-row {
+          grid-template-columns: 1fr;
+        }
+        .quick-add {
+          flex-wrap: wrap;
+        }
+        .quick-add .meta-input {
+          border-left: none;
+          border-top: 1px solid var(--line);
+          width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ============================================================
+         NAV — three destinations only
+         ============================================================ -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <button class="brand" data-goto="home">
+          <span class="brand-mark">T</span>
+          TaskPilot
+        </button>
+
+        <div class="nav-center">
+          <button class="nav-tab active" data-goto="home">
+            <span class="label-text">Home</span>
+          </button>
+
+          <!-- The hero CTA — visually the most important nav item -->
+          <button class="start-day-btn" id="startDayBtn" data-goto="start">
+            <span class="dot"></span>
+            <span id="startDayLabel">Start Day</span>
+            <span class="badge" id="startDayBadge" style="display: none">Step 2</span>
+          </button>
+
+          <button class="nav-tab" data-goto="tasks">
+            <span class="label-text">Tasks</span>
+          </button>
+        </div>
+
+        <div class="nav-r">
+          <button class="toggle" id="themeToggle" aria-label="Toggle theme"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+      <!-- ============================================================
+           HOME — overview / launchpad
+           ============================================================ -->
+      <section class="page visible" id="page-home">
+        <div class="greet">
+          <h1 id="greetTitle">Good afternoon, Nicholas</h1>
+          <p id="greetSub">Sunday, April 19 — let's make it count.</p>
+        </div>
+
+        <!-- Single hero — adapts based on flow state -->
+        <div class="start-hero" id="startHero">
+          <div class="eyebrow" id="heroEyebrow">Today's plan</div>
+          <h2 id="heroTitle">Ready to start your day?</h2>
+          <p id="heroDesc">
+            Walk through Plan → Commit → Execute → Reflect in one guided flow.
+            We'll prompt you for everything you need.
+          </p>
+          <div class="actions">
+            <button class="primary" data-goto="start" id="heroPrimary">
+              <span>Start Day</span>
+              <span>→</span>
+            </button>
+            <button class="ghost" data-goto="tasks">Browse tasks</button>
+          </div>
+        </div>
+
+        <div class="state-row">
+          <div class="state-card">
+            <div class="label">Tasks in library</div>
+            <div class="num" id="stTotal">5</div>
+            <div class="tip">across all statuses</div>
+          </div>
+          <div class="state-card">
+            <div class="label">Planned today</div>
+            <div class="num" id="stPlanned">0</div>
+            <div class="tip">via Start Day</div>
+          </div>
+          <div class="state-card">
+            <div class="label">Completed today</div>
+            <div class="num" id="stDone">0</div>
+            <div class="tip">single focus wins</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           START DAY — the 4-step wizard
+           Plan → Commit → Execute → Reflect, one page, one stepper.
+           ============================================================ -->
+      <section class="page" id="page-start">
+        <div class="wizard-head">
+          <div class="eyebrow" id="wizEyebrow">Daily flow</div>
+          <h1 id="wizTitle">Start Day</h1>
+          <p id="wizDesc">Four steps. One screen. We'll guide you through each.</p>
+        </div>
+
+        <div class="stepper" id="stepper">
+          <button class="step active" data-step="plan">
+            <span class="num">1</span> Plan
+          </button>
+          <span class="step-arrow">→</span>
+          <button class="step locked" data-step="commit">
+            <span class="num">2</span> Commit
+          </button>
+          <span class="step-arrow">→</span>
+          <button class="step locked" data-step="execute">
+            <span class="num">3</span> Execute
+          </button>
+          <span class="step-arrow">→</span>
+          <button class="step locked" data-step="reflect">
+            <span class="num">4</span> Reflect
+          </button>
+        </div>
+
+        <!-- ===== STEP 1: PLAN ===== -->
+        <div class="wizard-body visible" id="step-plan">
+          <div class="wizard-card">
+            <div class="ask">
+              <h2>What will you work on today?</h2>
+              <p>Pick the tasks that actually matter. Leave the rest for later.</p>
+            </div>
+
+            <div class="pick-list" id="planPickList"></div>
+
+            <div class="wizard-actions">
+              <span class="counter">
+                <strong id="selectedCount">0</strong> selected
+              </span>
+              <div style="display: flex; gap: 10px">
+                <button class="btn ghost" data-goto="tasks">Add a new task</button>
+                <button class="btn primary" id="planNext" disabled>
+                  Plan My Day →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== STEP 2: COMMIT ===== -->
+        <div class="wizard-body" id="step-commit">
+          <div class="wizard-card">
+            <div class="ask">
+              <h2>When will you do them?</h2>
+              <p>Drop your planned tasks into a real time block.</p>
+            </div>
+
+            <div class="block-vis">
+              <div class="title-row">
+                <span class="label">Morning focus block</span>
+                <span class="time">10:00 — 12:00 AM</span>
+              </div>
+              <div id="blockContents">
+                <div class="empty">No tasks committed yet. Tap one below to add it.</div>
+              </div>
+            </div>
+
+            <div style="margin-top: 18px; font-size: 0.78rem; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600">
+              Planned tasks · tap to commit
+            </div>
+            <div class="chip-row" id="planChips"></div>
+
+            <div class="wizard-actions">
+              <button class="btn ghost" data-step-back="plan">← Back</button>
+              <div style="display: flex; gap: 10px; align-items: center">
+                <span class="counter">
+                  <strong id="committedCount">0</strong> in block
+                </span>
+                <button class="btn primary" id="commitNext" disabled>
+                  Commit to Block →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== STEP 3: EXECUTE ===== -->
+        <div class="wizard-body" id="step-execute">
+          <div class="wizard-card">
+            <div class="focus-surface">
+              <div class="eyebrow">🔥 Your focus now</div>
+              <div class="task-title" id="focusTitle">—</div>
+              <div class="meta" id="focusMeta">10:00 — 12:00 AM</div>
+
+              <div class="timer-box" id="timerBox">
+                <div class="clock" id="timerClock">25:00</div>
+                <div class="status" id="timerStatus">Working on this task</div>
+              </div>
+            </div>
+
+            <div class="wizard-actions">
+              <button class="btn ghost" data-step-back="commit">← Back</button>
+              <div style="display: flex; gap: 10px">
+                <button class="btn ghost" id="resetTimer" style="display: none">Reset</button>
+                <button class="btn primary" id="startFocus">Start Focus</button>
+                <button class="btn primary" id="completeTask" style="display: none; background: var(--done); box-shadow: 0 6px 18px rgba(52,199,89,0.24)">
+                  Mark Done
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== STEP 4: REFLECT ===== -->
+        <div class="wizard-body" id="step-reflect">
+          <div class="wizard-card">
+            <div class="ask">
+              <h2>How did today go?</h2>
+              <p>A clean look at what you actually shipped.</p>
+            </div>
+
+            <div class="reflect-summary">
+              <div class="ring">
+                <svg width="140" height="140" viewBox="0 0 140 140">
+                  <circle class="track" cx="70" cy="70" r="60"></circle>
+                  <circle
+                    class="bar"
+                    id="ringBar"
+                    cx="70"
+                    cy="70"
+                    r="60"
+                    stroke-dasharray="376.99"
+                    stroke-dashoffset="376.99"
+                  ></circle>
+                </svg>
+                <div class="label">
+                  <div class="pct" id="ringPct">0%</div>
+                  <div class="sub" id="ringSub">0 of 0</div>
+                </div>
+              </div>
+              <div id="reflectMsg" style="font-weight: 600; font-size: 1rem">No tasks committed</div>
+            </div>
+
+            <div class="reflect-list" id="reflectList"></div>
+
+            <div class="wizard-actions">
+              <button class="btn ghost" data-goto="home">Back to Home</button>
+              <button class="btn primary" id="resetDay">Plan tomorrow →</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============================================================
+           TASKS — the library / inbox
+           ============================================================ -->
+      <section class="page" id="page-tasks">
+        <div class="tasks-head">
+          <div>
+            <h1>Tasks</h1>
+            <p>Capture anything. Pick what matters during Start Day.</p>
+          </div>
+        </div>
+
+        <!-- Quick-add -->
+        <form class="quick-add" id="quickAddForm">
+          <input
+            type="text"
+            id="newTaskName"
+            placeholder="Add a task… e.g. Review chemistry notes"
+            autocomplete="off"
+          />
+          <input
+            type="text"
+            id="newTaskMeta"
+            placeholder="Project · 30 min"
+            class="meta-input"
+            autocomplete="off"
+          />
+          <button type="submit">Add</button>
+        </form>
+
+        <!-- Filters -->
+        <div class="filters" id="filters">
+          <button class="filter-pill active" data-filter="all">
+            All <span class="count" id="cAll">5</span>
+          </button>
+          <button class="filter-pill" data-filter="backlog">
+            Backlog <span class="count" id="cBacklog">5</span>
+          </button>
+          <button class="filter-pill" data-filter="planned">
+            Planned <span class="count" id="cPlanned">0</span>
+          </button>
+          <button class="filter-pill" data-filter="in_progress">
+            In progress <span class="count" id="cProgress">0</span>
+          </button>
+          <button class="filter-pill" data-filter="done">
+            Done <span class="count" id="cDone">0</span>
+          </button>
+        </div>
+
+        <div class="task-table" id="taskTable"></div>
+      </section>
+    </main>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+      /* =========================================================
+         STATE — same status machine as the real app
+         backlog → planned → committed (planned + studyBlockId) → in_progress → done
+         ========================================================= */
+      const state = {
+        page: "home",
+        wizardStep: "plan",
+        tasks: [
+          { id: "t1", name: "Write Bio 102 study guide",  meta: "Bio · 45 min",     status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t2", name: "Finish CS 200 problem set",  meta: "CS · 60 min",      status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t3", name: "Read History chapter 4",     meta: "History · 30 min", status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t4", name: "Outline essay introduction", meta: "English · 25 min", status: "backlog", studyBlockId: null, _selected: false },
+          { id: "t5", name: "Reply to advisor email",     meta: "Admin · 5 min",    status: "backlog", studyBlockId: null, _selected: false },
+        ],
+        targetBlockId: "morning",
+        filter: "all",
+        timer: { id: null, remaining: 25 * 60, running: false, taskId: null },
+      };
+
+      const $ = (s) => document.querySelector(s);
+      const $$ = (s) => document.querySelectorAll(s);
+
+      function showToast(msg) {
+        const el = $("#toast");
+        el.textContent = msg;
+        el.classList.add("visible");
+        clearTimeout(el._t);
+        el._t = setTimeout(() => el.classList.remove("visible"), 2200);
+      }
+
+      const tasksBy = (status) => state.tasks.filter((t) => t.status === status);
+      const inBlock = () => state.tasks.filter((t) => t.studyBlockId === state.targetBlockId);
+
+      /* ---- Derive flow state (mirrors lib/daily-flow.ts in the plan) ---- */
+      function deriveFlow() {
+        const planned = state.tasks.filter((t) =>
+          ["planned", "in_progress", "done"].includes(t.status)
+        );
+        const committed = state.tasks.filter((t) => t.studyBlockId !== null);
+        const done = tasksBy("done");
+
+        let step = "plan";
+        if (planned.length > 0 && committed.length === 0) step = "commit";
+        else if (committed.length > 0 && done.length < committed.length) step = "execute";
+        else if (committed.length > 0 && done.length === committed.length) step = "reflect";
+
+        return {
+          step,
+          plannedCount: planned.length,
+          committedCount: committed.length,
+          doneCount: done.length,
+          inProgress: state.tasks.find((t) => t.status === "in_progress"),
+          hasStarted: planned.length > 0,
+        };
+      }
+
+      /* =========================================================
+         NAVIGATION
+         ========================================================= */
+      function goTo(page) {
+        state.page = page;
+        $$(".page").forEach((p) => p.classList.remove("visible"));
+        $("#page-" + page).classList.add("visible");
+
+        // Update top nav active state
+        $$(".nav-tab").forEach((t) =>
+          t.classList.toggle("active", t.dataset.goto === page)
+        );
+        $("#startDayBtn").classList.toggle("active", page === "start");
+
+        // When entering Start Day, jump to the right step automatically
+        if (page === "start") {
+          const flow = deriveFlow();
+          showWizardStep(flow.step);
+        }
+
+        renderAll();
+      }
+
+      function showWizardStep(step) {
+        state.wizardStep = step;
+        $$(".wizard-body").forEach((b) => b.classList.remove("visible"));
+        $("#step-" + step).classList.add("visible");
+        renderStepper();
+        // Each step re-renders from shared state on entry
+        if (step === "plan") renderPlan();
+        if (step === "commit") renderCommit();
+        if (step === "execute") renderExecute();
+        if (step === "reflect") renderReflect();
+      }
+
+      function renderStepper() {
+        const flow = deriveFlow();
+        const order = ["plan", "commit", "execute", "reflect"];
+        const reachableUpTo = order.indexOf(flow.step);
+
+        $$("#stepper .step").forEach((btn) => {
+          const idx = order.indexOf(btn.dataset.step);
+          btn.classList.remove("active", "done", "locked");
+
+          if (btn.dataset.step === state.wizardStep) {
+            btn.classList.add("active");
+          } else if (idx < reachableUpTo) {
+            btn.classList.add("done");
+          } else if (idx > reachableUpTo) {
+            btn.classList.add("locked");
+          }
+
+          const num = btn.querySelector(".num");
+          num.textContent =
+            idx < reachableUpTo && btn.dataset.step !== state.wizardStep
+              ? "✓"
+              : idx + 1;
+        });
+      }
+
+      /* =========================================================
+         HOME
+         ========================================================= */
+      function renderHome() {
+        const flow = deriveFlow();
+
+        const hour = new Date().getHours();
+        const greet =
+          hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+        $("#greetTitle").textContent = `${greet}, Nicholas`;
+
+        // The hero rebrands based on where you are in the flow
+        const hero = {
+          plan: {
+            eyebrow: "Today's plan",
+            title: "Ready to start your day?",
+            desc: "Walk through Plan → Commit → Execute → Reflect in one guided flow. We'll prompt you for everything you need.",
+            primary: "Start Day →",
+          },
+          commit: {
+            eyebrow: "You're partway in · step 2",
+            title: `${flow.plannedCount} task${flow.plannedCount > 1 ? "s" : ""} planned — let's commit`,
+            desc: "Pick a time block for the work you planned. Real times, not 'later'.",
+            primary: "Continue Day →",
+          },
+          execute: {
+            eyebrow: "You're partway in · step 3",
+            title: flow.inProgress
+              ? `Now: ${flow.inProgress.name}`
+              : "Your focus block is ready",
+            desc: "One task. One timer. No menus.",
+            primary: "Continue Day →",
+          },
+          reflect: {
+            eyebrow: "Day complete · step 4",
+            title: `${flow.doneCount} of ${flow.committedCount} shipped`,
+            desc: "Review the day, then plan tomorrow when you're ready.",
+            primary: "See reflection →",
+          },
+        }[flow.step];
+
+        $("#heroEyebrow").textContent = hero.eyebrow;
+        $("#heroTitle").textContent = hero.title;
+        $("#heroDesc").textContent = hero.desc;
+        $("#heroPrimary").innerHTML = `<span>${hero.primary.replace(" →", "")}</span><span>→</span>`;
+
+        // Top-right Start Day button shows progress badge
+        const badge = $("#startDayBadge");
+        const label = $("#startDayLabel");
+        if (flow.hasStarted && flow.step !== "plan") {
+          label.textContent = "Continue Day";
+          badge.style.display = "inline-block";
+          badge.textContent =
+            "Step " + ({ plan: 1, commit: 2, execute: 3, reflect: 4 }[flow.step]);
+        } else {
+          label.textContent = "Start Day";
+          badge.style.display = "none";
+        }
+
+        // Stat cards
+        $("#stTotal").textContent = state.tasks.length;
+        $("#stPlanned").textContent = flow.plannedCount;
+        $("#stDone").textContent = flow.doneCount;
+      }
+
+      /* =========================================================
+         WIZARD: PLAN
+         ========================================================= */
+      function renderPlan() {
+        const backlog = tasksBy("backlog");
+        const planned = state.tasks.filter((t) =>
+          ["planned", "in_progress", "done"].includes(t.status)
+        );
+        const visible = [...planned, ...backlog];
+
+        const list = $("#planPickList");
+        list.innerHTML = visible.length
+          ? visible
+              .map((t) => {
+                const isPlanned = ["planned", "in_progress", "done"].includes(t.status);
+                const isSel = t._selected || isPlanned;
+                return `
+                  <div class="pick ${isSel ? "selected" : ""}" data-id="${t.id}" ${
+                  isPlanned ? 'data-locked="1"' : ""
+                }>
+                    <div class="check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </div>
+                    <div class="name">${t.name}</div>
+                    <div class="meta">${t.meta}${isPlanned ? " · planned" : ""}</div>
+                  </div>`;
+              })
+              .join("")
+          : `<div class="empty"><div class="icon">📭</div>No tasks yet. <a href="#" data-goto="tasks" style="color: var(--accent); font-weight: 600">Add some →</a></div>`;
+
+        $$("#planPickList .pick").forEach((row) => {
+          row.addEventListener("click", () => {
+            if (row.dataset.locked) return;
+            const t = state.tasks.find((x) => x.id === row.dataset.id);
+            t._selected = !t._selected;
+            renderPlan();
+          });
+        });
+
+        const selCount = state.tasks.filter((t) => t._selected).length;
+        $("#selectedCount").textContent = selCount;
+        $("#planNext").disabled = selCount === 0 && planned.length === 0;
+        $("#planNext").textContent =
+          selCount === 0 && planned.length > 0 ? "Continue to Commit →" : "Plan My Day →";
+
+        wireGotoLinks();
+      }
+
+      $("#planNext").addEventListener("click", () => {
+        const sel = state.tasks.filter((t) => t._selected);
+        sel.forEach((t) => {
+          t.status = "planned";
+          t._selected = false;
+        });
+        if (sel.length > 0) showToast(`${sel.length} task${sel.length > 1 ? "s" : ""} planned`);
+        showWizardStep("commit");
+      });
+
+      /* =========================================================
+         WIZARD: COMMIT
+         ========================================================= */
+      function renderCommit() {
+        const planned = tasksBy("planned");
+        const inB = inBlock();
+
+        const contents = $("#blockContents");
+        if (inB.length === 0) {
+          contents.innerHTML = `<div class="empty">No tasks committed yet. Tap one below to add it.</div>`;
+        } else {
+          contents.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px">
+              ${inB
+                .map(
+                  (t) => `
+                    <div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; background: var(--surface-solid); border: 1px solid var(--line)">
+                      <span style="width: 8px; height: 8px; border-radius: 50%; background: var(--accent)"></span>
+                      <span style="flex: 1; font-size: 0.9rem; font-weight: 500">${t.name}</span>
+                      <span style="font-size: 0.76rem; color: var(--text-3)">${t.meta}</span>
+                    </div>`
+                )
+                .join("")}
+            </div>`;
+        }
+
+        const chips = $("#planChips");
+        chips.innerHTML = planned.length
+          ? planned
+              .map(
+                (t) =>
+                  `<button class="chip" data-id="${t.id}">+ ${t.name}</button>`
+              )
+              .join("")
+          : `<div style="color: var(--text-3); font-size: 0.86rem">All planned tasks are committed. ✓</div>`;
+
+        $$("#planChips .chip").forEach((c) => {
+          c.addEventListener("click", () => {
+            const t = state.tasks.find((x) => x.id === c.dataset.id);
+            t.studyBlockId = state.targetBlockId;
+            renderCommit();
+            renderStepper();
+          });
+        });
+
+        $("#committedCount").textContent = inB.length;
+        $("#commitNext").disabled = inB.length === 0;
+      }
+
+      $("#commitNext").addEventListener("click", () => {
+        showToast("Committed. You're ready to focus.");
+        showWizardStep("execute");
+      });
+
+      /* =========================================================
+         WIZARD: EXECUTE
+         ========================================================= */
+      function renderExecute() {
+        const next =
+          state.tasks.find((t) => t.status === "in_progress") ||
+          inBlock().find((t) => t.status !== "done");
+
+        if (!next) {
+          $("#focusTitle").textContent = "All committed tasks are done";
+          $("#focusMeta").textContent = "Ready to reflect on the day.";
+          $("#startFocus").style.display = "none";
+          $("#completeTask").style.display = "none";
+          $("#resetTimer").style.display = "none";
+          return;
+        }
+
+        $("#focusTitle").textContent = next.name;
+        $("#focusMeta").textContent = `${next.meta} · 10:00 — 12:00 AM`;
+
+        const isThisRunning =
+          state.timer.taskId === next.id && state.timer.running;
+        const hasStartedThis = state.timer.taskId === next.id;
+
+        $("#timerBox").classList.toggle("visible", hasStartedThis);
+        $("#timerClock").textContent = fmt(
+          hasStartedThis ? state.timer.remaining : 25 * 60
+        );
+        $("#timerStatus").textContent = isThisRunning
+          ? `Working on: ${next.name}`
+          : hasStartedThis
+            ? "Paused"
+            : "Ready when you are";
+
+        $("#startFocus").style.display = "inline-flex";
+        $("#startFocus").textContent = isThisRunning
+          ? "Pause"
+          : hasStartedThis
+            ? "Resume"
+            : "Start Focus";
+
+        $("#resetTimer").style.display = hasStartedThis ? "inline-flex" : "none";
+        $("#completeTask").style.display = hasStartedThis ? "inline-flex" : "none";
+      }
+
+      function fmt(secs) {
+        const m = Math.floor(secs / 60);
+        const s = secs % 60;
+        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      }
+
+      $("#startFocus").addEventListener("click", () => {
+        const next =
+          state.tasks.find((t) => t.status === "in_progress") ||
+          inBlock().find((t) => t.status !== "done");
+        if (!next) return;
+
+        if (state.timer.running && state.timer.taskId === next.id) {
+          // Pause
+          clearInterval(state.timer.id);
+          state.timer.running = false;
+          renderExecute();
+          return;
+        }
+
+        if (state.timer.taskId !== next.id) {
+          state.timer.taskId = next.id;
+          state.timer.remaining = 25 * 60;
+        }
+        next.status = "in_progress";
+        state.timer.running = true;
+        state.timer.id = setInterval(tick, 1000);
+        renderExecute();
+        renderStepper();
+        renderHome();
+      });
+
+      function tick() {
+        state.timer.remaining = Math.max(0, state.timer.remaining - 1);
+        const clock = $("#timerClock");
+        if (clock) clock.textContent = fmt(state.timer.remaining);
+        if (state.timer.remaining === 0) {
+          clearInterval(state.timer.id);
+          state.timer.running = false;
+          showToast("Focus session complete. Mark it done?");
+        }
+      }
+
+      $("#resetTimer").addEventListener("click", () => {
+        clearInterval(state.timer.id);
+        state.timer.running = false;
+        state.timer.remaining = 25 * 60;
+        renderExecute();
+      });
+
+      $("#completeTask").addEventListener("click", () => {
+        const t = state.tasks.find((x) => x.id === state.timer.taskId);
+        if (!t) return;
+        t.status = "done";
+        clearInterval(state.timer.id);
+        state.timer = { id: null, remaining: 25 * 60, running: false, taskId: null };
+        showToast(`Done: ${t.name}`);
+
+        const flow = deriveFlow();
+        if (flow.doneCount === flow.committedCount) {
+          // All done → auto-advance to reflect
+          setTimeout(() => showWizardStep("reflect"), 600);
+        } else {
+          renderExecute();
+          renderStepper();
+        }
+        renderHome();
+      });
+
+      /* =========================================================
+         WIZARD: REFLECT
+         ========================================================= */
+      function renderReflect() {
+        const all = state.tasks.filter((t) => t.studyBlockId !== null);
+        const done = tasksBy("done");
+        const total = all.length;
+        const completed = done.length;
+        const pct = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+        const C = 376.99;
+        $("#ringBar").style.strokeDashoffset = C * (1 - pct / 100);
+        $("#ringPct").textContent = pct + "%";
+        $("#ringSub").textContent = `${completed} of ${total}`;
+
+        $("#reflectMsg").textContent =
+          total === 0
+            ? "No tasks committed yet"
+            : completed === total
+              ? "Day complete. Nice work."
+              : `${completed} of ${total} done — keep going`;
+
+        const list = $("#reflectList");
+        list.innerHTML = all.length
+          ? all
+              .map(
+                (t) => `
+                  <div class="row ${t.status === "done" ? "done" : ""}">
+                    <span class="check">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </span>
+                    <div class="name">${t.name}</div>
+                    <div class="right">${
+                      t.status === "done"
+                        ? "Done"
+                        : t.status === "in_progress"
+                          ? "In progress"
+                          : "Pending"
+                    }</div>
+                  </div>`
+              )
+              .join("")
+          : `<div class="empty">Nothing to reflect on yet.</div>`;
+      }
+
+      $("#resetDay").addEventListener("click", () => {
+        // Soft reset: keep tasks, clear day-scoped state
+        state.tasks.forEach((t) => {
+          t.status = t.status === "done" ? "done" : "backlog";
+          t.studyBlockId = null;
+          t._selected = false;
+        });
+        showToast("Ready for tomorrow.");
+        showWizardStep("plan");
+        renderHome();
+      });
+
+      /* =========================================================
+         TASKS PAGE
+         ========================================================= */
+      function renderTasks() {
+        const counts = {
+          all: state.tasks.length,
+          backlog: tasksBy("backlog").length,
+          planned: tasksBy("planned").length,
+          in_progress: tasksBy("in_progress").length,
+          done: tasksBy("done").length,
+        };
+        $("#cAll").textContent = counts.all;
+        $("#cBacklog").textContent = counts.backlog;
+        $("#cPlanned").textContent = counts.planned;
+        $("#cProgress").textContent = counts.in_progress;
+        $("#cDone").textContent = counts.done;
+
+        $$("#filters .filter-pill").forEach((p) =>
+          p.classList.toggle("active", p.dataset.filter === state.filter)
+        );
+
+        const filtered =
+          state.filter === "all"
+            ? state.tasks
+            : state.tasks.filter((t) => t.status === state.filter);
+
+        const table = $("#taskTable");
+        if (filtered.length === 0) {
+          table.innerHTML = `<div class="empty"><div class="icon">📭</div>No tasks here yet.</div>`;
+          return;
+        }
+
+        const pillFor = (s) => {
+          const map = {
+            backlog: { cls: "backlog", text: "Backlog" },
+            planned: { cls: "planned", text: "Planned" },
+            in_progress: { cls: "progress", text: "In progress" },
+            done: { cls: "done", text: "Done" },
+          };
+          return map[s] || map.backlog;
+        };
+
+        table.innerHTML = filtered
+          .map((t) => {
+            const p = pillFor(t.status);
+            return `
+              <div class="task-row-2 ${t.status === "done" ? "done" : ""}" data-id="${t.id}">
+                <span class="check">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+                <div class="body">
+                  <div class="n">${t.name}</div>
+                  <div class="m">${t.meta}</div>
+                </div>
+                <span class="pill ${p.cls}">${p.text}</span>
+                <span style="color: var(--text-3); font-size: 0.78rem">${
+                  t.studyBlockId ? "in block" : "—"
+                }</span>
+                <button class="icon-btn" data-del="${t.id}" aria-label="Delete">
+                  <svg viewBox="0 0 16 16" width="14" height="14" fill="currentColor">
+                    <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/>
+                    <path d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H5.5l1-1h3l1 1h2.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3V2h11v1h-11z"/>
+                  </svg>
+                </button>
+              </div>`;
+          })
+          .join("");
+
+        // Toggle complete by clicking the row
+        $$("#taskTable .task-row-2").forEach((row) => {
+          row.addEventListener("click", (e) => {
+            if (e.target.closest("[data-del]")) return;
+            const t = state.tasks.find((x) => x.id === row.dataset.id);
+            if (!t) return;
+            t.status = t.status === "done" ? "backlog" : "done";
+            renderAll();
+          });
+        });
+
+        // Delete
+        $$("#taskTable [data-del]").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const id = btn.dataset.del;
+            state.tasks = state.tasks.filter((t) => t.id !== id);
+            renderAll();
+          });
+        });
+      }
+
+      $("#quickAddForm").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const name = $("#newTaskName").value.trim();
+        const meta = $("#newTaskMeta").value.trim() || "Unscheduled";
+        if (!name) return;
+        state.tasks.unshift({
+          id: "t" + Date.now(),
+          name,
+          meta,
+          status: "backlog",
+          studyBlockId: null,
+          _selected: false,
+        });
+        $("#newTaskName").value = "";
+        $("#newTaskMeta").value = "";
+        showToast("Added to library");
+        renderAll();
+      });
+
+      $$("#filters .filter-pill").forEach((p) => {
+        p.addEventListener("click", () => {
+          state.filter = p.dataset.filter;
+          renderTasks();
+        });
+      });
+
+      /* =========================================================
+         WIRING
+         ========================================================= */
+      function wireGotoLinks() {
+        $$("[data-goto]").forEach((el) => {
+          if (el._wired) return;
+          el._wired = true;
+          el.addEventListener("click", (e) => {
+            e.preventDefault();
+            goTo(el.dataset.goto);
+          });
+        });
+        $$("[data-step-back]").forEach((el) => {
+          if (el._wired) return;
+          el._wired = true;
+          el.addEventListener("click", () => showWizardStep(el.dataset.stepBack));
+        });
+      }
+
+      $$("#stepper .step").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          if (btn.classList.contains("locked")) {
+            showToast("Finish the current step first.");
+            return;
+          }
+          showWizardStep(btn.dataset.step);
+        });
+      });
+
+      $("#themeToggle").addEventListener("click", () => {
+        const html = document.documentElement;
+        html.dataset.theme = html.dataset.theme === "dark" ? "light" : "dark";
+      });
+
+      function renderAll() {
+        renderHome();
+        renderTasks();
+        if (state.page === "start") {
+          if (state.wizardStep === "plan") renderPlan();
+          if (state.wizardStep === "commit") renderCommit();
+          if (state.wizardStep === "execute") renderExecute();
+          if (state.wizardStep === "reflect") renderReflect();
+          renderStepper();
+        }
+      }
+
+      // Boot
+      wireGotoLinks();
+      renderAll();
+    </script>
+  </body>
+</html>
