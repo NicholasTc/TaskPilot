@@ -29,15 +29,15 @@ const statusMeta: Record<
   { title: string; dot: string; empty: string; question: string }
 > = {
   backlog: {
-    title: "Backlog",
+    title: "Unscheduled",
     dot: "var(--text-3)",
-    empty: "Add a task to the backlog",
-    question: "What might I do?",
+    empty: "Add an unscheduled task",
+    question: "What is not scheduled yet?",
   },
   planned: {
     title: "Planned",
     dot: "var(--accent)",
-    empty: "Drag backlog tasks here",
+    empty: "Drag unscheduled tasks here",
     question: "What am I doing today?",
   },
   in_progress: {

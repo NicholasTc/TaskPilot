@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
+import { StudyBlockModel } from "@/models/StudyBlock";
 import { resolveTaskState } from "@/lib/task-status";
 import { toTaskResponse } from "@/lib/task-response";
 import {
@@ -66,13 +67,38 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     }
 
     await connectToDatabase();
+    const userObjectId = toObjectId(userId);
     const deletedTask = await TaskModel.findOneAndDelete({
       _id: toObjectId(id),
-      userId: toObjectId(userId),
+      userId: userObjectId,
     });
 
     if (!deletedTask) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
+    }
+
+    // If this task belonged to a study block, keep block/task linkage clean:
+    // - remove the whole block when this was its only linked task
+    // - otherwise clear activeTaskId when it pointed at the deleted task
+    if (deletedTask.studyBlockId) {
+      const blockId = deletedTask.studyBlockId;
+      const remainingLinkedTasks = await TaskModel.countDocuments({
+        userId: userObjectId,
+        studyBlockId: blockId,
+        _id: { $ne: deletedTask._id },
+      });
+
+      if (remainingLinkedTasks === 0) {
+        await StudyBlockModel.findOneAndDelete({
+          _id: blockId,
+          userId: userObjectId,
+        });
+      } else {
+        await StudyBlockModel.findOneAndUpdate(
+          { _id: blockId, userId: userObjectId, activeTaskId: deletedTask._id },
+          { $set: { activeTaskId: null } },
+        );
+      }
     }
 
     return NextResponse.json({ success: true });

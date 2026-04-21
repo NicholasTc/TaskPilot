@@ -10,7 +10,7 @@ type FilterId = "all" | "backlog" | "planned" | "in_progress" | "done";
 
 const filters: { id: FilterId; label: string }[] = [
   { id: "all", label: "All" },
-  { id: "backlog", label: "Backlog" },
+  { id: "backlog", label: "Unscheduled" },
   { id: "planned", label: "Planned" },
   { id: "in_progress", label: "In Progress" },
   { id: "done", label: "Done" },
@@ -20,7 +20,7 @@ const statusMeta: Record<
   Exclude<FilterId, "all">,
   { label: string; dot: string; tone: "neutral" | "accent" | "warn" | "done" }
 > = {
-  backlog: { label: "Backlog", dot: "var(--text-3)", tone: "neutral" },
+  backlog: { label: "Unscheduled", dot: "var(--text-3)", tone: "neutral" },
   planned: { label: "Planned", dot: "var(--accent)", tone: "accent" },
   in_progress: { label: "In Progress", dot: "var(--warn)", tone: "warn" },
   done: { label: "Done", dot: "var(--done)", tone: "done" },
@@ -579,7 +579,7 @@ export default function TasksLibraryPage() {
                         color: statusInfo.dot,
                       }}
                     >
-                      <option value="backlog">Backlog</option>
+                      <option value="backlog">Unscheduled</option>
                       <option value="planned">Planned</option>
                       <option value="in_progress">In Progress</option>
                       <option value="done">Done</option>

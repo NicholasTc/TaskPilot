@@ -140,7 +140,13 @@ export default function TodayPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isPlanning, setIsPlanning] = useState(false);
   const [skippingBlockId, setSkippingBlockId] = useState<string | null>(null);
+  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [isUpdatingTimer, setIsUpdatingTimer] = useState(false);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [editPopoverBlockId, setEditPopoverBlockId] = useState<string | null>(null);
+  const [editDraftTitle, setEditDraftTitle] = useState("");
+  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
+  const [hideFinishedBlocks, setHideFinishedBlocks] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -390,6 +396,95 @@ export default function TodayPage() {
     }
   };
 
+  const handleDeleteBlock = useCallback(
+    async (block: StudyBlock) => {
+      if (deletingBlockId) return;
+      const confirmMessage =
+        block.status === "active"
+          ? "Delete this live block? Its tasks will be re-planned."
+          : "Delete this block? Its tasks will be re-planned.";
+      if (!window.confirm(confirmMessage)) return;
+
+      setDeletingBlockId(block.id);
+      setErrorMessage(null);
+      try {
+        const deleteResponse = await fetch(`/api/blocks/${block.id}`, {
+          method: "DELETE",
+        });
+        if (deleteResponse.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!deleteResponse.ok) throw new Error("Unable to delete block");
+
+        await runAutoPlan();
+        await loadData();
+        setEditPopoverBlockId(null);
+        setSuccessMessage("Block deleted.");
+      } catch (error) {
+        console.error("Delete block failed", error);
+        if (error instanceof AutoPlanError && error.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        const message =
+          error instanceof AutoPlanError ? error.message : "Could not delete this block.";
+        setErrorMessage(message);
+      } finally {
+        setDeletingBlockId(null);
+      }
+    },
+    [deletingBlockId, loadData, redirectToLogin],
+  );
+
+  const handleOpenEditPopover = useCallback((block: StudyBlock) => {
+    setEditPopoverBlockId(block.id);
+    setEditDraftTitle(block.title);
+    setEditErrorMessage(null);
+  }, []);
+
+  const handleCloseEditPopover = useCallback(() => {
+    setEditPopoverBlockId(null);
+    setEditDraftTitle("");
+    setEditErrorMessage(null);
+  }, []);
+
+  const handleEditBlock = useCallback(
+    async (blockId: string) => {
+      if (editingBlockId || deletingBlockId) return;
+      const nextTitle = editDraftTitle.trim();
+      if (!nextTitle) {
+        setEditErrorMessage("Title cannot be empty.");
+        return;
+      }
+
+      setEditingBlockId(blockId);
+      setErrorMessage(null);
+      setEditErrorMessage(null);
+      try {
+        const response = await fetch(`/api/blocks/${blockId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: nextTitle }),
+        });
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!response.ok) throw new Error("Unable to update block");
+        await loadData();
+        setSuccessMessage("Block updated.");
+        handleCloseEditPopover();
+      } catch (error) {
+        console.error("Edit block failed", error);
+        setEditErrorMessage("Could not update title.");
+      } finally {
+        setEditingBlockId(null);
+      }
+    },
+    [deletingBlockId, editDraftTitle, editingBlockId, handleCloseEditPopover, loadData, redirectToLogin],
+  );
+
   return (
     <div className="mx-auto w-full max-w-[880px]">
       <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -571,10 +666,52 @@ export default function TodayPage() {
           </aside>
 
           <div className="px-7 py-6">
-            <h2 className="text-[1.45rem] font-bold leading-[1.2] tracking-[-0.02em]">{heroBlock.title}</h2>
-            <p className="mt-1 text-[0.84rem] leading-6" style={{ color: "var(--text-2)" }}>
-              {getBlockReason(heroBlock)}
-            </p>
+            {editPopoverBlockId === heroBlock.id ? (
+              <div className="mb-4">
+                <input
+                  value={editDraftTitle}
+                  onChange={(e) => setEditDraftTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleEditBlock(heroBlock.id);
+                    if (e.key === "Escape") handleCloseEditPopover();
+                  }}
+                  className="w-full rounded-[10px] border px-3 py-2 text-[1.45rem] font-bold leading-[1.2] tracking-[-0.02em] outline-none"
+                  style={{ borderColor: "var(--accent)", background: "var(--surface-hover)", color: "var(--text)" }}
+                  autoFocus
+                />
+                {editErrorMessage ? (
+                  <p className="mt-1 text-[0.8rem]" style={{ color: "var(--danger)" }}>
+                    {editErrorMessage}
+                  </p>
+                ) : null}
+                <div className="mt-2.5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleEditBlock(heroBlock.id)}
+                    disabled={editingBlockId === heroBlock.id}
+                    className="h-8 rounded-[8px] px-3.5 text-[0.82rem] font-semibold text-white disabled:opacity-55"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    {editingBlockId === heroBlock.id ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseEditPopover}
+                    className="h-8 rounded-[8px] border px-3 text-[0.82rem] font-medium"
+                    style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-[1.45rem] font-bold leading-[1.2] tracking-[-0.02em]">{heroBlock.title}</h2>
+                <p className="mt-1 text-[0.84rem] leading-6" style={{ color: "var(--text-2)" }}>
+                  {getBlockReason(heroBlock)}
+                </p>
+              </>
+            )}
 
             <ul className="mt-4 space-y-2">
               {getBlockTasks(heroBlock.id).length > 0 ? (
@@ -593,7 +730,7 @@ export default function TodayPage() {
               )}
             </ul>
 
-            <div className="mt-6 flex flex-wrap items-center gap-4">
+            <div className="relative mt-6 flex flex-wrap items-center gap-4">
               {activeBlock ? (
                 <>
                   <button
@@ -629,6 +766,24 @@ export default function TodayPage() {
                   >
                     Finish block
                   </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditPopover(heroBlock)}
+                    disabled={editingBlockId === heroBlock.id || deletingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteBlock(heroBlock)}
+                    disabled={deletingBlockId === heroBlock.id || editingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {deletingBlockId === heroBlock.id ? "Deleting..." : "Delete"}
+                  </button>
                 </>
               ) : (
                 <>
@@ -646,11 +801,29 @@ export default function TodayPage() {
                   <button
                     type="button"
                     onClick={() => void handleSkipBlock(heroBlock.id)}
-                    disabled={isPlanning || skippingBlockId === heroBlock.id}
+                    disabled={isPlanning || skippingBlockId === heroBlock.id || deletingBlockId === heroBlock.id}
                     className="bg-none border-none text-[0.86rem] font-medium disabled:opacity-55"
                     style={{ color: "var(--text-2)" }}
                   >
                     {skippingBlockId === heroBlock.id ? "Skipping…" : "Skip for now"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditPopover(heroBlock)}
+                    disabled={editingBlockId === heroBlock.id || deletingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteBlock(heroBlock)}
+                    disabled={deletingBlockId === heroBlock.id || editingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {deletingBlockId === heroBlock.id ? "Deleting..." : "Delete"}
                   </button>
                 </>
               )}
@@ -690,16 +863,32 @@ export default function TodayPage() {
 
       {!isLoading && blocks.length > 0 ? (
         <section className="anim anim-d3">
-          <h3 className="mb-4 text-[0.74rem] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--text-3)" }}>
-            Today&apos;s flow
-          </h3>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h3 className="text-[0.74rem] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--text-3)" }}>
+              Today&apos;s flow
+            </h3>
+            <button
+              type="button"
+              onClick={() => setHideFinishedBlocks((prev) => !prev)}
+              className="rounded-full border px-2.5 py-1 text-[0.72rem] font-medium transition-colors"
+              style={{
+                borderColor: "var(--line)",
+                background: hideFinishedBlocks ? "var(--surface-hover)" : "transparent",
+                color: "var(--text-2)",
+              }}
+            >
+              {hideFinishedBlocks ? "Show finished" : "Hide finished"}
+            </button>
+          </div>
           <ol className="relative space-y-1">
             <span
               aria-hidden
               className="pointer-events-none absolute bottom-3 left-[79px] top-3 w-px"
               style={{ background: "var(--line)" }}
             />
-            {blocks.map((block) => {
+            {blocks
+              .filter((block) => !(hideFinishedBlocks && block.status === "done"))
+              .map((block) => {
               const isDone = block.status === "done";
               const isNext = heroBlock?.id === block.id && !isDone;
               const blockTasks = getBlockTasks(block.id);
@@ -737,50 +926,118 @@ export default function TodayPage() {
                   </span>
 
                   <article
-                    className="group flex items-center justify-between gap-3 rounded-[14px] border px-4 py-3"
+                    className={`group rounded-[14px] border px-4 ${editPopoverBlockId === block.id ? "py-3.5" : "flex items-center justify-between gap-3 py-3"}`}
                     style={{
                       background: isDone
                         ? "transparent"
                         : isNext
                           ? "linear-gradient(to right, var(--accent-soft) 0%, var(--surface-solid) 60%)"
                           : "var(--surface-solid)",
-                      borderColor: isDone ? "var(--line)" : isNext ? "var(--accent-soft)" : "var(--line)",
+                      borderColor: editPopoverBlockId === block.id
+                        ? "var(--accent)"
+                        : isDone ? "var(--line)" : isNext ? "var(--accent-soft)" : "var(--line)",
                       borderStyle: isDone ? "dashed" : "solid",
                       boxShadow: isDone ? "none" : "var(--shadow-sm)",
                     }}
                   >
-                    <div className="min-w-0">
-                      <p
-                        className="truncate text-[0.94rem] font-semibold"
-                        style={{
-                          color: isDone ? "var(--text-2)" : "var(--text)",
-                          textDecoration: isDone ? "line-through" : "none",
-                        }}
-                      >
-                        {block.title}
-                        {isNext ? (
-                          <span
-                            className="ml-2 rounded-full px-2 py-[2px] align-middle text-[0.64rem] font-bold uppercase tracking-[0.06em]"
-                            style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
-                          >
-                            Now next
-                          </span>
+                    {editPopoverBlockId === block.id ? (
+                      <div className="w-full">
+                        <input
+                          value={editDraftTitle}
+                          onChange={(e) => setEditDraftTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") void handleEditBlock(block.id);
+                            if (e.key === "Escape") handleCloseEditPopover();
+                          }}
+                          className="w-full rounded-[8px] border px-2.5 py-1.5 text-[0.94rem] font-semibold outline-none"
+                          style={{ borderColor: "var(--accent)", background: "var(--surface-hover)", color: "var(--text)" }}
+                          autoFocus
+                        />
+                        {editErrorMessage ? (
+                          <p className="mt-1 text-[0.72rem]" style={{ color: "var(--danger)" }}>
+                            {editErrorMessage}
+                          </p>
                         ) : null}
-                      </p>
-                      <p className="mt-0.5 text-[0.78rem]" style={{ color: "var(--text-2)" }}>
-                        {metaLabel}
-                      </p>
-                    </div>
-                    {!isDone && !isNext ? (
-                      <button
-                        type="button"
-                        onClick={() => void handleSkipBlock(block.id)}
-                        disabled={isPlanning || skippingBlockId === block.id}
-                        className="text-[0.8rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
-                      >
-                        {skippingBlockId === block.id ? "Skipping…" : "Skip"}
-                      </button>
-                    ) : null}
+                        <div className="mt-2 flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void handleEditBlock(block.id)}
+                            disabled={editingBlockId === block.id}
+                            className="h-7 rounded-[7px] px-3 text-[0.76rem] font-semibold text-white disabled:opacity-55"
+                            style={{ background: "var(--accent)" }}
+                          >
+                            {editingBlockId === block.id ? "Saving..." : "Save"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCloseEditPopover}
+                            className="h-7 rounded-[7px] border px-2.5 text-[0.76rem] font-medium"
+                            style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="min-w-0">
+                          <p
+                            className="truncate text-[0.94rem] font-semibold"
+                            style={{
+                              color: isDone ? "var(--text-2)" : "var(--text)",
+                              textDecoration: isDone ? "line-through" : "none",
+                            }}
+                          >
+                            {block.title}
+                            {isNext ? (
+                              <span
+                                className="ml-2 rounded-full px-2 py-[2px] align-middle text-[0.64rem] font-bold uppercase tracking-[0.06em]"
+                                style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
+                              >
+                                Now next
+                              </span>
+                            ) : null}
+                          </p>
+                          <p className="mt-0.5 text-[0.78rem]" style={{ color: "var(--text-2)" }}>
+                            {metaLabel}
+                          </p>
+                        </div>
+                        {!isDone ? (
+                          <div className="flex items-center gap-2">
+                            {!isNext ? (
+                              <button
+                                type="button"
+                                onClick={() => void handleSkipBlock(block.id)}
+                                disabled={
+                                  isPlanning ||
+                                  skippingBlockId === block.id ||
+                                  deletingBlockId === block.id
+                                }
+                                className="text-[0.78rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
+                              >
+                                {skippingBlockId === block.id ? "Skipping…" : "Skip"}
+                              </button>
+                            ) : null}
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditPopover(block)}
+                              disabled={editingBlockId === block.id || deletingBlockId === block.id}
+                              className="text-[0.78rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => void handleDeleteBlock(block)}
+                              disabled={deletingBlockId === block.id || editingBlockId === block.id}
+                              className="text-[0.78rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
+                            >
+                              {deletingBlockId === block.id ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </>
+                    )}
                   </article>
                 </li>
               );
@@ -822,3 +1079,4 @@ export default function TodayPage() {
 function getBlockReason(block: StudyBlock) {
   return block.reason ?? "Planned around your current priority and focus window.";
 }
+

@@ -45,8 +45,9 @@ type WeekStatDay = {
 };
 
 const boardStatuses: BoardStatus[] = ["backlog", "planned", "in_progress", "done"];
+const boardSnapshotStatuses: BoardStatus[] = ["planned", "in_progress", "done"];
 const boardStatusMeta: Record<BoardStatus, { label: string; tip: string; dotColor: string }> = {
-  backlog: { label: "Backlog", tip: "unscheduled", dotColor: "var(--text-3)" },
+  backlog: { label: "Unscheduled", tip: "not yet in a block", dotColor: "var(--text-3)" },
   planned: { label: "Planned", tip: "in upcoming blocks", dotColor: "var(--accent)" },
   in_progress: { label: "In Progress", tip: "single focus", dotColor: "var(--warn)" },
   done: { label: "Done", tip: "today", dotColor: "var(--done)" },
@@ -382,8 +383,8 @@ export default function HomePage() {
             </svg>
           </Link>
         </header>
-        <div className="grid grid-cols-4 gap-2.5 max-[820px]:grid-cols-2">
-          {boardStatuses.map((status) => {
+        <div className="grid grid-cols-3 gap-2.5 max-[820px]:grid-cols-1">
+          {boardSnapshotStatuses.map((status) => {
             const isProgress = status === "in_progress";
             return (
               <Link
