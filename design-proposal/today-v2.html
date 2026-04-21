@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>TaskPilot — Your day (v2 redesign)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      /* ─────────────── Design tokens ─────────────── */
+      :root {
+        --font: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
+        --r-sm: 8px;
+        --r-md: 10px;
+        --r-lg: 14px;
+        --r-xl: 18px;
+        --t-fast: 120ms ease;
+        --t: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+      }
+
+      [data-theme="light"] {
+        --bg: #f4f5f7;
+        --surface: rgba(255, 255, 255, 0.82);
+        --surface-solid: #ffffff;
+        --surface-hover: #f8f9fb;
+        --line: rgba(0, 0, 0, 0.06);
+        --line-strong: rgba(0, 0, 0, 0.1);
+        --text: #1d1d1f;
+        --text-2: #6e6e73;
+        --text-3: #aeaeb2;
+        --accent: #007aff;
+        --accent-hover: #0066d6;
+        --accent-soft: rgba(0, 122, 255, 0.08);
+        --accent-soft-strong: rgba(0, 122, 255, 0.16);
+        --done: #34c759;
+        --done-soft: rgba(52, 199, 89, 0.12);
+        --warn: #ff9500;
+        --warn-soft: rgba(255, 149, 0, 0.1);
+        --danger: #ff3b30;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.04), 0 4px 16px rgba(0, 0, 0, 0.05);
+        --shadow-lg: 0 10px 30px rgba(0, 122, 255, 0.18);
+        --toggle-bg: #e5e5ea;
+        --toggle-knob: #fff;
+      }
+
+      [data-theme="dark"] {
+        --bg: #000;
+        --surface: rgba(28, 28, 30, 0.82);
+        --surface-solid: #1c1c1e;
+        --surface-hover: #2c2c2e;
+        --line: rgba(255, 255, 255, 0.08);
+        --line-strong: rgba(255, 255, 255, 0.14);
+        --text: #f5f5f7;
+        --text-2: #8e8e93;
+        --text-3: #5a5a5e;
+        --accent: #0a84ff;
+        --accent-hover: #3b9eff;
+        --accent-soft: rgba(10, 132, 255, 0.16);
+        --accent-soft-strong: rgba(10, 132, 255, 0.24);
+        --done: #30d158;
+        --done-soft: rgba(48, 209, 88, 0.16);
+        --warn: #ff9f0a;
+        --warn-soft: rgba(255, 159, 10, 0.16);
+        --danger: #ff453a;
+        --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 10px 30px rgba(10, 132, 255, 0.28);
+        --toggle-bg: #39393d;
+        --toggle-knob: #f5f5f7;
+      }
+
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+        margin: 0;
+      }
+
+      body {
+        min-height: 100vh;
+        font-family: var(--font);
+        color: var(--text);
+        background: var(--bg);
+        -webkit-font-smoothing: antialiased;
+        transition: background var(--t), color var(--t);
+      }
+
+      /* ─────────────── Nav (matches existing) ─────────────── */
+      .nav {
+        position: sticky;
+        top: 0;
+        z-index: 50;
+        background: var(--surface);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border-bottom: 1px solid var(--line);
+      }
+      .nav-inner {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 0 24px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 1rem;
+        letter-spacing: -0.02em;
+      }
+      .nav-tabs {
+        display: flex;
+        gap: 4px;
+        align-items: center;
+      }
+      .nav-tab {
+        padding: 7px 14px;
+        border-radius: var(--r-md);
+        font: 500 0.86rem var(--font);
+        color: var(--text-2);
+        border: none;
+        background: transparent;
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .nav-tab:hover {
+        color: var(--text);
+      }
+      .nav-tab.active {
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .nav-tab.primary {
+        color: #fff;
+        background: var(--accent);
+        padding: 8px 16px;
+        border-radius: 999px;
+        margin-left: 4px;
+      }
+      .nav-r {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .nav-btn-ghost {
+        height: 30px;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: transparent;
+        color: var(--text-2);
+        font: 500 0.82rem var(--font);
+        cursor: pointer;
+      }
+      .toggle {
+        position: relative;
+        width: 40px;
+        height: 24px;
+        border-radius: 999px;
+        background: var(--toggle-bg);
+        border: none;
+        cursor: pointer;
+      }
+      .toggle::after {
+        content: "";
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: var(--toggle-knob);
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+        transition: transform var(--t);
+      }
+      [data-theme="dark"] .toggle::after {
+        transform: translateX(16px);
+      }
+      .avatar {
+        width: 30px;
+        height: 30px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #007aff, #5856d6);
+      }
+
+      /* ─────────────── Shell ─────────────── */
+      .shell {
+        max-width: 880px;
+        margin: 0 auto;
+        padding: 36px 24px 64px;
+      }
+
+      /* ─────────────── Page header ─────────────── */
+      .head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .head-eyebrow {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: var(--text-3);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+      .head h1 {
+        margin-top: 6px;
+        font-size: 2.1rem;
+        font-weight: 700;
+        letter-spacing: -0.035em;
+        line-height: 1.05;
+      }
+      .head-sub {
+        margin-top: 6px;
+        font-size: 0.95rem;
+        color: var(--text-2);
+        max-width: 480px;
+      }
+
+      /* Header utilities (date stepper + adjust plan) — quiet, in-place */
+      .head-utils {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .date-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        box-shadow: var(--shadow-sm);
+      }
+      .date-pill button {
+        width: 28px;
+        height: 28px;
+        display: grid;
+        place-items: center;
+        border: none;
+        background: transparent;
+        border-radius: 50%;
+        color: var(--text-2);
+        cursor: pointer;
+        transition: background var(--t-fast);
+      }
+      .date-pill button:hover {
+        background: var(--surface-hover);
+        color: var(--text);
+      }
+      .date-pill .date-label {
+        padding: 0 10px;
+        font-size: 0.84rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .icon-btn {
+        width: 34px;
+        height: 34px;
+        display: grid;
+        place-items: center;
+        border: 1px solid var(--line);
+        background: var(--surface-solid);
+        border-radius: 50%;
+        color: var(--text-2);
+        cursor: pointer;
+        transition: color var(--t-fast), border-color var(--t-fast);
+      }
+      .icon-btn:hover {
+        color: var(--accent);
+        border-color: var(--accent-soft-strong);
+      }
+      .icon-btn svg {
+        width: 14px;
+        height: 14px;
+      }
+
+      /* ─────────────── Day progress meter ─────────────── */
+      .meter {
+        margin: 28px 0 24px;
+      }
+      .meter-row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 10px;
+      }
+      .meter-stats {
+        display: flex;
+        align-items: baseline;
+        gap: 14px;
+        flex-wrap: wrap;
+        font-size: 0.84rem;
+        color: var(--text-2);
+      }
+      .meter-stat strong {
+        color: var(--text);
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        margin-right: 4px;
+      }
+      .meter-stat--done strong {
+        color: var(--done);
+      }
+      .meter-stat--accent strong {
+        color: var(--accent);
+      }
+      .meter-stat .sep {
+        margin: 0 4px;
+        color: var(--text-3);
+      }
+      .meter-pct {
+        font-size: 0.84rem;
+        color: var(--text-3);
+        font-variant-numeric: tabular-nums;
+      }
+      .meter-pct strong {
+        color: var(--text);
+        font-weight: 700;
+      }
+
+      /* Segmented progress — one segment per block, color-coded by status. */
+      .meter-bar {
+        display: grid;
+        gap: 4px;
+        height: 8px;
+      }
+      .meter-bar[data-segments="5"] {
+        grid-template-columns: repeat(5, 1fr);
+      }
+      .meter-seg {
+        background: var(--line);
+        border-radius: 999px;
+        position: relative;
+      }
+      .meter-seg.done {
+        background: var(--done);
+      }
+      .meter-seg.next {
+        background: var(--accent);
+        box-shadow: 0 0 0 3px var(--accent-soft);
+      }
+
+      /* ─────────────── Hero next-block card ─────────────── */
+      .hero {
+        position: relative;
+        display: grid;
+        grid-template-columns: 168px 1fr;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-xl);
+        overflow: hidden;
+        box-shadow: var(--shadow-lg);
+        margin-bottom: 36px;
+      }
+      @media (max-width: 600px) {
+        .hero {
+          grid-template-columns: 1fr;
+        }
+      }
+      .hero-side {
+        padding: 24px 22px;
+        background: linear-gradient(155deg, #007aff, #5856d6);
+        color: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        position: relative;
+        overflow: hidden;
+      }
+      [data-theme="dark"] .hero-side {
+        background: linear-gradient(155deg, #0a84ff, #5e5ce6);
+      }
+      .hero-side::after {
+        content: "";
+        position: absolute;
+        top: -50px;
+        right: -50px;
+        width: 160px;
+        height: 160px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+      }
+      .hero-side-label {
+        font-size: 0.72rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        opacity: 0.85;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        position: relative;
+      }
+      .hero-side-label::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #fff;
+      }
+      .hero-side-time {
+        position: relative;
+        font-size: 2.6rem;
+        font-weight: 800;
+        letter-spacing: -0.04em;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+        margin-top: 18px;
+      }
+      .hero-side-time small {
+        font-size: 0.95rem;
+        font-weight: 600;
+        margin-left: 6px;
+        opacity: 0.85;
+      }
+      .hero-side-meta {
+        position: relative;
+        margin-top: 6px;
+        font-size: 0.86rem;
+        opacity: 0.9;
+      }
+      .hero-side-dur {
+        position: relative;
+        margin-top: 18px;
+        display: inline-block;
+        background: rgba(255, 255, 255, 0.18);
+        padding: 4px 10px;
+        border-radius: 999px;
+        font-size: 0.74rem;
+        font-weight: 600;
+        align-self: flex-start;
+      }
+
+      .hero-body {
+        padding: 24px 28px;
+        display: flex;
+        flex-direction: column;
+      }
+      .hero-title {
+        font-size: 1.45rem;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.2;
+      }
+      .hero-reason {
+        margin-top: 6px;
+        font-size: 0.84rem;
+        color: var(--text-2);
+        line-height: 1.5;
+      }
+      .hero-tasks {
+        margin-top: 16px;
+        list-style: none;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .hero-task {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 0.92rem;
+      }
+      .hero-task .dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--text-3);
+        flex-shrink: 0;
+      }
+      .hero-actions {
+        margin-top: 22px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        height: 44px;
+        padding: 0 22px;
+        border: none;
+        border-radius: 12px;
+        background: var(--accent);
+        color: #fff;
+        font: 600 0.92rem var(--font);
+        cursor: pointer;
+        box-shadow: 0 4px 14px rgba(0, 122, 255, 0.28);
+        transition: transform var(--t-fast), background var(--t);
+      }
+      .btn-primary:hover {
+        background: var(--accent-hover);
+      }
+      .btn-primary:active {
+        transform: scale(0.98);
+      }
+      .btn-primary svg {
+        width: 14px;
+        height: 14px;
+      }
+      .btn-link {
+        background: none;
+        border: none;
+        color: var(--text-2);
+        font: 500 0.86rem var(--font);
+        cursor: pointer;
+        transition: color var(--t-fast);
+      }
+      .btn-link:hover {
+        color: var(--text);
+      }
+
+      /* ─────────────── Timeline ─────────────── */
+      .section-label {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: var(--text-3);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        margin-bottom: 16px;
+      }
+
+      .tl {
+        list-style: none;
+        padding: 0;
+        position: relative;
+      }
+      /* Vertical guide line behind the dots */
+      .tl::before {
+        content: "";
+        position: absolute;
+        top: 12px;
+        bottom: 12px;
+        left: 79px;
+        width: 1px;
+        background: var(--line);
+      }
+
+      .tl-item {
+        display: grid;
+        grid-template-columns: 72px 16px 1fr;
+        gap: 16px;
+        align-items: center;
+        padding: 6px 0;
+      }
+      .tl-time {
+        font-size: 0.84rem;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-2);
+        text-align: right;
+      }
+      .tl-dot {
+        width: 16px;
+        height: 16px;
+        border-radius: 50%;
+        background: var(--surface-solid);
+        border: 2px solid var(--line-strong);
+        position: relative;
+        z-index: 1;
+        display: grid;
+        place-items: center;
+        flex-shrink: 0;
+      }
+      .tl-card {
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: var(--r-lg);
+        padding: 12px 16px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        box-shadow: var(--shadow-sm);
+        transition: border-color var(--t), background var(--t);
+        position: relative;
+      }
+      .tl-card:hover {
+        border-color: var(--line-strong);
+      }
+      .tl-card-title {
+        font-size: 0.94rem;
+        font-weight: 600;
+        color: var(--text);
+      }
+      .tl-card-meta {
+        margin-top: 2px;
+        font-size: 0.78rem;
+        color: var(--text-2);
+      }
+      .tl-card-skip {
+        opacity: 0;
+        transform: translateX(4px);
+        background: none;
+        border: none;
+        color: var(--text-3);
+        font: 500 0.8rem var(--font);
+        cursor: pointer;
+        transition: opacity var(--t), transform var(--t), color var(--t-fast);
+      }
+      .tl-item:hover .tl-card-skip {
+        opacity: 1;
+        transform: translateX(0);
+      }
+      .tl-card-skip:hover {
+        color: var(--danger);
+      }
+
+      /* Done */
+      .tl-item.done .tl-time {
+        color: var(--text-3);
+      }
+      .tl-item.done .tl-dot {
+        background: var(--done);
+        border-color: var(--done);
+        color: #fff;
+      }
+      .tl-item.done .tl-dot svg {
+        width: 10px;
+        height: 10px;
+      }
+      .tl-item.done .tl-card {
+        background: transparent;
+        border: 1px dashed var(--line);
+        box-shadow: none;
+      }
+      .tl-item.done .tl-card-title {
+        color: var(--text-2);
+        font-weight: 500;
+        text-decoration: line-through;
+        text-decoration-color: var(--text-3);
+      }
+
+      /* Next / current — visually distinct without screaming */
+      .tl-item.next .tl-time {
+        color: var(--accent);
+      }
+      .tl-item.next .tl-dot {
+        background: var(--accent);
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px var(--accent-soft);
+      }
+      .tl-item.next .tl-card {
+        border-color: var(--accent-soft-strong);
+        background: linear-gradient(
+          to right,
+          var(--accent-soft) 0%,
+          var(--surface-solid) 60%
+        );
+      }
+      .tl-badge {
+        font-size: 0.66rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        color: var(--accent);
+        background: var(--accent-soft-strong);
+        padding: 2px 8px;
+        border-radius: 999px;
+        margin-left: 8px;
+        vertical-align: middle;
+      }
+
+      /* ─────────────── Footer ─────────────── */
+      .foot {
+        margin-top: 40px;
+        padding-top: 20px;
+        border-top: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 0.84rem;
+        color: var(--text-2);
+      }
+      .foot a {
+        color: var(--text-2);
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .foot a:hover {
+        color: var(--text);
+      }
+      .foot .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        background: var(--surface-solid);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        font-size: 0.78rem;
+      }
+
+      /* ─────────────── Subtle entrance animation ─────────────── */
+      @keyframes fadeUp {
+        from {
+          opacity: 0;
+          transform: translateY(6px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .anim {
+        animation: fadeUp 350ms ease both;
+      }
+      .d1 {
+        animation-delay: 60ms;
+      }
+      .d2 {
+        animation-delay: 120ms;
+      }
+      .d3 {
+        animation-delay: 180ms;
+      }
+      .d4 {
+        animation-delay: 240ms;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ─────────────── Nav ─────────────── -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <span class="brand">TaskPilot</span>
+        <div class="nav-tabs">
+          <a href="#" class="nav-tab">Home</a>
+          <a href="#" class="nav-tab primary">Today</a>
+          <a href="#" class="nav-tab">Tasks</a>
+        </div>
+        <div class="nav-r">
+          <button class="nav-btn-ghost">Logout</button>
+          <button class="toggle" aria-label="Toggle theme" onclick="toggleTheme()"></button>
+          <div class="avatar"></div>
+        </div>
+      </div>
+    </nav>
+
+    <main class="shell">
+      <!-- ─────────────── Header: title + utilities inline ─────────────── -->
+      <header class="head anim">
+        <div>
+          <p class="head-eyebrow">Today · Monday, April 20</p>
+          <h1>Your day</h1>
+          <p class="head-sub">
+            Two blocks left and you’re ahead of schedule. Start with the next one when you’re ready.
+          </p>
+        </div>
+        <div class="head-utils">
+          <div class="date-pill" role="group" aria-label="Pick a day">
+            <button aria-label="Previous day">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 12 6 8l4-4"/></svg>
+            </button>
+            <span class="date-label">Today</span>
+            <button aria-label="Next day">
+              <svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg>
+            </button>
+          </div>
+          <button class="icon-btn" aria-label="Adjust plan" title="Adjust plan">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 3v4h4M13 13V9H9"/>
+              <path d="M13 7a5 5 0 0 0-9.5-1M3 9a5 5 0 0 0 9.5 1"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- ─────────────── Day progress meter ─────────────── -->
+      <section class="meter anim d1" aria-label="Today's progress">
+        <div class="meter-row">
+          <div class="meter-stats">
+            <span class="meter-stat meter-stat--done"><strong>2</strong> done</span>
+            <span class="sep">·</span>
+            <span class="meter-stat meter-stat--accent"><strong>1</strong> next</span>
+            <span class="sep">·</span>
+            <span class="meter-stat"><strong>2</strong> remaining</span>
+          </div>
+          <div class="meter-pct"><strong>40%</strong> through your day · 1h 30m focused</div>
+        </div>
+        <div class="meter-bar" data-segments="5">
+          <div class="meter-seg done"></div>
+          <div class="meter-seg done"></div>
+          <div class="meter-seg next"></div>
+          <div class="meter-seg"></div>
+          <div class="meter-seg"></div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Hero: next block ─────────────── -->
+      <section class="hero anim d2" aria-label="Next block">
+        <div class="hero-side">
+          <span class="hero-side-label">Next up</span>
+          <div>
+            <div class="hero-side-time">12:20<small>PM</small></div>
+            <div class="hero-side-meta">– 1:20 PM</div>
+          </div>
+          <span class="hero-side-dur">1h block</span>
+        </div>
+        <div class="hero-body">
+          <h2 class="hero-title">Deep refactor — pricing engine</h2>
+          <p class="hero-reason">
+            Scheduled here so the high-priority work lands during your usual focus window.
+          </p>
+          <ul class="hero-tasks">
+            <li class="hero-task"><span class="dot"></span>Move billing helpers into <code style="font-family: ui-monospace, monospace; font-size: 0.86rem;">pricing/</code></li>
+            <li class="hero-task"><span class="dot"></span>Add unit tests for proration edge cases</li>
+            <li class="hero-task"><span class="dot"></span>Wire new helpers into the checkout route</li>
+          </ul>
+          <div class="hero-actions">
+            <button class="btn-primary">
+              Start block
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4l4 4-4 4"/></svg>
+            </button>
+            <button class="btn-link">Skip for now</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ─────────────── Today's flow (timeline) ─────────────── -->
+      <section aria-label="Today's full schedule">
+        <h3 class="section-label anim d3">Today’s flow</h3>
+        <ol class="tl anim d3">
+          <!-- Done -->
+          <li class="tl-item done">
+            <span class="tl-time">10:00 AM</span>
+            <span class="tl-dot">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+            </span>
+            <div class="tl-card">
+              <div>
+                <div class="tl-card-title">Inbox triage</div>
+                <div class="tl-card-meta">3 tasks · 30m · finished early</div>
+              </div>
+            </div>
+          </li>
+          <li class="tl-item done">
+            <span class="tl-time">11:10 AM</span>
+            <span class="tl-dot">
+              <svg viewBox="0 0 16 16" fill="currentColor"><path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/></svg>
+            </span>
+            <div class="tl-card">
+              <div>
+                <div class="tl-card-title">Standup + design review</div>
+                <div class="tl-card-meta">2 tasks · 45m</div>
+              </div>
+            </div>
+          </li>
+
+          <!-- Next (the same one shown in the hero, surfaced here too so the timeline reads continuously) -->
+          <li class="tl-item next">
+            <span class="tl-time">12:20 PM</span>
+            <span class="tl-dot"></span>
+            <div class="tl-card">
+              <div>
+                <div class="tl-card-title">
+                  Deep refactor — pricing engine
+                  <span class="tl-badge">Now next</span>
+                </div>
+                <div class="tl-card-meta">3 tasks · 1h</div>
+              </div>
+            </div>
+          </li>
+
+          <!-- Upcoming -->
+          <li class="tl-item">
+            <span class="tl-time">1:30 PM</span>
+            <span class="tl-dot"></span>
+            <div class="tl-card">
+              <div>
+                <div class="tl-card-title">Feature spec — onboarding v3</div>
+                <div class="tl-card-meta">2 tasks · 50m</div>
+              </div>
+              <button class="tl-card-skip">Skip</button>
+            </div>
+          </li>
+          <li class="tl-item">
+            <span class="tl-time">3:00 PM</span>
+            <span class="tl-dot"></span>
+            <div class="tl-card">
+              <div>
+                <div class="tl-card-title">Buffer + email follow-ups</div>
+                <div class="tl-card-meta">Flexible block · 30m</div>
+              </div>
+              <button class="tl-card-skip">Skip</button>
+            </div>
+          </li>
+        </ol>
+      </section>
+
+      <!-- ─────────────── Footer (utility row) ─────────────── -->
+      <footer class="foot anim d4">
+        <span class="pill">3 of 5 blocks finished by end of day</span>
+        <span><a href="#">Adjust plan</a> · <a href="#">Tomorrow’s preview</a></span>
+      </footer>
+    </main>
+
+    <script>
+      function toggleTheme() {
+        const html = document.documentElement;
+        html.dataset.theme = html.dataset.theme === "dark" ? "light" : "dark";
+      }
+    </script>
+  </body>
+</html>
