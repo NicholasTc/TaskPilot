@@ -20,7 +20,6 @@ type StudyBlock = {
   remainingSeconds?: number;
   effectiveRemainingSeconds?: number;
   runningSince?: string | null;
-  /** Planner's explanation of why this block was placed here. */
   reason?: string;
 };
 
@@ -89,8 +88,16 @@ function toHumanTime(startMinutes: number) {
   }).format(new Date(1970, 0, 1, Math.floor(startMinutes / 60), startMinutes % 60));
 }
 
+function formatDurationLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${remainder}m`;
+  if (remainder === 0) return `${hours}h`;
+  return `${hours}h ${remainder}m`;
+}
+
 function formatClock(seconds: number) {
-  const safeSeconds = Math.max(0, seconds);
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const remSeconds = safeSeconds % 60;
@@ -111,12 +118,9 @@ function normalizeTask(task: Task): BoardTask {
   };
 }
 
-function formatDurationLabel(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours === 0) return `${remainder}m`;
-  if (remainder === 0) return `${hours}h`;
-  return `${hours}h ${remainder}m`;
+function splitMeridiemLabel(timeLabel: string): { clock: string; meridiem: string } {
+  const [clock, meridiem] = timeLabel.split(" ");
+  return { clock: clock ?? timeLabel, meridiem: meridiem ?? "" };
 }
 
 export default function TodayPage() {
@@ -134,62 +138,19 @@ export default function TodayPage() {
     done: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [skippingBlockId, setSkippingBlockId] = useState<string | null>(null);
   const [isUpdatingTimer, setIsUpdatingTimer] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [isPlanning, setIsPlanning] = useState(false);
-  const [skippingBlockId, setSkippingBlockId] = useState<string | null>(null);
 
   const dayKey = useMemo(() => toLocalDayKey(selectedDate), [selectedDate]);
   const todayKey = useMemo(() => toLocalDayKey(new Date()), []);
   const isToday = dayKey === todayKey;
+
   const longDateLabel = useMemo(() => formatLongDate(selectedDate), [selectedDate]);
-
-  const activeBlock = useMemo(
-    () => blocks.find((block) => block.status === "active") ?? null,
-    [blocks],
-  );
-
-  const nextPlannedBlock = useMemo(
-    () => blocks.find((block) => block.status === "planned") ?? null,
-    [blocks],
-  );
-
-  const upcomingBlocks = useMemo(
-    () =>
-      blocks.filter(
-        (block) =>
-          block.status === "planned" && (!nextPlannedBlock || block.id !== nextPlannedBlock.id),
-      ),
-    [blocks, nextPlannedBlock],
-  );
-
-  const completedBlocks = useMemo(
-    () => blocks.filter((block) => block.status === "done"),
-    [blocks],
-  );
-
-  const activeBlockRemainingSeconds = useMemo(() => {
-    if (!activeBlock) return 0;
-
-    const baseRemaining =
-      activeBlock.effectiveRemainingSeconds ?? activeBlock.remainingSeconds ?? activeBlock.durationMin * 60;
-
-    if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
-      return Math.max(0, Math.floor(baseRemaining));
-    }
-
-    const runningSinceMs = new Date(activeBlock.runningSince).getTime();
-    const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
-    const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
-    return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
-  }, [activeBlock, nowMs]);
-
-  const allTasksForDay = useMemo(
-    () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
-    [dayKey, tasksByStatus],
-  );
+  const shortDateLabel = useMemo(() => formatShortDate(selectedDate), [selectedDate]);
 
   const redirectToLogin = useCallback(() => {
     router.replace("/login");
@@ -211,7 +172,7 @@ export default function TodayPage() {
       }
 
       if (!blocksResponse.ok || !boardResponse.ok) {
-        throw new Error("Failed to load blocks data.");
+        throw new Error("Failed to load day data.");
       }
 
       const blocksPayload = (await blocksResponse.json()) as { blocks: StudyBlock[] };
@@ -240,14 +201,6 @@ export default function TodayPage() {
   }, [dayKey, redirectToLogin]);
 
   useEffect(() => {
-    const parsedDate = parseDayKey(requestedDayKey);
-    if (!parsedDate) return;
-    setSelectedDate((current) =>
-      toLocalDayKey(current) === toLocalDayKey(parsedDate) ? current : parsedDate,
-    );
-  }, [requestedDayKey]);
-
-  useEffect(() => {
     const timer = window.setTimeout(() => {
       void loadData();
     }, 0);
@@ -256,9 +209,14 @@ export default function TodayPage() {
 
   useEffect(() => {
     if (!successMessage) return;
-    const timer = window.setTimeout(() => setSuccessMessage(null), 2800);
+    const timer = window.setTimeout(() => setSuccessMessage(null), 2400);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
+
+  const activeBlock = useMemo(
+    () => blocks.find((block) => block.status === "active") ?? null,
+    [blocks],
+  );
 
   useEffect(() => {
     if (!activeBlock || activeBlock.timerState !== "running") return;
@@ -274,11 +232,50 @@ export default function TodayPage() {
     return () => window.clearInterval(interval);
   }, [activeBlock, loadData]);
 
-  /**
-   * Re-run the auto-planner. Demoted to a quiet footer link in the new
-   * UI — auto-schedule is the default, this is just an escape hatch.
-   * Preserves active/done blocks, replaces the rest.
-   */
+  const allTasksForDay = useMemo(
+    () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
+    [dayKey, tasksByStatus],
+  );
+
+  const getBlockTasks = useCallback(
+    (blockId: string) =>
+      allTasksForDay
+        .filter((task) => task.studyBlockId === blockId)
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)),
+    [allTasksForDay],
+  );
+
+  const doneCount = blocks.filter((block) => block.status === "done").length;
+  const nextPlannedBlock = blocks.find((block) => block.status === "planned") ?? null;
+  const heroBlock = activeBlock ?? nextPlannedBlock;
+
+  const activeBlockRemainingSeconds = useMemo(() => {
+    if (!activeBlock) return 0;
+    const baseRemaining =
+      activeBlock.effectiveRemainingSeconds ?? activeBlock.remainingSeconds ?? activeBlock.durationMin * 60;
+
+    if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
+      return Math.max(0, Math.floor(baseRemaining));
+    }
+
+    const runningSinceMs = new Date(activeBlock.runningSince).getTime();
+    const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
+    const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
+    return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
+  }, [activeBlock, nowMs]);
+
+  const focusedMinutes = useMemo(
+    () => blocks.filter((block) => block.status === "done").reduce((sum, block) => sum + block.durationMin, 0),
+    [blocks],
+  );
+  const heroStartTime = heroBlock ? toHumanTime(heroBlock.startMinutes) : "";
+  const heroEndTime = heroBlock ? toHumanTime(heroBlock.startMinutes + heroBlock.durationMin) : "";
+  const heroEndLabel = splitMeridiemLabel(heroEndTime);
+  const heroStartLabel = splitMeridiemLabel(heroStartTime);
+
+  const progressPct = blocks.length > 0 ? Math.round((doneCount / blocks.length) * 100) : 0;
+  const pageTitle = "Your day";
+
   const handleReplan = useCallback(async () => {
     if (isPlanning) return;
     setIsPlanning(true);
@@ -294,20 +291,13 @@ export default function TodayPage() {
         return;
       }
       const message =
-        error instanceof AutoPlanError
-          ? error.message
-          : "Could not refresh the plan.";
+        error instanceof AutoPlanError ? error.message : "Could not refresh the plan.";
       setErrorMessage(message);
     } finally {
       setIsPlanning(false);
     }
   }, [isPlanning, loadData, redirectToLogin]);
 
-  /**
-   * Skip-this-block is our one targeted manual override: delete the block
-   * and immediately re-run the planner so its task gets rescheduled
-   * somewhere else (or marked unscheduled if nothing fits).
-   */
   const handleSkipBlock = useCallback(
     async (blockId: string) => {
       if (skippingBlockId) return;
@@ -325,7 +315,7 @@ export default function TodayPage() {
 
         await runAutoPlan();
         await loadData();
-        setSuccessMessage("Skipped — plan updated.");
+        setSuccessMessage("Skipped. Plan updated.");
       } catch (error) {
         console.error("Skip block failed", error);
         if (error instanceof AutoPlanError && error.status === 401) {
@@ -333,9 +323,7 @@ export default function TodayPage() {
           return;
         }
         const message =
-          error instanceof AutoPlanError
-            ? error.message
-            : "Could not skip this block.";
+          error instanceof AutoPlanError ? error.message : "Could not skip this block.";
         setErrorMessage(message);
       } finally {
         setSkippingBlockId(null);
@@ -371,7 +359,7 @@ export default function TodayPage() {
       }
       if (!response.ok) throw new Error("Unable to end block");
       await loadData();
-      setSuccessMessage("Block ended.");
+      setSuccessMessage("Block finished.");
     } catch (error) {
       console.error("Ending block failed", error);
       setErrorMessage("Could not end block.");
@@ -391,71 +379,81 @@ export default function TodayPage() {
         redirectToLogin();
         return;
       }
-      if (!response.ok) {
-        throw new Error("Unable to update timer state");
-      }
+      if (!response.ok) throw new Error("Unable to update timer state");
       await loadData();
       setSuccessMessage(nextAction === "pause" ? "Paused." : "Resumed.");
     } catch (error) {
       console.error("Toggling block pause failed", error);
-      setErrorMessage("Could not update the timer.");
+      setErrorMessage("Could not update timer.");
     } finally {
       setIsUpdatingTimer(false);
     }
   };
 
-  const getBlockTasks = (blockId: string) =>
-    allTasksForDay
-      .filter((task) => task.studyBlockId === blockId)
-      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
-
-  const totalBlocksToday = blocks.length;
-  const plannedCount = blocks.filter((b) => b.status === "planned").length;
-  const doneCount = completedBlocks.length;
-
-  // One calm sentence for the header — adapts to where the user is in the day.
-  const heroBlock = activeBlock ?? nextPlannedBlock;
-  const subtitle = (() => {
-    if (totalBlocksToday === 0) {
-      return isToday
-        ? "Add a few tasks and we'll organize your day into focus blocks."
-        : "Nothing planned for this day yet.";
-    }
-    if (activeBlock) return "A block is running. Stay with it — you've got this.";
-    if (heroBlock) {
-      return isToday
-        ? "Your day is ready. Start with the next block, or adjust the plan."
-        : `Your plan for ${formatShortDate(selectedDate)}.`;
-    }
-    if (doneCount === totalBlocksToday) {
-      return "Every block is done. Nice work today.";
-    }
-    return "Your plan for the day.";
-  })();
-
   return (
-    <div className="mx-auto w-full max-w-[860px]">
-      {/* ------------------------------------------------------------------
-         Header — calm framing, no step language.
-         ------------------------------------------------------------------ */}
-      <header className="anim mb-6">
-        <p
-          className="mb-1.5 text-[0.78rem] font-semibold uppercase tracking-[0.06em]"
-          style={{ color: "var(--text-3)" }}
-        >
-          {isToday ? `Today · ${longDateLabel}` : longDateLabel}
-        </p>
-        <h1 className="text-[2rem] font-bold leading-[1.05] tracking-[-0.03em]">
-          {isToday ? "Your day" : "Your plan"}
-        </h1>
-        <p className="mt-2 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
-          {subtitle}
-        </p>
+    <div className="mx-auto w-full max-w-[880px]">
+      <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p
+            className="text-[0.74rem] font-semibold uppercase tracking-[0.08em]"
+            style={{ color: "var(--text-3)" }}
+          >
+            {isToday ? `Today · ${longDateLabel}` : longDateLabel}
+          </p>
+          <h1 className="mt-1.5 text-[2.1rem] font-bold leading-[1.05] tracking-[-0.035em]">{pageTitle}</h1>
+          <p className="mt-1.5 max-w-[500px] text-[0.95rem]" style={{ color: "var(--text-2)" }}>
+            {blocks.length > 0
+              ? "Start with the next block, or adjust your plan if priorities changed."
+              : "Add a few tasks and we will organize your day into focus blocks."}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <div
+            className="inline-flex items-center gap-0.5 rounded-full border p-1"
+            style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+          >
+            <button
+              type="button"
+              aria-label="Previous day"
+              onClick={() => setSelectedDate((current) => addDays(current, -1))}
+              className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 12 6 8l4-4" />
+              </svg>
+            </button>
+            <span className="px-2.5 text-[0.84rem] font-semibold tabular-nums">{isToday ? "Today" : shortDateLabel}</span>
+            <button
+              type="button"
+              aria-label="Next day"
+              onClick={() => setSelectedDate((current) => addDays(current, 1))}
+              className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 4 4 4-4 4" />
+              </svg>
+            </button>
+          </div>
+          <button
+            type="button"
+            aria-label="Adjust plan"
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="grid h-[34px] w-[34px] place-items-center rounded-full border transition-colors hover:text-[var(--accent)] disabled:opacity-60"
+            style={{ background: "var(--surface-solid)", borderColor: "var(--line)", color: "var(--text-2)" }}
+            title="Adjust plan"
+          >
+            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v4h4M13 13V9H9" />
+              <path d="M13 7a5 5 0 0 0-9.5-1M3 9a5 5 0 0 0 9.5 1" />
+            </svg>
+          </button>
+        </div>
       </header>
 
-      {/* ------------------------------------------------------------------
-         Inline status / toast row — quiet, never primary.
-         ------------------------------------------------------------------ */}
       {errorMessage ? (
         <p className="mb-4 text-[0.84rem]" style={{ color: "var(--danger)" }}>
           {errorMessage}
@@ -467,626 +465,360 @@ export default function TodayPage() {
         </p>
       ) : null}
 
-      {/* ------------------------------------------------------------------
-         Compact daily summary — scannable in under a second.
-         ------------------------------------------------------------------ */}
-      {!isLoading && totalBlocksToday > 0 ? (
-        <DailySummary
-          plannedCount={plannedCount + (activeBlock ? 1 : 0)}
-          doneCount={doneCount}
-          totalCount={totalBlocksToday}
-          nextLabel={
-            activeBlock
-              ? `In progress · ${activeBlock.title}`
-              : nextPlannedBlock
-                ? `Next at ${toHumanTime(nextPlannedBlock.startMinutes)} · ${nextPlannedBlock.title}`
-                : "All done for today"
-          }
-        />
+      {!isLoading && blocks.length > 0 ? (
+        <section className="anim anim-d1 mb-6">
+          <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-baseline gap-2 text-[0.84rem]" style={{ color: "var(--text-2)" }}>
+              <span>
+                <strong style={{ color: "var(--done)" }}>{doneCount}</strong> done
+              </span>
+              <span style={{ color: "var(--text-3)" }}>·</span>
+              <span>
+                <strong style={{ color: "var(--accent)" }}>{heroBlock ? 1 : 0}</strong> next
+              </span>
+              <span style={{ color: "var(--text-3)" }}>·</span>
+              <span>
+                <strong style={{ color: "var(--text)" }}>{Math.max(0, blocks.length - doneCount)}</strong> remaining
+              </span>
+            </div>
+            <div className="text-[0.84rem] tabular-nums" style={{ color: "var(--text-3)" }}>
+              <strong style={{ color: "var(--text)" }}>{progressPct}%</strong> through your day · {focusedMinutes}m focused
+            </div>
+          </div>
+          <div
+            className="grid h-2 gap-1"
+            style={{ gridTemplateColumns: `repeat(${Math.max(1, blocks.length)}, minmax(0, 1fr))` }}
+          >
+            {blocks.map((block) => {
+              const isNext = heroBlock?.id === block.id && block.status !== "done";
+              return (
+                <span
+                  key={`meter-${block.id}`}
+                  className="rounded-full"
+                  style={{
+                    background:
+                      block.status === "done"
+                        ? "var(--done)"
+                        : isNext
+                          ? "var(--accent)"
+                          : "var(--line)",
+                    boxShadow: isNext ? "0 0 0 3px var(--accent-soft)" : "none",
+                  }}
+                />
+              );
+            })}
+          </div>
+        </section>
       ) : null}
 
-      {/* ------------------------------------------------------------------
-         Hero — the *one* clear primary action on the page.
-         Active block (gradient timer card) takes priority; otherwise the
-         next planned block becomes the hero with a clear "Start block" CTA.
-         ------------------------------------------------------------------ */}
       {isLoading ? (
         <div
-          className="anim anim-d1 mb-8 h-[200px] animate-pulse rounded-[18px] border"
+          className="anim anim-d2 mb-8 h-[240px] animate-pulse rounded-[18px] border"
           style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
         />
-      ) : activeBlock ? (
-        <ActiveBlockHero
-          block={activeBlock}
-          tasks={getBlockTasks(activeBlock.id)}
-          remainingSeconds={activeBlockRemainingSeconds}
-          onOpenFocus={() => router.push(`/blocks/${activeBlock.id}/focus`)}
-          onTogglePause={() =>
-            void handleTogglePauseBlock(
-              activeBlock.id,
-              activeBlock.timerState === "running" ? "pause" : "resume",
-            )
-          }
-          onEnd={() => void handleEndBlock(activeBlock.id)}
-          isUpdatingTimer={isUpdatingTimer}
-        />
-      ) : nextPlannedBlock ? (
-        <NextBlockHero
-          block={nextPlannedBlock}
-          tasks={getBlockTasks(nextPlannedBlock.id)}
-          onStart={() => void handleStartBlock(nextPlannedBlock.id)}
-          onSkip={() => void handleSkipBlock(nextPlannedBlock.id)}
-          isSkipping={skippingBlockId === nextPlannedBlock.id}
-          isPlanning={isPlanning}
-        />
-      ) : totalBlocksToday > 0 ? (
-        <AllDoneHero />
+      ) : heroBlock ? (
+        <section
+          className="anim anim-d2 relative mb-8 grid overflow-hidden rounded-[18px] border"
+          style={{
+            gridTemplateColumns: "168px 1fr",
+            borderColor: "var(--line)",
+            background: "var(--surface-solid)",
+            boxShadow: "0 10px 30px rgba(0,122,255,0.18)",
+          }}
+        >
+          <aside
+            className="relative flex flex-col justify-between overflow-hidden px-[22px] py-6 text-white"
+            style={{ background: "linear-gradient(155deg, #007aff, #5856d6)" }}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -right-[50px] -top-[50px] h-[160px] w-[160px] rounded-full"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            />
+            <div className="relative">
+              <p className="inline-flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] opacity-85">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                {activeBlock ? "In progress" : "Next up"}
+              </p>
+            </div>
+            <div className="relative mt-[18px]">
+              <p className="whitespace-nowrap text-[2.6rem] font-[800] leading-none tracking-[-0.04em] tabular-nums">
+                {activeBlock ? (
+                  formatClock(activeBlockRemainingSeconds)
+                ) : (
+                  <>
+                    {heroStartLabel.clock}
+                    <small className="ml-1.5 text-[0.95rem] font-semibold opacity-85">{heroStartLabel.meridiem}</small>
+                  </>
+                )}
+              </p>
+              <p className="mt-1.5 text-[0.86rem] opacity-90">
+                {activeBlock ? (
+                  `${heroStartTime} – ${heroEndTime}`
+                ) : (
+                  <>
+                    – {heroEndLabel.clock} {heroEndLabel.meridiem}
+                  </>
+                )}
+              </p>
+            </div>
+            <span
+              className="relative mt-[18px] inline-block self-start rounded-full px-2.5 py-1 text-[0.74rem] font-semibold"
+              style={{ background: "rgba(255,255,255,0.18)" }}
+            >
+              {activeBlock ? formatDurationLabel(heroBlock.durationMin) : `${formatDurationLabel(heroBlock.durationMin)} block`}
+            </span>
+          </aside>
+
+          <div className="px-7 py-6">
+            <h2 className="text-[1.45rem] font-bold leading-[1.2] tracking-[-0.02em]">{heroBlock.title}</h2>
+            <p className="mt-1 text-[0.84rem] leading-6" style={{ color: "var(--text-2)" }}>
+              {getBlockReason(heroBlock)}
+            </p>
+
+            <ul className="mt-4 space-y-2">
+              {getBlockTasks(heroBlock.id).length > 0 ? (
+                getBlockTasks(heroBlock.id)
+                  .slice(0, 3)
+                  .map((task) => (
+                    <li key={task.id} className="flex items-center gap-2.5 text-[0.92rem]">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--text-3)" }} />
+                      <span>{task.name}</span>
+                    </li>
+                  ))
+              ) : (
+                <li className="text-[0.9rem]" style={{ color: "var(--text-2)" }}>
+                  Flexible block you can use as needed.
+                </li>
+              )}
+            </ul>
+
+            <div className="mt-6 flex flex-wrap items-center gap-4">
+              {activeBlock ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/blocks/${heroBlock.id}/focus`)}
+                    className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98]"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 14px rgba(0,122,255,0.28)" }}
+                  >
+                    Open focus mode
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleTogglePauseBlock(
+                        heroBlock.id,
+                        activeBlock.timerState === "running" ? "pause" : "resume",
+                      )
+                    }
+                    disabled={isUpdatingTimer}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {activeBlock.timerState === "running" ? "Pause" : "Resume"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleEndBlock(heroBlock.id)}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Finish block
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleStartBlock(heroBlock.id)}
+                    className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98]"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 14px rgba(0,122,255,0.28)" }}
+                  >
+                    Start block
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSkipBlock(heroBlock.id)}
+                    disabled={isPlanning || skippingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.86rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {skippingBlockId === heroBlock.id ? "Skipping…" : "Skip for now"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : blocks.length > 0 ? (
+        <section
+          className="anim anim-d2 mb-8 rounded-[18px] border px-7 py-8 text-center"
+          style={{ background: "var(--done-soft)", borderColor: "var(--done)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <h2 className="text-[1.35rem] font-bold tracking-[-0.02em]">You finished today&apos;s plan.</h2>
+          <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
+            Take a beat. Tomorrow can wait until tomorrow.
+          </p>
+        </section>
       ) : (
-        <EmptyDayHero
-          isToday={isToday}
-          isPlanning={isPlanning}
-          onPlan={() => void handleReplan()}
-        />
+        <section
+          className="anim anim-d2 mb-8 rounded-[18px] border px-7 py-10 text-center"
+          style={{ background: "var(--surface-solid)", borderColor: "var(--line-strong)", borderStyle: "dashed" }}
+        >
+          <h2 className="text-[1.25rem] font-semibold tracking-[-0.01em]">Nothing planned yet.</h2>
+          <p className="mx-auto mt-2 max-w-[420px] text-[0.9rem]" style={{ color: "var(--text-2)" }}>
+            Add a few tasks, and we&apos;ll organize them into focus blocks for you.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="mt-5 inline-flex h-[40px] items-center gap-2 rounded-[10px] px-5 text-[0.88rem] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+            style={{ background: "var(--accent)" }}
+          >
+            {isPlanning ? "Planning…" : "Plan my day"}
+          </button>
+        </section>
       )}
 
-      {/* ------------------------------------------------------------------
-         Coming up — the rest of today's blocks, visually quieter than the
-         hero. No status pills shouting "UPCOMING"; the list itself implies
-         that.
-         ------------------------------------------------------------------ */}
-      {!isLoading && upcomingBlocks.length > 0 ? (
-        <section className="anim anim-d2 mb-8">
-          <h2
-            className="mb-3 text-[0.74rem] font-semibold uppercase tracking-[0.06em]"
-            style={{ color: "var(--text-3)" }}
-          >
-            Later today
-          </h2>
-          <ul className="space-y-2">
-            {upcomingBlocks.map((block) => (
-              <UpcomingBlockRow
-                key={block.id}
-                block={block}
-                tasks={getBlockTasks(block.id)}
-                onSkip={() => void handleSkipBlock(block.id)}
-                isSkipping={skippingBlockId === block.id}
-                isPlanning={isPlanning}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      {!isLoading && blocks.length > 0 ? (
+        <section className="anim anim-d3">
+          <h3 className="mb-4 text-[0.74rem] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--text-3)" }}>
+            Today&apos;s flow
+          </h3>
+          <ol className="relative space-y-1">
+            <span
+              aria-hidden
+              className="pointer-events-none absolute bottom-3 left-[79px] top-3 w-px"
+              style={{ background: "var(--line)" }}
+            />
+            {blocks.map((block) => {
+              const isDone = block.status === "done";
+              const isNext = heroBlock?.id === block.id && !isDone;
+              const blockTasks = getBlockTasks(block.id);
+              const metaLabel =
+                blockTasks.length > 0
+                  ? `${blockTasks.length} task${blockTasks.length === 1 ? "" : "s"} · ${formatDurationLabel(block.durationMin)}`
+                  : `Flexible block · ${formatDurationLabel(block.durationMin)}`;
 
-      {/* ------------------------------------------------------------------
-         Completed — collapsed visual weight; just a calm "look how far
-         you got" footer instead of celebratory pills.
-         ------------------------------------------------------------------ */}
-      {!isLoading && completedBlocks.length > 0 ? (
-        <section className="anim anim-d3 mb-8">
-          <h2
-            className="mb-3 text-[0.74rem] font-semibold uppercase tracking-[0.06em]"
-            style={{ color: "var(--text-3)" }}
-          >
-            Completed
-          </h2>
-          <ul className="space-y-1.5">
-            {completedBlocks.map((block) => (
-              <CompletedBlockRow
-                key={block.id}
-                block={block}
-                tasks={getBlockTasks(block.id)}
-              />
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {/* ------------------------------------------------------------------
-         Footer controls — demoted to muted text links so they're available
-         but never compete with the hero CTA.
-         ------------------------------------------------------------------ */}
-      <FooterControls
-        selectedDate={selectedDate}
-        onPrev={() => setSelectedDate((current) => addDays(current, -1))}
-        onNext={() => setSelectedDate((current) => addDays(current, 1))}
-        onToday={() => setSelectedDate(new Date())}
-        showToday={!isToday}
-        onReplan={() => void handleReplan()}
-        isPlanning={isPlanning}
-        showReplan={totalBlocksToday > 0}
-      />
-    </div>
-  );
-}
-
-/* ====================================================================
-   Subcomponents — kept colocated to keep this page readable as a unit.
-   ==================================================================== */
-
-function DailySummary({
-  plannedCount,
-  doneCount,
-  totalCount,
-  nextLabel,
-}: {
-  plannedCount: number;
-  doneCount: number;
-  totalCount: number;
-  nextLabel: string;
-}) {
-  const remaining = Math.max(0, totalCount - doneCount);
-  return (
-    <div
-      className="anim anim-d1 mb-5 flex flex-wrap items-center gap-x-5 gap-y-1 text-[0.86rem]"
-      style={{ color: "var(--text-2)" }}
-    >
-      <span className="inline-flex items-center gap-1.5">
-        <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ background: "var(--accent)" }}
-        />
-        <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-          {remaining}
-        </span>
-        block{remaining === 1 ? "" : "s"} to go
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span
-          className="h-1.5 w-1.5 rounded-full"
-          style={{ background: "var(--done)" }}
-        />
-        <span className="font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-          {doneCount}
-        </span>
-        done
-      </span>
-      <span className="text-[0.86rem]" style={{ color: "var(--text-3)" }}>
-        ·
-      </span>
-      <span className="truncate">{nextLabel}</span>
-    </div>
-  );
-}
-
-function ActiveBlockHero({
-  block,
-  tasks,
-  remainingSeconds,
-  onOpenFocus,
-  onTogglePause,
-  onEnd,
-  isUpdatingTimer,
-}: {
-  block: StudyBlock;
-  tasks: BoardTask[];
-  remainingSeconds: number;
-  onOpenFocus: () => void;
-  onTogglePause: () => void;
-  onEnd: () => void;
-  isUpdatingTimer: boolean;
-}) {
-  return (
-    <section
-      className="anim anim-d1 relative mb-8 overflow-hidden rounded-[18px] px-7 py-7 text-white"
-      style={{
-        background: "linear-gradient(135deg, #007aff, #5856d6)",
-        boxShadow: "0 10px 28px rgba(0,122,255,0.22)",
-      }}
-    >
-      <span
-        aria-hidden
-        className="pointer-events-none absolute -right-[40px] -top-[40px] h-[200px] w-[200px] rounded-full"
-        style={{ background: "rgba(255,255,255,0.08)" }}
-      />
-      <div className="relative">
-        <div className="mb-2 inline-flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.06em] opacity-85">
-          <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-white" />
-          In progress
-        </div>
-        <h2 className="text-[1.55rem] font-bold tracking-[-0.02em]">{block.title}</h2>
-        <p className="mt-1 text-[0.92rem] opacity-90">
-          {toHumanTime(block.startMinutes)} – {toHumanTime(block.startMinutes + block.durationMin)} · {formatDurationLabel(block.durationMin)}
-        </p>
-
-        <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-6 max-[640px]:grid-cols-1 max-[640px]:items-start">
-          <div className="flex flex-col gap-2 text-[0.92rem]">
-            {tasks.length === 0 ? (
-              <p className="opacity-85">No tasks linked yet — open focus to pick one.</p>
-            ) : (
-              tasks.slice(0, 3).map((task) => (
-                <div key={task.id} className="flex items-center gap-2.5">
+              return (
+                <li
+                  key={block.id}
+                  className="grid grid-cols-[72px_16px_1fr] items-center gap-4 py-1.5"
+                >
                   <span
-                    className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full border-2"
+                    className="text-right text-[0.84rem] font-semibold tabular-nums"
+                    style={{ color: isNext ? "var(--accent)" : isDone ? "var(--text-3)" : "var(--text-2)" }}
+                  >
+                    {toHumanTime(block.startMinutes)}
+                  </span>
+
+                  <span
+                    className="relative z-[1] grid h-4 w-4 place-items-center rounded-full"
                     style={{
-                      borderColor: task.completed ? "#fff" : "rgba(255,255,255,0.5)",
-                      background: task.completed ? "#fff" : "transparent",
+                      background: isDone ? "var(--done)" : isNext ? "var(--accent)" : "var(--surface-solid)",
+                      border: isDone || isNext ? "none" : "2px solid var(--line-strong)",
+                      boxShadow: isNext ? "0 0 0 4px var(--accent-soft)" : "none",
+                      color: "#fff",
                     }}
                   >
-                    {task.completed ? (
-                      <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="var(--accent)">
+                    {isDone ? (
+                      <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="currentColor">
                         <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
                       </svg>
                     ) : null}
                   </span>
-                  <span
+
+                  <article
+                    className="group flex items-center justify-between gap-3 rounded-[14px] border px-4 py-3"
                     style={{
-                      opacity: task.completed ? 0.65 : 1,
-                      textDecoration: task.completed ? "line-through" : "none",
+                      background: isDone
+                        ? "transparent"
+                        : isNext
+                          ? "linear-gradient(to right, var(--accent-soft) 0%, var(--surface-solid) 60%)"
+                          : "var(--surface-solid)",
+                      borderColor: isDone ? "var(--line)" : isNext ? "var(--accent-soft)" : "var(--line)",
+                      borderStyle: isDone ? "dashed" : "solid",
+                      boxShadow: isDone ? "none" : "var(--shadow-sm)",
                     }}
                   >
-                    {task.name}
-                  </span>
-                </div>
-              ))
-            )}
-          </div>
-          <div className="text-right max-[640px]:text-left">
-            <div className="text-[2.4rem] font-bold leading-none tracking-[-0.04em] tabular-nums">
-              {formatClock(remainingSeconds)}
-            </div>
-            <div className="mt-1 text-[0.8rem] opacity-80">
-              {block.timerState === "running" ? "running" : "paused"} · time left
-            </div>
-          </div>
-        </div>
-
-        <div className="relative mt-6 flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            onClick={onOpenFocus}
-            className="h-[40px] rounded-[10px] px-5 text-[0.88rem] font-semibold transition active:scale-[0.98]"
-            style={{ background: "#fff", color: "var(--accent)" }}
-          >
-            Open focus mode
-          </button>
-          <button
-            type="button"
-            onClick={onTogglePause}
-            disabled={isUpdatingTimer || remainingSeconds <= 0}
-            className="h-[34px] rounded-[8px] px-3.5 text-[0.82rem] font-medium text-white transition"
-            style={{
-              background: "rgba(255,255,255,0.16)",
-              opacity: isUpdatingTimer || remainingSeconds <= 0 ? 0.55 : 1,
-            }}
-          >
-            {block.timerState === "running" ? "Pause" : "Resume"}
-          </button>
-          <button
-            type="button"
-            onClick={onEnd}
-            className="h-[34px] rounded-[8px] px-3.5 text-[0.82rem] font-medium text-white transition"
-            style={{ background: "rgba(255,255,255,0.16)" }}
-          >
-            Finish
-          </button>
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function NextBlockHero({
-  block,
-  tasks,
-  onStart,
-  onSkip,
-  isSkipping,
-  isPlanning,
-}: {
-  block: StudyBlock;
-  tasks: BoardTask[];
-  onStart: () => void;
-  onSkip: () => void;
-  isSkipping: boolean;
-  isPlanning: boolean;
-}) {
-  return (
-    <section
-      className="anim anim-d1 mb-8 rounded-[18px] border px-7 py-7"
-      style={{
-        background: "var(--surface-solid)",
-        borderColor: "var(--line)",
-        boxShadow: "var(--shadow-md)",
-      }}
-    >
-      <div className="mb-2 flex items-center gap-2 text-[0.74rem] font-semibold uppercase tracking-[0.06em]" style={{ color: "var(--accent)" }}>
-        <span className="h-2 w-2 rounded-full" style={{ background: "var(--accent)" }} />
-        Next up · {toHumanTime(block.startMinutes)}
-      </div>
-      <h2 className="text-[1.6rem] font-bold leading-[1.15] tracking-[-0.025em]">
-        {block.title}
-      </h2>
-      <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
-        {toHumanTime(block.startMinutes)} – {toHumanTime(block.startMinutes + block.durationMin)} · {formatDurationLabel(block.durationMin)}
-      </p>
-
-      {/* Tasks for this block — readable at a glance, not a checklist UI. */}
-      {tasks.length > 0 ? (
-        <ul className="mt-5 space-y-2">
-          {tasks.slice(0, 4).map((task) => (
-            <li key={task.id} className="flex items-center gap-2.5 text-[0.92rem]">
-              <span
-                className="h-[6px] w-[6px] flex-shrink-0 rounded-full"
-                style={{ background: "var(--text-3)" }}
-              />
-              <span style={{ color: "var(--text)" }}>{task.name}</span>
-            </li>
-          ))}
-          {tasks.length > 4 ? (
-            <li className="ml-[14px] text-[0.82rem]" style={{ color: "var(--text-3)" }}>
-              +{tasks.length - 4} more
-            </li>
-          ) : null}
-        </ul>
-      ) : (
-        <p className="mt-5 text-[0.88rem]" style={{ color: "var(--text-3)" }}>
-          A flexible block — use it however suits you right now.
-        </p>
-      )}
-
-      {block.reason ? (
-        <p
-          className="mt-4 text-[0.8rem]"
-          style={{ color: "var(--text-3)" }}
-        >
-          Planned because: {block.reason}
-        </p>
+                    <div className="min-w-0">
+                      <p
+                        className="truncate text-[0.94rem] font-semibold"
+                        style={{
+                          color: isDone ? "var(--text-2)" : "var(--text)",
+                          textDecoration: isDone ? "line-through" : "none",
+                        }}
+                      >
+                        {block.title}
+                        {isNext ? (
+                          <span
+                            className="ml-2 rounded-full px-2 py-[2px] align-middle text-[0.64rem] font-bold uppercase tracking-[0.06em]"
+                            style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
+                          >
+                            Now next
+                          </span>
+                        ) : null}
+                      </p>
+                      <p className="mt-0.5 text-[0.78rem]" style={{ color: "var(--text-2)" }}>
+                        {metaLabel}
+                      </p>
+                    </div>
+                    {!isDone && !isNext ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleSkipBlock(block.id)}
+                        disabled={isPlanning || skippingBlockId === block.id}
+                        className="text-[0.8rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
+                      >
+                        {skippingBlockId === block.id ? "Skipping…" : "Skip"}
+                      </button>
+                    ) : null}
+                  </article>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
       ) : null}
 
-      {/* One clear primary CTA. Skip is intentionally text-style and quiet. */}
-      <div className="mt-6 flex flex-wrap items-center gap-3">
-        <button
-          type="button"
-          onClick={onStart}
-          className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98]"
-          style={{
-            background: "var(--accent)",
-            boxShadow: "0 4px 12px rgba(0,122,255,0.25)",
-          }}
-        >
-          Start block
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M6 4l4 4-4 4" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={onSkip}
-          disabled={isSkipping || isPlanning}
-          className="text-[0.84rem] font-medium transition-colors hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-55"
-          style={{ color: "var(--text-2)" }}
-        >
-          {isSkipping ? "Skipping…" : "Skip for now"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function AllDoneHero() {
-  return (
-    <section
-      className="anim anim-d1 mb-8 rounded-[18px] border px-7 py-8 text-center"
-      style={{
-        background: "var(--done-soft)",
-        borderColor: "var(--done)",
-        boxShadow: "var(--shadow-sm)",
-      }}
-    >
-      <div
-        className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-full"
-        style={{ background: "var(--done)", color: "#fff" }}
+      <footer
+        className="anim anim-d4 mt-10 flex flex-wrap items-center justify-between gap-3 border-t pt-5"
+        style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
       >
-        <svg viewBox="0 0 16 16" className="h-5 w-5" fill="currentColor">
-          <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-        </svg>
-      </div>
-      <h2 className="text-[1.4rem] font-bold tracking-[-0.02em]">You finished today&apos;s plan.</h2>
-      <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
-        Take a beat. Tomorrow can wait until tomorrow.
-      </p>
-    </section>
-  );
-}
-
-function EmptyDayHero({
-  isToday,
-  isPlanning,
-  onPlan,
-}: {
-  isToday: boolean;
-  isPlanning: boolean;
-  onPlan: () => void;
-}) {
-  return (
-    <section
-      className="anim anim-d1 mb-8 rounded-[18px] border px-7 py-10 text-center"
-      style={{
-        background: "var(--surface-solid)",
-        borderColor: "var(--line-strong)",
-        borderStyle: "dashed",
-      }}
-    >
-      <h2 className="text-[1.25rem] font-semibold tracking-[-0.01em]">
-        {isToday ? "Nothing planned yet." : "No schedule for this day yet."}
-      </h2>
-      <p className="mx-auto mt-2 max-w-[420px] text-[0.9rem]" style={{ color: "var(--text-2)" }}>
-        Add a few tasks, and we&apos;ll organize them into focus blocks for you.
-      </p>
-      <div className="mt-5 flex justify-center gap-3">
-        <button
-          type="button"
-          onClick={onPlan}
-          disabled={isPlanning}
-          className="inline-flex h-[40px] items-center gap-2 rounded-[10px] px-5 text-[0.88rem] font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
-          style={{ background: "var(--accent)" }}
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.78rem]"
+          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
         >
-          {isPlanning ? "Planning…" : "Plan my day"}
-        </button>
-      </div>
-    </section>
-  );
-}
-
-function UpcomingBlockRow({
-  block,
-  tasks,
-  onSkip,
-  isSkipping,
-  isPlanning,
-}: {
-  block: StudyBlock;
-  tasks: BoardTask[];
-  onSkip: () => void;
-  isSkipping: boolean;
-  isPlanning: boolean;
-}) {
-  const taskSummary =
-    tasks.length === 0
-      ? "Flexible block"
-      : tasks
-          .slice(0, 2)
-          .map((t) => t.name)
-          .join(" · ") + (tasks.length > 2 ? ` +${tasks.length - 2}` : "");
-
-  return (
-    <li>
-      <article
-        className="group grid grid-cols-[88px_1fr_auto] items-center gap-4 rounded-[14px] border px-5 py-3.5 transition-[border-color,background] duration-200 hover:border-[var(--line-strong)] hover:bg-[var(--surface-hover)] max-[600px]:grid-cols-1 max-[600px]:gap-1.5"
-        style={{
-          background: "var(--surface-solid)",
-          borderColor: "var(--line)",
-        }}
-      >
-        <div className="flex flex-col">
-          <span className="text-[0.95rem] font-semibold tabular-nums" style={{ color: "var(--text)" }}>
-            {toHumanTime(block.startMinutes)}
-          </span>
-          <span className="text-[0.74rem]" style={{ color: "var(--text-3)" }}>
-            {formatDurationLabel(block.durationMin)}
-          </span>
-        </div>
-
-        <div className="min-w-0">
-          <p className="truncate text-[0.94rem] font-medium" style={{ color: "var(--text)" }}>
-            {block.title}
-          </p>
-          <p className="mt-0.5 truncate text-[0.8rem]" style={{ color: "var(--text-2)" }}>
-            {taskSummary}
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={onSkip}
-          disabled={isSkipping || isPlanning}
-          className="text-[0.8rem] font-medium opacity-0 transition-opacity duration-150 hover:text-[var(--danger)] focus:opacity-100 group-hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-55 max-[600px]:opacity-100"
-          style={{ color: "var(--text-3)" }}
-        >
-          {isSkipping ? "Skipping…" : "Skip"}
-        </button>
-      </article>
-    </li>
-  );
-}
-
-function CompletedBlockRow({
-  block,
-  tasks,
-}: {
-  block: StudyBlock;
-  tasks: BoardTask[];
-}) {
-  return (
-    <li
-      className="grid grid-cols-[88px_1fr_auto] items-center gap-4 rounded-[12px] px-5 py-2.5 max-[600px]:grid-cols-1 max-[600px]:gap-1"
-      style={{ background: "transparent", color: "var(--text-2)" }}
-    >
-      <span className="text-[0.86rem] tabular-nums" style={{ color: "var(--text-3)" }}>
-        {toHumanTime(block.startMinutes)}
-      </span>
-      <span
-        className="truncate text-[0.88rem]"
-        style={{ textDecoration: "line-through", color: "var(--text-2)" }}
-      >
-        {block.title}
-      </span>
-      <span className="text-[0.78rem]" style={{ color: "var(--text-3)" }}>
-        {tasks.length > 0 ? `${tasks.length} task${tasks.length === 1 ? "" : "s"}` : ""}
-      </span>
-    </li>
-  );
-}
-
-function FooterControls({
-  selectedDate,
-  onPrev,
-  onNext,
-  onToday,
-  showToday,
-  onReplan,
-  isPlanning,
-  showReplan,
-}: {
-  selectedDate: Date;
-  onPrev: () => void;
-  onNext: () => void;
-  onToday: () => void;
-  showToday: boolean;
-  onReplan: () => void;
-  isPlanning: boolean;
-  showReplan: boolean;
-}) {
-  return (
-    <footer
-      className="anim anim-d4 mt-10 flex flex-wrap items-center justify-between gap-4 border-t pt-6"
-      style={{ borderColor: "var(--line)" }}
-    >
-      <div className="flex items-center gap-1 text-[0.84rem]" style={{ color: "var(--text-2)" }}>
-        <button
-          type="button"
-          onClick={onPrev}
-          aria-label="Previous day"
-          className="grid h-7 w-7 place-items-center rounded-[6px] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-        >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10 12 6 8l4-4" />
-          </svg>
-        </button>
-        <span className="px-1.5 tabular-nums">{formatShortDate(selectedDate)}</span>
-        <button
-          type="button"
-          onClick={onNext}
-          aria-label="Next day"
-          className="grid h-7 w-7 place-items-center rounded-[6px] transition-colors hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-        >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-            <path d="m6 4 4 4-4 4" />
-          </svg>
-        </button>
-        {showToday ? (
+          {doneCount} of {blocks.length} blocks finished
+        </span>
+        <span className="text-[0.84rem]">
           <button
             type="button"
-            onClick={onToday}
-            className="ml-2 text-[0.82rem] font-medium transition-colors hover:text-[var(--text)]"
-            style={{ color: "var(--accent)" }}
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="bg-none border-none p-0 text-[0.84rem] font-medium disabled:opacity-60"
+            style={{ color: "var(--text-2)" }}
           >
-            Jump to today
+            Adjust plan
           </button>
-        ) : null}
-      </div>
-
-      {showReplan ? (
-        <button
-          type="button"
-          onClick={onReplan}
-          disabled={isPlanning}
-          className="text-[0.84rem] font-medium transition-colors hover:text-[var(--text)] disabled:cursor-not-allowed disabled:opacity-55"
-          style={{ color: "var(--text-2)" }}
-        >
-          {isPlanning ? "Refreshing plan…" : "Adjust plan"}
-        </button>
-      ) : null}
-    </footer>
+          <span style={{ color: "var(--text-3)" }}> · </span>
+          <button type="button" className="bg-none border-none p-0 text-[0.84rem] font-medium" style={{ color: "var(--text-2)" }}>
+            Tomorrow&apos;s preview
+          </button>
+        </span>
+      </footer>
+    </div>
   );
+}
+
+function getBlockReason(block: StudyBlock) {
+  return block.reason ?? "Planned around your current priority and focus window.";
 }
