@@ -2,10 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PropsWithChildren, useEffect, useMemo, useState } from "react";
-import { DailyFlow, getStepLabel, getStepRoute } from "@/lib/daily-flow";
-import { FlowStrip } from "./flow-strip";
+import { PropsWithChildren, useState } from "react";
 
+/**
+ * App chrome — intentionally minimal.
+ *
+ * This used to host a sticky 4-step Plan/Schedule/Focus/Reflect stepper
+ * plus a step-counted CTA pill in the nav. Both reinforced a forced-
+ * progression feel that no longer matches the product: the planner
+ * already prepares the day, so the chrome should just navigate, not
+ * narrate where the user "should" be.
+ *
+ * What's left here:
+ *   - Brand mark
+ *   - Plain top-level links (Home / Today / Tasks)
+ *   - Theme toggle + logout
+ *
+ * The page itself answers "what's next?" via its own hero card.
+ */
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
@@ -13,46 +27,10 @@ export function AppShell({ children }: PropsWithChildren) {
     if (typeof document === "undefined") return "light";
     return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   });
-  const [flow, setFlow] = useState<DailyFlow | null>(null);
 
   const isHomeActive = pathname === "/";
+  const isTodayActive = pathname.startsWith("/blocks");
   const isTasksActive = pathname.startsWith("/tasks");
-  const isBlocksActive = pathname.startsWith("/blocks");
-  const isInFlow =
-    pathname.startsWith("/tasks") ||
-    pathname.startsWith("/blocks") ||
-    pathname.startsWith("/today");
-
-  useEffect(() => {
-    if (isAuthPage) return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const response = await fetch("/api/daily-flow");
-        if (!response.ok) return;
-        const data = (await response.json()) as DailyFlow;
-        if (!cancelled) setFlow(data);
-      } catch {
-        // silent
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAuthPage, pathname]);
-
-  const startDayCopy = useMemo(() => {
-    if (!flow || !flow.hasStarted) {
-      // Day hasn't been planned yet → point at the dump-and-go entry.
-      return { label: "Start Day", badge: null as string | null, href: "/tasks" };
-    }
-    const meta = getStepLabel(flow.step);
-    return {
-      label: "Continue Day",
-      badge: `Step ${meta.num}`,
-      href: getStepRoute(flow.step),
-    };
-  }, [flow]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
@@ -83,64 +61,10 @@ export function AppShell({ children }: PropsWithChildren) {
             TaskPilot
           </Link>
 
-          <div className="flex items-center gap-1.5">
-            <Link
-              href="/"
-              className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
-              style={{
-                color: isHomeActive ? "var(--accent)" : "var(--text-2)",
-                background: isHomeActive ? "var(--accent-soft)" : "transparent",
-              }}
-            >
-              Home
-            </Link>
-
-            <Link
-              href={startDayCopy.href}
-              className="inline-flex h-9 items-center gap-2 rounded-full px-4 text-[0.84rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
-              style={{
-                background: "var(--accent)",
-                boxShadow: isInFlow ? "0 0 0 3px var(--accent-soft)" : "0 1px 2px rgba(0,122,255,0.25)",
-              }}
-            >
-              <span
-                className="inline-block h-1.5 w-1.5 rounded-full"
-                style={{
-                  background: "#fff",
-                  animation: flow?.hasStarted ? "pulseDot 1.5s ease-in-out infinite" : undefined,
-                }}
-              />
-              {startDayCopy.label}
-              {startDayCopy.badge ? (
-                <span
-                  className="rounded-full px-1.5 py-[1px] text-[0.66rem] font-semibold"
-                  style={{ background: "rgba(255,255,255,0.22)" }}
-                >
-                  {startDayCopy.badge}
-                </span>
-              ) : null}
-            </Link>
-
-            <Link
-              href="/tasks"
-              className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
-              style={{
-                color: isTasksActive ? "var(--accent)" : "var(--text-2)",
-                background: isTasksActive ? "var(--accent-soft)" : "transparent",
-              }}
-            >
-              Tasks
-            </Link>
-            <Link
-              href="/blocks"
-              className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
-              style={{
-                color: isBlocksActive ? "var(--accent)" : "var(--text-2)",
-                background: isBlocksActive ? "var(--accent-soft)" : "transparent",
-              }}
-            >
-              Study Blocks
-            </Link>
+          <div className="flex items-center gap-1">
+            <NavLink href="/" label="Home" active={isHomeActive} />
+            <NavLink href="/blocks" label="Today" active={isTodayActive} primary />
+            <NavLink href="/tasks" label="Tasks" active={isTasksActive} />
           </div>
 
           <div className="flex items-center gap-3">
@@ -173,9 +97,51 @@ export function AppShell({ children }: PropsWithChildren) {
         </div>
       </nav>
 
-      <FlowStrip />
-
       <main className="mx-auto w-full max-w-[1280px] px-6 pb-14 pt-10">{children}</main>
     </>
+  );
+}
+
+/**
+ * One styled nav link. `primary` lifts the "Today" entry visually so the
+ * day-execution page is always one obvious click away — without resorting
+ * to a step-counted progression badge.
+ */
+function NavLink({
+  href,
+  label,
+  active,
+  primary = false,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  primary?: boolean;
+}) {
+  if (primary) {
+    return (
+      <Link
+        href={href}
+        className="ml-1 inline-flex h-9 items-center rounded-full px-4 text-[0.84rem] font-semibold transition-colors"
+        style={{
+          background: active ? "var(--accent)" : "var(--accent-soft)",
+          color: active ? "#fff" : "var(--accent)",
+        }}
+      >
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
+      style={{
+        color: active ? "var(--accent)" : "var(--text-2)",
+        background: active ? "var(--accent-soft)" : "transparent",
+      }}
+    >
+      {label}
+    </Link>
   );
 }
