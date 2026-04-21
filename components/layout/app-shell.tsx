@@ -18,7 +18,7 @@ export function AppShell({ children }: PropsWithChildren) {
   const isHomeActive = pathname === "/";
   const isTasksActive = pathname.startsWith("/tasks");
   const isInFlow =
-    pathname.startsWith("/board") ||
+    pathname.startsWith("/tasks") ||
     pathname.startsWith("/blocks") ||
     pathname.startsWith("/today");
 
@@ -42,7 +42,8 @@ export function AppShell({ children }: PropsWithChildren) {
 
   const startDayCopy = useMemo(() => {
     if (!flow || !flow.hasStarted) {
-      return { label: "Start Day", badge: null as string | null, href: "/board" };
+      // Day hasn't been planned yet → point at the dump-and-go entry.
+      return { label: "Start Day", badge: null as string | null, href: "/tasks" };
     }
     const meta = getStepLabel(flow.step);
     return {

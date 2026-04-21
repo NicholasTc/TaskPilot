@@ -14,12 +14,12 @@ import {
   pageToStep,
 } from "@/lib/daily-flow";
 
-const FLOW_PAGES = new Set<DailyFlowStep>(["board", "blocks", "home", "today"]);
+const FLOW_PAGES = new Set<DailyFlowStep>(["tasks", "blocks", "home", "today"]);
 
 type FlowStripProps = {
   /**
    * Force-show even when the flow hasn't started.
-   * Useful for /board (Step 1) where the strip should appear before any planning.
+   * Useful for /tasks (Step 1) where the strip should appear before any planning.
    */
   alwaysShow?: boolean;
 };
@@ -28,10 +28,10 @@ type FlowStripProps = {
  * Sticky stepper + next-action hint that sits below the main nav.
  *
  * Visibility rules:
- *   - On /board, /blocks, /today              → always visible (you're inside the flow)
- *   - On /                                    → visible only when the user has started
- *                                              (i.e. has at least one planned task)
- *   - On any other route (e.g. /tasks/login)  → hidden
+ *   - On /tasks, /blocks, /today              → always visible (you're inside the flow)
+ *   - On /                                    → visible only once the day has started
+ *                                              (i.e. the user has at least one block)
+ *   - On any other route (e.g. /login)        → hidden
  */
 export function FlowStrip({ alwaysShow = false }: FlowStripProps) {
   const pathname = usePathname();

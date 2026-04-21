@@ -40,7 +40,9 @@ export async function GET(request: NextRequest) {
     const userObjectId = toObjectId(userId);
 
     const [tasks, blocks] = await Promise.all([
-      TaskModel.find({ userId: userObjectId, dayKey }).lean(),
+      // Tasks are global in the auto-planner world — every non-done task
+      // is a candidate for "Plan my day". We no longer filter by dayKey.
+      TaskModel.find({ userId: userObjectId, status: { $ne: "done" } }).lean(),
       StudyBlockModel.find({ userId: userObjectId, dayKey }).lean(),
     ]);
 

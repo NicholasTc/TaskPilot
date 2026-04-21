@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
 import { NextActionBanner } from "@/components/layout/next-action-banner";
+import { AutoPlanError, runAutoPlan } from "@/lib/plan-client";
 
 type BlockStatus = "planned" | "active" | "done";
 type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
@@ -20,6 +21,8 @@ type StudyBlock = {
   remainingSeconds?: number;
   effectiveRemainingSeconds?: number;
   runningSince?: string | null;
+  /** Planner's explanation of why this block was placed here. */
+  reason?: string;
 };
 
 type BoardTask = Task & {
@@ -29,7 +32,6 @@ type BoardTask = Task & {
   studyBlockId: string | null;
 };
 
-const durationPresets = [60, 90, 120];
 const boardStatuses: BoardStatus[] = ["backlog", "planned", "in_progress", "done"];
 
 function toLocalDayKey(date: Date) {
@@ -78,12 +80,6 @@ function formatClock(seconds: number) {
   return `${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
 }
 
-function toMinutesFromTimeInput(value: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-  return hours * 60 + minutes;
-}
-
 function normalizeTask(task: Task): BoardTask {
   const status = task.status ?? (task.completed ? "done" : "backlog");
   return {
@@ -114,18 +110,12 @@ export default function BlocksPage() {
     done: [],
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSavingAssignments, setIsSavingAssignments] = useState(false);
   const [isUpdatingTimer, setIsUpdatingTimer] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [openAssignBlockId, setOpenAssignBlockId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
-  const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [draftStartTime, setDraftStartTime] = useState("10:00");
-  const [draftDuration, setDraftDuration] = useState<number>(120);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [skippingBlockId, setSkippingBlockId] = useState<string | null>(null);
 
   const dayKey = useMemo(() => toLocalDayKey(selectedDate), [selectedDate]);
   const dateLabel = useMemo(() => formatDateLabel(selectedDate), [selectedDate]);
@@ -153,11 +143,6 @@ export default function BlocksPage() {
 
   const allTasksForDay = useMemo(
     () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
-    [dayKey, tasksByStatus],
-  );
-
-  const assignmentPool = useMemo(
-    () => [...tasksByStatus.backlog, ...tasksByStatus.planned].filter((task) => task.dayKey === dayKey),
     [dayKey, tasksByStatus],
   );
 
@@ -236,62 +221,74 @@ export default function BlocksPage() {
     return () => window.clearInterval(interval);
   }, [activeBlock, loadData]);
 
-  const handleCreateBlock = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!draftTitle.trim() || isSubmitting) return;
-
-    const startMinutes = toMinutesFromTimeInput(draftStartTime);
-    if (startMinutes === null) {
-      setErrorMessage("Invalid start time.");
-      return;
-    }
-
+  /**
+   * Run the auto-planner from here — used by both the "Re-plan" header action
+   * and the empty-state CTA. Preserves active/done blocks, replaces the rest.
+   */
+  const handleReplan = useCallback(async () => {
+    if (isPlanning) return;
+    setIsPlanning(true);
+    setErrorMessage(null);
     try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
-
-      const response = await fetch("/api/blocks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dayKey,
-          title: draftTitle.trim(),
-          startMinutes,
-          durationMin: draftDuration,
-        }),
-      });
-
-      if (response.status === 401) {
+      await runAutoPlan();
+      await loadData();
+      setSuccessMessage("Schedule updated.");
+    } catch (error) {
+      console.error("Re-plan failed", error);
+      if (error instanceof AutoPlanError && error.status === 401) {
         redirectToLogin();
         return;
       }
+      const message =
+        error instanceof AutoPlanError
+          ? error.message
+          : "Could not re-plan the schedule.";
+      setErrorMessage(message);
+    } finally {
+      setIsPlanning(false);
+    }
+  }, [isPlanning, loadData, redirectToLogin]);
 
-      if (response.status === 409) {
-        const payload = (await response.json()) as { code?: string; error?: string };
-        if (payload.code === "BLOCK_OVERLAP") {
-          setErrorMessage("This block overlaps another block. Pick a different time.");
+  /**
+   * Skip-this-block is our one targeted manual override: delete the block
+   * and immediately re-run the planner so its task gets rescheduled
+   * somewhere else (or marked unscheduled if nothing fits).
+   */
+  const handleSkipBlock = useCallback(
+    async (blockId: string) => {
+      if (skippingBlockId) return;
+      setSkippingBlockId(blockId);
+      setErrorMessage(null);
+      try {
+        const deleteResponse = await fetch(`/api/blocks/${blockId}`, {
+          method: "DELETE",
+        });
+        if (deleteResponse.status === 401) {
+          redirectToLogin();
           return;
         }
-      }
+        if (!deleteResponse.ok) throw new Error("Unable to delete block");
 
-      if (!response.ok) {
-        throw new Error("Unable to create block");
+        await runAutoPlan();
+        await loadData();
+        setSuccessMessage("Block skipped and schedule refreshed.");
+      } catch (error) {
+        console.error("Skip block failed", error);
+        if (error instanceof AutoPlanError && error.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        const message =
+          error instanceof AutoPlanError
+            ? error.message
+            : "Could not skip this block.";
+        setErrorMessage(message);
+      } finally {
+        setSkippingBlockId(null);
       }
-
-      const created = (await response.json()) as StudyBlock;
-      setBlocks((prev) =>
-        [...prev, created].sort((a, b) => a.startMinutes - b.startMinutes || a.durationMin - b.durationMin),
-      );
-      setDraftTitle("");
-      setIsAddBlockOpen(false);
-      setSuccessMessage("Block created.");
-    } catch (error) {
-      console.error("Creating block failed", error);
-      setErrorMessage("Could not create block.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    [loadData, redirectToLogin, skippingBlockId],
+  );
 
   const handleStartBlock = async (blockId: string) => {
     try {
@@ -353,83 +350,6 @@ export default function BlocksPage() {
     }
   };
 
-  const handleDeleteBlock = async (blockId: string) => {
-    try {
-      setErrorMessage(null);
-      const response = await fetch(`/api/blocks/${blockId}`, { method: "DELETE" });
-      if (response.status === 401) {
-        redirectToLogin();
-        return;
-      }
-      if (!response.ok) throw new Error("Unable to delete block");
-
-      const linkedTasks = allTasksForDay.filter((task) => task.studyBlockId === blockId);
-      await Promise.all(
-        linkedTasks.map((task) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studyBlockId: null }),
-          }),
-        ),
-      );
-
-      await loadData();
-      setSuccessMessage("Block deleted.");
-    } catch (error) {
-      console.error("Deleting block failed", error);
-      setErrorMessage("Could not delete block.");
-    }
-  };
-
-  const openAssignPanel = (block: StudyBlock) => {
-    setOpenAssignBlockId(block.id);
-    const initiallySelected = assignmentPool
-      .filter((task) => task.studyBlockId === block.id)
-      .map((task) => task.id);
-    setSelectedTaskIds(initiallySelected);
-  };
-
-  const handleSaveAssignments = async (blockId: string) => {
-    try {
-      setIsSavingAssignments(true);
-      setErrorMessage(null);
-      const existingAssignments = assignmentPool.filter((task) => task.studyBlockId === blockId);
-      const existingIds = new Set(existingAssignments.map((task) => task.id));
-      const nextIds = new Set(selectedTaskIds);
-
-      const toAssign = assignmentPool.filter((task) => nextIds.has(task.id) && task.studyBlockId !== blockId);
-      const toUnassign = assignmentPool.filter((task) => existingIds.has(task.id) && !nextIds.has(task.id));
-
-      await Promise.all([
-        ...toAssign.map((task) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studyBlockId: blockId }),
-          }),
-        ),
-        ...toUnassign.map((task) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studyBlockId: null }),
-          }),
-        ),
-      ]);
-
-      setOpenAssignBlockId(null);
-      setSelectedTaskIds([]);
-      await loadData();
-      setSuccessMessage("Block tasks updated.");
-    } catch (error) {
-      console.error("Saving assignments failed", error);
-      setErrorMessage("Could not save task assignments.");
-    } finally {
-      setIsSavingAssignments(false);
-    }
-  };
-
   const getBlockTasks = (blockId: string) =>
     allTasksForDay
       .filter((task) => task.studyBlockId === blockId)
@@ -440,44 +360,42 @@ export default function BlocksPage() {
     ? blocks.findIndex((block) => block.id === activeBlock.id) + 1
     : 0;
 
-  const plannedNotCommitted = allTasksForDay.filter(
-    (task) =>
-      task.status !== "done" &&
-      ["planned", "in_progress"].includes(task.status) &&
-      !task.studyBlockId,
-  ).length;
-  const committedTasksCount = allTasksForDay.filter((task) => !!task.studyBlockId).length;
+  const plannedCount = blocks.filter((b) => b.status === "planned").length;
+  const doneCount = blocks.filter((b) => b.status === "done").length;
+
   const blockBanner =
     blocks.length === 0
       ? {
-          eyebrow: "Step 2 · Commit",
-          title: "Create your first time block.",
-          description: "Pick a 60–120 minute window and assign one or two planned tasks to it.",
+          eyebrow: "Step 2 · Schedule",
+          title: "No schedule yet — let the planner build one.",
+          description:
+            "Click Plan my day and TaskPilot will turn your open tasks into focus blocks based on priority, due date, and estimated time.",
           tone: "accent" as const,
-          cta: undefined as { label: string; href: string } | undefined,
+          action: "plan" as const,
         }
-      : plannedNotCommitted > 0
+      : activeBlock
         ? {
-            eyebrow: "Step 2 · Commit",
-            title: `Assign ${plannedNotCommitted} planned task${plannedNotCommitted === 1 ? "" : "s"} to a block.`,
-            description: "Tap Assign on a block to commit each task to a time window.",
+            eyebrow: "Step 2 · Schedule · Running",
+            title: `${activeBlock.title} is live.`,
+            description: "Open focus mode to stay on the task.",
             tone: "accent" as const,
-            cta: undefined,
+            action: "focus" as const,
           }
-        : committedTasksCount > 0
+        : doneCount === totalBlocksToday
           ? {
-              eyebrow: "Step 2 · Commit · Ready",
-              title: "All planned tasks are committed.",
-              description: "Head to Home to start your focus block.",
+              eyebrow: "Step 2 · Schedule · Complete",
+              title: "Every block is done. Time to reflect.",
+              description: "Head to Reflect for a quick recap of today.",
               tone: "done" as const,
-              cta: { label: "Go to Home", href: "/" },
+              action: "reflect" as const,
             }
           : {
-              eyebrow: "Step 2 · Commit",
-              title: "Plan some tasks first.",
-              description: "Move tasks into Planned on the Board, then assign them here.",
-              tone: "neutral" as const,
-              cta: { label: "Open Board", href: "/board" },
+              eyebrow: "Step 2 · Schedule",
+              title: `Start your first of ${plannedCount} planned block${plannedCount === 1 ? "" : "s"}.`,
+              description:
+                "TaskPilot scheduled these automatically. Start when you're ready, or re-plan if things changed.",
+              tone: "accent" as const,
+              action: "none" as const,
             };
 
   return (
@@ -488,41 +406,76 @@ export default function BlocksPage() {
         title={blockBanner.title}
         description={blockBanner.description}
         tone={blockBanner.tone}
-        ctaLabel={blockBanner.cta?.label}
-        ctaHref={blockBanner.cta?.href}
+        ctaLabel={
+          blockBanner.action === "plan"
+            ? isPlanning
+              ? "Planning..."
+              : "Plan my day"
+            : blockBanner.action === "focus" && activeBlock
+              ? "Open focus mode"
+              : blockBanner.action === "reflect"
+                ? "Open Reflect"
+                : undefined
+        }
+        ctaHref={
+          blockBanner.action === "focus" && activeBlock
+            ? `/blocks/${activeBlock.id}/focus`
+            : blockBanner.action === "reflect"
+              ? "/today"
+              : undefined
+        }
+        onCtaClick={blockBanner.action === "plan" ? handleReplan : undefined}
+        ctaDisabled={blockBanner.action === "plan" && isPlanning}
       />
       <header className="anim mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Study Blocks</h1>
           <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
-            Commit each planned task to a time window.
+            Auto-scheduled from your tasks. Start, re-plan, or skip a block you don&apos;t need.
           </p>
         </div>
-        <div
-          className="flex items-center gap-1 rounded-[12px] border p-1"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-        >
-          <button
-            type="button"
-            onClick={() => setSelectedDate((current) => addDays(current, -1))}
-            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-            aria-label="Previous day"
+        <div className="flex items-center gap-2">
+          {blocks.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => void handleReplan()}
+              disabled={isPlanning}
+              className="h-9 rounded-[10px] border px-4 text-[0.84rem] font-medium transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-55"
+              style={{
+                borderColor: "var(--line)",
+                background: "var(--surface-solid)",
+                color: "var(--text-2)",
+              }}
+            >
+              {isPlanning ? "Re-planning..." : "Re-plan"}
+            </button>
+          ) : null}
+          <div
+            className="flex items-center gap-1 rounded-[12px] border p-1"
+            style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
           >
-            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 12 6 8l4-4" />
-            </svg>
-          </button>
-          <div className="px-3.5 text-[0.88rem] font-semibold">{dateLabel}</div>
-          <button
-            type="button"
-            onClick={() => setSelectedDate((current) => addDays(current, 1))}
-            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-            aria-label="Next day"
-          >
-            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m6 4 4 4-4 4" />
-            </svg>
-          </button>
+            <button
+              type="button"
+              onClick={() => setSelectedDate((current) => addDays(current, -1))}
+              className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              aria-label="Previous day"
+            >
+              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 12 6 8l4-4" />
+              </svg>
+            </button>
+            <div className="px-3.5 text-[0.88rem] font-semibold">{dateLabel}</div>
+            <button
+              type="button"
+              onClick={() => setSelectedDate((current) => addDays(current, 1))}
+              className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
+              aria-label="Next day"
+            >
+              <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 4 4 4-4 4" />
+              </svg>
+            </button>
+          </div>
         </div>
       </header>
 
@@ -662,17 +615,31 @@ export default function BlocksPage() {
         </div>
       ) : blocks.length === 0 ? (
         <div
-          className="rounded-[16px] border px-4 py-8 text-center text-[0.86rem]"
-          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-3)" }}
+          className="flex flex-col items-center gap-3 rounded-[16px] border px-4 py-10 text-center"
+          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed" }}
         >
-          No blocks planned for this day.
+          <p className="text-[0.92rem] font-medium" style={{ color: "var(--text-2)" }}>
+            No schedule for this day yet.
+          </p>
+          <p className="text-[0.82rem]" style={{ color: "var(--text-3)" }}>
+            TaskPilot will pick times based on priority, due date, and estimated time.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="mt-1 inline-flex h-10 items-center gap-1.5 rounded-[10px] px-5 text-[0.88rem] font-semibold text-white transition active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-55"
+            style={{ background: "var(--accent)" }}
+          >
+            {isPlanning ? "Planning..." : "Plan my day"}
+          </button>
         </div>
       ) : (
         <div className="space-y-3">
           {blocks.map((block, index) => {
             const blockTasks = getBlockTasks(block.id);
-            const isAssignOpen = openAssignBlockId === block.id;
             const animClass = `anim anim-d${Math.min(4, index + 1)}`;
+            const isSkipping = skippingBlockId === block.id;
             const statusLabel =
               block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming";
             const statusBg =
@@ -719,6 +686,14 @@ export default function BlocksPage() {
 
                   <div className="min-w-0">
                     <h4 className="text-[1.05rem] font-semibold tracking-[-0.01em]">{block.title}</h4>
+                    {block.reason ? (
+                      <p
+                        className="mt-1 text-[0.76rem] italic"
+                        style={{ color: "var(--text-3)" }}
+                      >
+                        Why: {block.reason}
+                      </p>
+                    ) : null}
                     <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-2)" }}>
                       {blockTasks.length === 0
                         ? "No tasks assigned"
@@ -789,196 +764,28 @@ export default function BlocksPage() {
                       {block.status !== "done" ? (
                         <button
                           type="button"
-                          onClick={() => (isAssignOpen ? setOpenAssignBlockId(null) : openAssignPanel(block))}
-                          className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
+                          onClick={() => void handleSkipBlock(block.id)}
+                          disabled={isSkipping || isPlanning}
+                          title="Delete this block and re-plan the remaining tasks"
+                          className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium transition-colors hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:cursor-not-allowed disabled:opacity-55"
                           style={{
                             borderColor: "var(--line)",
                             background: "var(--surface-solid)",
                             color: "var(--text-2)",
                           }}
                         >
-                          {isAssignOpen ? "Close" : "Assign"}
+                          {isSkipping ? "Skipping..." : "Skip this block"}
                         </button>
                       ) : null}
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteBlock(block.id)}
-                        aria-label="Delete block"
-                        title="Delete block"
-                        className="grid h-8 w-8 place-items-center rounded-[8px] border text-[var(--text-3)] hover:text-[var(--danger)]"
-                        style={{ borderColor: "var(--line)" }}
-                      >
-                        <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                          <path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6zM14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z" />
-                        </svg>
-                      </button>
                     </div>
                   </div>
                 </div>
-
-                {isAssignOpen ? (
-                  <div
-                    className="mt-4 rounded-[12px] border px-3.5 py-3"
-                    style={{ background: "var(--surface-hover)", borderColor: "var(--line)" }}
-                  >
-                    <p className="mb-2 text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                      Assign from Backlog + Planned
-                    </p>
-                    {assignmentPool.length === 0 ? (
-                      <p className="text-[0.82rem]" style={{ color: "var(--text-2)" }}>
-                        No eligible tasks. Add tasks in Backlog/Planned on the Board.
-                      </p>
-                    ) : (
-                      <div className="flex flex-col gap-1.5">
-                        {assignmentPool.map((task) => (
-                          <label
-                            key={task.id}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[0.84rem] hover:bg-[var(--surface-solid)]"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTaskIds.includes(task.id)}
-                              onChange={(event) => {
-                                setSelectedTaskIds((prev) =>
-                                  event.target.checked
-                                    ? [...prev, task.id]
-                                    : prev.filter((itemId) => itemId !== task.id),
-                                );
-                              }}
-                              className="accent-[var(--accent)]"
-                            />
-                            <span>{task.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveAssignments(block.id)}
-                        disabled={isSavingAssignments}
-                        className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
-                        style={{ background: "var(--accent)", opacity: isSavingAssignments ? 0.65 : 1 }}
-                      >
-                        {isSavingAssignments ? "Saving..." : "Save assignments"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOpenAssignBlockId(null);
-                          setSelectedTaskIds([]);
-                        }}
-                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
-                        style={{ borderColor: "var(--line)" }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
               </article>
             );
           })}
         </div>
       )}
 
-      {isAddBlockOpen ? (
-        <section
-          className="anim mt-4 rounded-[16px] border px-5 py-5"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
-        >
-          <form className="space-y-3" onSubmit={handleCreateBlock}>
-            <div>
-              <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                Block name
-              </label>
-              <input
-                autoFocus
-                value={draftTitle}
-                onChange={(event) => setDraftTitle(event.target.value)}
-                placeholder="e.g. TypeScript Deep Work"
-                className="h-10 w-full rounded-[10px] border px-3.5 text-[0.9rem] outline-none focus:border-[var(--accent)]"
-                style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-              />
-            </div>
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
-                <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                  Start
-                </label>
-                <input
-                  type="time"
-                  value={draftStartTime}
-                  onChange={(event) => setDraftStartTime(event.target.value)}
-                  className="h-10 rounded-[10px] border px-3 text-[0.86rem] outline-none focus:border-[var(--accent)]"
-                  style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                  Duration
-                </label>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {durationPresets.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setDraftDuration(preset)}
-                      className="h-9 rounded-[8px] px-3 text-[0.8rem] font-semibold transition-colors"
-                      style={{
-                        background: draftDuration === preset ? "var(--accent-soft)" : "var(--surface-hover)",
-                        color: draftDuration === preset ? "var(--accent)" : "var(--text-2)",
-                      }}
-                    >
-                      {preset}m
-                    </button>
-                  ))}
-                  <input
-                    type="number"
-                    min={15}
-                    max={720}
-                    value={draftDuration}
-                    onChange={(event) => setDraftDuration(Number(event.target.value))}
-                    className="h-9 w-[90px] rounded-[8px] border px-2.5 text-[0.8rem] outline-none focus:border-[var(--accent)]"
-                    style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-                    aria-label="Custom duration in minutes"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="h-10 rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
-                  style={{ background: "var(--accent)", opacity: isSubmitting ? 0.65 : 1 }}
-                >
-                  {isSubmitting ? "Creating..." : "Create block"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsAddBlockOpen(false)}
-                  className="h-10 rounded-[10px] border px-4 text-[0.86rem] font-medium"
-                  style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </div>
-          </form>
-        </section>
-      ) : (
-        <button
-          type="button"
-          onClick={() => setIsAddBlockOpen(true)}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-[16px] border-[1.5px] px-4 py-[18px] text-[0.92rem] font-medium transition-[border-color,color] duration-200 hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-2)" }}
-        >
-          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-            <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
-          </svg>
-          Add new block
-        </button>
-      )}
     </div>
   );
 }

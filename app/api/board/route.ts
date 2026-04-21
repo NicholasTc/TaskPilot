@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
-import { normalizeTaskState } from "@/lib/task-status";
+import { toTaskResponse } from "@/lib/task-response";
 
 const dayKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -13,29 +13,6 @@ function toObjectId(value: string) {
 
 function isValidDayKey(value: string | null) {
   return !!value && dayKeyPattern.test(value);
-}
-
-function toTaskResponse(task: {
-  _id: mongoose.Types.ObjectId | string;
-  name: string;
-  meta?: string;
-  completed: boolean;
-  dayKey?: string | null;
-  status?: string;
-  order?: number;
-  studyBlockId?: mongoose.Types.ObjectId | string | null;
-}) {
-  const { status, completed } = normalizeTaskState(task);
-  return {
-    id: task._id.toString(),
-    name: task.name,
-    meta: task.meta || "",
-    completed,
-    dayKey: task.dayKey ?? null,
-    status,
-    order: task.order ?? 0,
-    studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
-  };
 }
 
 export async function GET(request: NextRequest) {

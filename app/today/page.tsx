@@ -184,21 +184,21 @@ export default function ReflectPage() {
         <NextActionBanner
           step={4}
           eyebrow="Step 4 · Reflect"
-          title="Nothing committed today yet."
-          description="Plan and commit tasks to see your reflection here."
+          title="Nothing scheduled today yet."
+          description="Add a task and click Plan my day to see your reflection fill in here."
           tone="neutral"
-          ctaLabel="Start Day"
-          ctaHref="/board"
+          ctaLabel="Go to Tasks"
+          ctaHref="/tasks"
         />
       ) : allDone ? (
         <NextActionBanner
           step={4}
           eyebrow="Step 4 · Reflect · Complete"
-          title="You finished everything you committed to today."
+          title="You finished every block today."
           description="Take a beat — then plan tomorrow."
           tone="done"
           ctaLabel="Plan tomorrow"
-          ctaHref="/board"
+          ctaHref="/tasks"
         />
       ) : (
         <NextActionBanner

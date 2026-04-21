@@ -3,7 +3,13 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
-import { normalizeTaskState, resolveTaskState } from "@/lib/task-status";
+import { resolveTaskState } from "@/lib/task-status";
+import { toTaskResponse } from "@/lib/task-response";
+import {
+  parseDueDate,
+  parseEstimatedMinutes,
+  parseTaskPriority,
+} from "@/lib/task-fields";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -45,29 +51,6 @@ function parseStudyBlockId(value: unknown) {
   if (!value.trim()) return null;
   if (!mongoose.Types.ObjectId.isValid(value)) return undefined;
   return value;
-}
-
-function toTaskResponse(task: {
-  _id: mongoose.Types.ObjectId | string;
-  name: string;
-  meta?: string;
-  completed: boolean;
-  dayKey?: string | null;
-  status?: string;
-  order?: number;
-  studyBlockId?: mongoose.Types.ObjectId | string | null;
-}) {
-  const { status, completed } = normalizeTaskState(task);
-  return {
-    id: task._id.toString(),
-    name: task.name,
-    meta: task.meta || "",
-    completed,
-    dayKey: task.dayKey ?? null,
-    status,
-    order: task.order ?? 0,
-    studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
-  };
 }
 
 export async function DELETE(_request: NextRequest, context: RouteContext) {
@@ -117,11 +100,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const hasDayKey = body.dayKey !== undefined;
     const hasOrder = body.order !== undefined;
     const hasStudyBlockId = body.studyBlockId !== undefined;
+    const hasPriority = body.priority !== undefined;
+    const hasDueDate = body.dueDate !== undefined;
+    const hasEstimatedMinutes = body.estimatedMinutes !== undefined;
 
     const parsedStatus = parseTaskStatus(body.status);
     const parsedDayKey = parseDayKey(body.dayKey);
     const parsedOrder = parseOrder(body.order);
     const parsedStudyBlockId = parseStudyBlockId(body.studyBlockId);
+    const parsedPriority = parseTaskPriority(body.priority);
+    const parsedDueDate = parseDueDate(body.dueDate);
+    const parsedEstimatedMinutes = parseEstimatedMinutes(body.estimatedMinutes);
 
     if (hasStatus && !parsedStatus) {
       return NextResponse.json({ error: "Invalid task status." }, { status: 400 });
@@ -140,6 +129,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (hasStudyBlockId && parsedStudyBlockId === undefined) {
       return NextResponse.json({ error: "Invalid studyBlockId." }, { status: 400 });
+    }
+
+    if (hasPriority && parsedPriority === undefined) {
+      return NextResponse.json(
+        { error: "Invalid priority. Expected low | medium | high." },
+        { status: 400 },
+      );
+    }
+
+    if (hasDueDate && parsedDueDate === undefined) {
+      return NextResponse.json(
+        { error: "Invalid dueDate. Expected null or YYYY-MM-DD / ISO string." },
+        { status: 400 },
+      );
+    }
+
+    if (hasEstimatedMinutes && parsedEstimatedMinutes === undefined) {
+      return NextResponse.json(
+        { error: "Invalid estimatedMinutes. Expected a positive integer or null." },
+        { status: 400 },
+      );
     }
 
     await connectToDatabase();
@@ -172,6 +182,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (hasStudyBlockId) {
       existing.studyBlockId = parsedStudyBlockId ? toObjectId(parsedStudyBlockId) : null;
+    }
+
+    if (hasPriority && parsedPriority) {
+      existing.priority = parsedPriority;
+    }
+
+    if (hasDueDate) {
+      existing.dueDate = parsedDueDate ?? null;
+    }
+
+    if (hasEstimatedMinutes) {
+      existing.estimatedMinutes = parsedEstimatedMinutes ?? null;
     }
 
     if (nextCompleted && !existing.meta) {

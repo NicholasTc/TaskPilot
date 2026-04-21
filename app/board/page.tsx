@@ -332,57 +332,29 @@ export default function BoardPage() {
     }
   };
 
-  const backlogCount = tasksByStatus.backlog.length;
-  const plannedCount = tasksByStatus.planned.length;
-  const doneCount = tasksByStatus.done.length;
-  const totalToday = plannedCount + tasksByStatus.in_progress.length + doneCount;
-
-  const banner =
-    totalToday === 0
-      ? {
-          eyebrow: "Step 1 · Plan",
-          title: "Pick the few tasks that matter today.",
-          description: backlogCount
-            ? `You have ${backlogCount} task${backlogCount === 1 ? "" : "s"} in your backlog. Drag the right ones into Planned.`
-            : "Your backlog is empty — add a task below to get started.",
-          tone: "accent" as const,
-        }
-      : doneCount === totalToday
-        ? {
-            eyebrow: "Step 1 · Plan · Complete",
-            title: "Today's plan is done. Time to reflect.",
-            description: "Every planned task is finished. Open Reflect to recap.",
-            tone: "done" as const,
-          }
-        : {
-            eyebrow: "Step 1 · Plan",
-            title: "Plan looks good — commit it to a time block.",
-            description: `${plannedCount + tasksByStatus.in_progress.length} planned · move on to Step 2.`,
-            tone: "accent" as const,
-          };
-  const bannerCta =
-    totalToday > 0 && doneCount < totalToday
-      ? { label: "Go to Blocks", href: "/blocks" }
-      : doneCount === totalToday && totalToday > 0
-        ? { label: "Open Reflect", href: "/today" }
-        : undefined;
-
   return (
     <div className="mx-auto w-full max-w-[1280px]">
       <NextActionBanner
         step={1}
-        eyebrow={banner.eyebrow}
-        title={banner.title}
-        description={banner.description}
-        tone={banner.tone}
-        ctaLabel={bannerCta?.label}
-        ctaHref={bannerCta?.href}
+        eyebrow="Optional view · Manual lifecycle"
+        title="This view is no longer part of the guided flow."
+        description={
+          <>
+            TaskPilot now schedules automatically from your Tasks. Use this
+            board if you want to tweak task statuses by hand — otherwise,
+            head to Tasks and click{" "}
+            <strong style={{ color: "var(--text)" }}>Plan my day</strong>.
+          </>
+        }
+        tone="neutral"
+        ctaLabel="Go to Tasks"
+        ctaHref="/tasks"
       />
       <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Today&apos;s Board</h1>
+          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Lifecycle Board</h1>
           <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
-            Plan, focus, and finish — one task at a time.
+            Manual drag-and-drop view of task status. Not required for the auto-planner flow.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -412,17 +384,6 @@ export default function BoardPage() {
               </svg>
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => openDraft("backlog")}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] px-4 text-[0.86rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
-            style={{ background: "var(--accent)", boxShadow: "0 1px 2px rgba(0,122,255,0.25)" }}
-          >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-              <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
-            </svg>
-            New Task
-          </button>
         </div>
       </header>
 

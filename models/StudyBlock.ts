@@ -64,6 +64,17 @@ const studyBlockSchema = new Schema(
       type: Date,
       default: null,
     },
+    /**
+     * Human-readable explanation of why this block was scheduled here.
+     * Populated by the auto-planner (`POST /api/plan`) and surfaced in the
+     * Blocks page so users understand the "why" behind each placement.
+     */
+    reason: {
+      type: String,
+      trim: true,
+      maxlength: 240,
+      default: "",
+    },
   },
   {
     timestamps: true,

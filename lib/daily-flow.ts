@@ -1,21 +1,25 @@
 /**
- * Daily-flow derivation
+ * Daily-flow derivation (Stage-5 auto-planner flow)
  *
- * Given today's tasks + blocks, compute which of the 4 guided steps the user
- * should be on:
+ * Given today's tasks + today's blocks, compute which of the 4 guided steps
+ * the user should be on. This maps to the "dump-and-go" UX — the user
+ * dumps tasks, clicks Plan my day, then executes.
  *
- *   1. Plan    (board)   — backlog has tasks, none planned yet
- *   2. Commit  (blocks)  — planned tasks exist, none assigned to a block
- *   3. Execute (home)    — committed tasks exist, not all done yet
- *   4. Reflect (today)   — all committed tasks are done
+ *   1. Plan     (tasks)   — there are tasks to do, but no blocks exist
+ *                           for today yet → click "Plan my day".
+ *   2. Schedule (blocks)  — blocks exist, but none have been started yet →
+ *                           review the generated schedule and start it.
+ *   3. Focus    (home)    — an active block is running (or the first
+ *                           planned block is ready to start).
+ *   4. Reflect  (today)   — all blocks are done, time to recap.
  *
  * Used by:
  *   - components/layout/flow-strip.tsx (the persistent stepper)
- *   - components/layout/app-shell.tsx  (Continue Day badge)
- *   - per-page next-action banners
+ *   - components/layout/app-shell.tsx  ("Start Day" / "Continue Day" CTA)
+ *   - per-page NextActionBanners
  */
 
-export type DailyFlowStep = "board" | "blocks" | "home" | "today";
+export type DailyFlowStep = "tasks" | "blocks" | "home" | "today";
 
 export type DailyFlowTask = {
   id: string;
@@ -32,60 +36,78 @@ export type DailyFlow = {
   step: DailyFlowStep;
   hasStarted: boolean;
   counts: {
-    /** Tasks still in backlog (not picked for today yet). */
-    backlog: number;
-    /** Tasks picked for today (status is planned/in_progress/done). */
-    pickedForToday: number;
-    /** Of picked-for-today tasks, how many are attached to a block. */
-    committed: number;
-    /** Of picked-for-today tasks, how many are currently in progress. */
-    inProgress: number;
-    /** Of picked-for-today tasks, how many are done. */
-    done: number;
+    /** Tasks not yet done (i.e. candidates for the planner). */
+    openTasks: number;
+    /** Total blocks scheduled for today. */
     blocks: number;
+    /** Blocks not yet started. */
+    plannedBlocks: number;
+    /** Blocks currently active. */
     activeBlocks: number;
+    /** Blocks finished. */
+    doneBlocks: number;
+    /** Tasks marked in_progress (convenience signal for UI warnings). */
+    inProgressTasks: number;
+    /** Tasks marked done (for the Reflect page). */
+    doneTasks: number;
   };
 };
 
 const STEP_LABELS: Record<DailyFlowStep, { num: number; name: string; verb: string }> = {
-  board: { num: 1, name: "Plan", verb: "Plan" },
-  blocks: { num: 2, name: "Commit", verb: "Commit" },
-  home: { num: 3, name: "Execute", verb: "Execute" },
+  tasks: { num: 1, name: "Plan", verb: "Plan" },
+  blocks: { num: 2, name: "Schedule", verb: "Schedule" },
+  home: { num: 3, name: "Focus", verb: "Focus" },
   today: { num: 4, name: "Reflect", verb: "Reflect" },
 };
 
-const STEP_ORDER: DailyFlowStep[] = ["board", "blocks", "home", "today"];
+const STEP_ORDER: DailyFlowStep[] = ["tasks", "blocks", "home", "today"];
 
+/**
+ * Derive the current step from today's tasks and blocks.
+ *
+ * Rules (checked in this order):
+ *   - Active block exists                         → home
+ *   - Blocks exist and all are done               → today
+ *   - Blocks exist (but not all done, none active)→ blocks
+ *   - No blocks, open tasks exist                 → tasks
+ *   - Nothing at all                              → tasks (empty-slate entry)
+ */
 export function deriveDailyFlow(
   tasks: DailyFlowTask[],
   blocks: DailyFlowBlock[],
 ): DailyFlow {
-  const backlog = tasks.filter((t) => t.status === "backlog").length;
-  const pickedForToday = tasks.filter((t) =>
-    ["planned", "in_progress", "done"].includes(t.status),
-  ).length;
-  const committed = tasks.filter((t) => t.studyBlockId !== null).length;
-  const inProgress = tasks.filter((t) => t.status === "in_progress").length;
-  const done = tasks.filter((t) => t.status === "done").length;
+  const openTasks = tasks.filter((t) => t.status !== "done").length;
+  const inProgressTasks = tasks.filter((t) => t.status === "in_progress").length;
+  const doneTasks = tasks.filter((t) => t.status === "done").length;
+
+  const totalBlocks = blocks.length;
+  const plannedBlocks = blocks.filter((b) => b.status === "planned").length;
   const activeBlocks = blocks.filter((b) => b.status === "active").length;
+  const doneBlocks = blocks.filter((b) => b.status === "done").length;
 
   let step: DailyFlowStep;
-  if (pickedForToday === 0) step = "board";
-  else if (committed === 0) step = "blocks";
-  else if (done < committed) step = "home";
-  else step = "today";
+  if (activeBlocks > 0) {
+    step = "home";
+  } else if (totalBlocks > 0 && doneBlocks === totalBlocks) {
+    step = "today";
+  } else if (totalBlocks > 0) {
+    step = "blocks";
+  } else {
+    step = "tasks";
+  }
 
   return {
     step,
-    hasStarted: pickedForToday > 0,
+    // "Started" = the user has moved past the dump-and-plan stage.
+    hasStarted: totalBlocks > 0,
     counts: {
-      backlog,
-      pickedForToday,
-      committed,
-      inProgress,
-      done,
-      blocks: blocks.length,
+      openTasks,
+      blocks: totalBlocks,
+      plannedBlocks,
       activeBlocks,
+      doneBlocks,
+      inProgressTasks,
+      doneTasks,
     },
   };
 }
@@ -104,8 +126,8 @@ export function getStepIndex(step: DailyFlowStep) {
 
 export function getStepRoute(step: DailyFlowStep): string {
   switch (step) {
-    case "board":
-      return "/board";
+    case "tasks":
+      return "/tasks";
     case "blocks":
       return "/blocks";
     case "home":
@@ -117,7 +139,7 @@ export function getStepRoute(step: DailyFlowStep): string {
 
 export function pageToStep(pathname: string): DailyFlowStep | null {
   if (pathname === "/") return "home";
-  if (pathname.startsWith("/board")) return "board";
+  if (pathname.startsWith("/tasks")) return "tasks";
   if (pathname.startsWith("/blocks")) return "blocks";
   if (pathname.startsWith("/today")) return "today";
   return null;
@@ -125,7 +147,8 @@ export function pageToStep(pathname: string): DailyFlowStep | null {
 
 /**
  * Contextual "Next:" sentence shown in the flow strip.
- * Tense matches the current step so the user always knows what to do next.
+ * The strip is orientation-only — the primary CTA lives in each page's
+ * NextActionBanner so we never have two competing "do this" buttons.
  */
 export function getNextActionHint(flow: DailyFlow): {
   message: string;
@@ -133,26 +156,31 @@ export function getNextActionHint(flow: DailyFlow): {
   ctaHref: string;
 } {
   switch (flow.step) {
-    case "board":
+    case "tasks": {
+      const n = flow.counts.openTasks;
       return {
-        message: "Pick the few tasks that matter today.",
-        ctaLabel: "Open Board",
-        ctaHref: "/board",
+        message:
+          n === 0
+            ? "Add a task, then plan your day."
+            : `Click Plan my day to schedule your ${n} task${n === 1 ? "" : "s"}.`,
+        ctaLabel: "Open Tasks",
+        ctaHref: "/tasks",
       };
+    }
     case "blocks": {
-      const n = flow.counts.pickedForToday - flow.counts.committed;
-      const count = Math.max(0, n);
+      const n = flow.counts.plannedBlocks;
       return {
-        message: `Assign your ${count} picked task${count === 1 ? "" : "s"} to a time block.`,
+        message: `Start your first of ${n} planned block${n === 1 ? "" : "s"}.`,
         ctaLabel: "Open Blocks",
         ctaHref: "/blocks",
       };
     }
     case "home":
       return {
-        message: flow.counts.activeBlocks > 0
-          ? "Open focus mode and start the timer."
-          : "Start your focus block.",
+        message:
+          flow.counts.activeBlocks > 0
+            ? "A block is running — open focus mode."
+            : "Start your focus block.",
         ctaLabel: "Go to Home",
         ctaHref: "/",
       };
