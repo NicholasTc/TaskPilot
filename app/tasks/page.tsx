@@ -310,9 +310,7 @@ export default function TasksLibraryPage() {
         </p>
       ) : null}
       <header className="anim mb-6">
-        <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">
-          Tasks
-        </h1>
+        <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Tasks</h1>
         <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
           Dump what you need to do. The planner uses priority, due date, and
           estimated minutes to build your schedule — fill in what you know.

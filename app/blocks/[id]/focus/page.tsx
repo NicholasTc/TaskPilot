@@ -427,7 +427,7 @@ export default function FocusModePage() {
                 opacity: isSaving ? 0.6 : 1,
               }}
             >
-              End block
+              Finish
             </button>
           </div>
 

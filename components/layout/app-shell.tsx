@@ -17,6 +17,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
   const isHomeActive = pathname === "/";
   const isTasksActive = pathname.startsWith("/tasks");
+  const isBlocksActive = pathname.startsWith("/blocks");
   const isInFlow =
     pathname.startsWith("/tasks") ||
     pathname.startsWith("/blocks") ||
@@ -129,6 +130,16 @@ export function AppShell({ children }: PropsWithChildren) {
               }}
             >
               Tasks
+            </Link>
+            <Link
+              href="/blocks"
+              className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
+              style={{
+                color: isBlocksActive ? "var(--accent)" : "var(--text-2)",
+                background: isBlocksActive ? "var(--accent-soft)" : "transparent",
+              }}
+            >
+              Study Blocks
             </Link>
           </div>
 

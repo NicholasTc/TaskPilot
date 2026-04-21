@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Task } from "@/types/task";
 import { NextActionBanner } from "@/components/layout/next-action-banner";
 import { AutoPlanError, runAutoPlan } from "@/lib/plan-client";
@@ -45,6 +45,25 @@ function addDays(date: Date, amount: number) {
   const next = new Date(date);
   next.setDate(next.getDate() + amount);
   return next;
+}
+
+function parseDayKey(dayKey: string | null): Date | null {
+  if (!dayKey) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey);
+  if (!match) return null;
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const date = new Date(year, month - 1, day);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
 }
 
 function formatDateLabel(date: Date) {
@@ -101,7 +120,11 @@ function formatDurationLabel(minutes: number) {
 
 export default function BlocksPage() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const searchParams = useSearchParams();
+  const requestedDayKey = searchParams.get("day");
+  const [selectedDate, setSelectedDate] = useState(
+    () => parseDayKey(requestedDayKey) ?? new Date(),
+  );
   const [blocks, setBlocks] = useState<StudyBlock[]>([]);
   const [tasksByStatus, setTasksByStatus] = useState<Record<BoardStatus, BoardTask[]>>({
     backlog: [],
@@ -193,6 +216,14 @@ export default function BlocksPage() {
       setIsLoading(false);
     }
   }, [dayKey, redirectToLogin]);
+
+  useEffect(() => {
+    const parsedDate = parseDayKey(requestedDayKey);
+    if (!parsedDate) return;
+    setSelectedDate((current) =>
+      toLocalDayKey(current) === toLocalDayKey(parsedDate) ? current : parsedDate,
+    );
+  }, [requestedDayKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -589,7 +620,7 @@ export default function BlocksPage() {
                 className="h-[32px] rounded-[8px] px-3 text-[0.8rem] font-medium text-white"
                 style={{ background: "rgba(255,255,255,0.16)" }}
               >
-                End block
+                Finish
               </button>
             </div>
           </div>
