@@ -147,6 +147,12 @@ export type PlanDayInput = {
    */
   today: string;
   /**
+   * Optional local minute-of-day cursor (0-1439) for `today`.
+   * When provided, new "planned" sessions for `today` will not be placed
+   * into slots that start before this cursor.
+   */
+  todayCursorMinutes?: number;
+  /**
    * Blocks that already exist and must not move (e.g. an active or done
    * session from an earlier plan). Their time slots are reserved and their
    * minutes count toward their parent task's scheduled total, so re-running

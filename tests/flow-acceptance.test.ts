@@ -157,19 +157,18 @@ test("today (blocks) page surfaces the planner's placement reason for the next b
 
 // ---------- Planner-behavior guards (preserved from prior stage) ----------
 
-test("today (blocks) page no longer renders the manual 'Add new block' UI", () => {
+test("today (blocks) page does not regress to the legacy 'Add new block' / 'Create block' CTAs", () => {
+  // The dump-and-go flow removed those specific labels. The current
+  // calendar-driven Add Block UX uses different language ("Add a block",
+  // "Add block") and a popover form, so the legacy strings must stay gone.
   const source = read("app/blocks/page.tsx");
   assert.ok(
     !/Add new block/.test(source),
-    "today page must not render the old 'Add new block' CTA in the dump-and-go flow",
+    "today page must not render the old 'Add new block' CTA",
   );
   assert.ok(
     !/Create block/.test(source),
     "today page must not render the 'Create block' submit button",
-  );
-  assert.ok(
-    !/handleCreateBlock/.test(source),
-    "today page must not keep the handleCreateBlock handler",
   );
 });
 

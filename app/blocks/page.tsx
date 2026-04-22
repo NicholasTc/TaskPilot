@@ -4,9 +4,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Task } from "@/types/task";
 import { AutoPlanError, runAutoPlan } from "@/lib/plan-client";
+import { DayCalendar, type CalendarBlock } from "@/components/today/day-calendar";
+import {
+  BlockFormPopover,
+  type BlockFormSubmitPayload,
+  type BlockFormTaskOption,
+} from "@/components/today/block-form-popover";
 
 type BlockStatus = "planned" | "active" | "done";
 type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
+type LiveBlockStatus = "upcoming" | "active" | "completed" | "missed";
 
 type StudyBlock = {
   id: string;
@@ -21,6 +28,10 @@ type StudyBlock = {
   effectiveRemainingSeconds?: number;
   runningSince?: string | null;
   reason?: string;
+};
+
+type EffectiveStudyBlock = StudyBlock & {
+  liveStatus: LiveBlockStatus;
 };
 
 type BoardTask = Task & {
@@ -77,6 +88,14 @@ function formatShortDate(date: Date) {
     weekday: "short",
     month: "short",
     day: "numeric",
+  }).format(date);
+}
+
+function formatCurrentTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
   }).format(date);
 }
 
@@ -146,17 +165,24 @@ export default function TodayPage() {
   const [editPopoverBlockId, setEditPopoverBlockId] = useState<string | null>(null);
   const [editDraftTitle, setEditDraftTitle] = useState("");
   const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
-  const [hideFinishedBlocks, setHideFinishedBlocks] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [handledMissedBlockIds, setHandledMissedBlockIds] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
+  const [addBlockStartMinutes, setAddBlockStartMinutes] = useState<number>(0);
+  const [isCreatingBlock, setIsCreatingBlock] = useState(false);
+  const [createBlockError, setCreateBlockError] = useState<string | null>(null);
+  const [isClearingDay, setIsClearingDay] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
 
   const dayKey = useMemo(() => toLocalDayKey(selectedDate), [selectedDate]);
-  const todayKey = useMemo(() => toLocalDayKey(new Date()), []);
+  const todayKey = useMemo(() => toLocalDayKey(new Date(nowMs)), [nowMs]);
   const isToday = dayKey === todayKey;
 
   const longDateLabel = useMemo(() => formatLongDate(selectedDate), [selectedDate]);
   const shortDateLabel = useMemo(() => formatShortDate(selectedDate), [selectedDate]);
+  const currentTimeLabel = useMemo(() => formatCurrentTime(new Date(nowMs)), [nowMs]);
 
   const redirectToLogin = useCallback(() => {
     router.replace("/login");
@@ -219,24 +245,51 @@ export default function TodayPage() {
     return () => window.clearTimeout(timer);
   }, [successMessage]);
 
+  const effectiveBlocks = useMemo<EffectiveStudyBlock[]>(
+    () =>
+      blocks.map((block) => ({
+        ...block,
+        liveStatus: deriveLiveBlockStatus({
+          block,
+          nowMs,
+          isToday,
+        }),
+      })),
+    [blocks, nowMs, isToday],
+  );
+
   const activeBlock = useMemo(
-    () => blocks.find((block) => block.status === "active") ?? null,
+    () => effectiveBlocks.find((block) => block.liveStatus === "active") ?? null,
+    [effectiveBlocks],
+  );
+
+  const runningPersistedActiveBlock = useMemo(
+    () =>
+      blocks.find(
+        (block) => block.status === "active" && block.timerState === "running",
+      ) ?? null,
     [blocks],
   );
 
   useEffect(() => {
-    if (!activeBlock || activeBlock.timerState !== "running") return;
-    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    if (!isToday) return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30_000);
     return () => window.clearInterval(interval);
-  }, [activeBlock]);
+  }, [isToday]);
 
   useEffect(() => {
-    if (!activeBlock || activeBlock.timerState !== "running") return;
+    if (!isToday || !activeBlock || activeBlock.liveStatus !== "active") return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeBlock, isToday]);
+
+  useEffect(() => {
+    if (!runningPersistedActiveBlock) return;
     const interval = window.setInterval(() => {
       void loadData();
     }, 15000);
     return () => window.clearInterval(interval);
-  }, [activeBlock, loadData]);
+  }, [runningPersistedActiveBlock, loadData]);
 
   const allTasksForDay = useMemo(
     () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
@@ -251,28 +304,63 @@ export default function TodayPage() {
     [allTasksForDay],
   );
 
-  const doneCount = blocks.filter((block) => block.status === "done").length;
-  const nextPlannedBlock = blocks.find((block) => block.status === "planned") ?? null;
-  const heroBlock = activeBlock ?? nextPlannedBlock;
+  const doneCount = effectiveBlocks.filter((block) => block.liveStatus === "completed").length;
+  const nextUpcomingBlock =
+    effectiveBlocks.find((block) => block.liveStatus === "upcoming") ?? null;
+  const firstMissedBlock =
+    effectiveBlocks.find((block) => block.liveStatus === "missed") ?? null;
+  const heroBlock = activeBlock ?? nextUpcomingBlock ?? firstMissedBlock;
+  const hasPersistedActiveBlock = activeBlock?.status === "active";
+  const nextCount = activeBlock || nextUpcomingBlock ? 1 : 0;
+
+  const handledMissedBlockIdSet = useMemo(
+    () => new Set(handledMissedBlockIds),
+    [handledMissedBlockIds],
+  );
+  const missedPromptBlock = useMemo(
+    () =>
+      effectiveBlocks.find(
+        (block) =>
+          block.liveStatus === "missed" && !handledMissedBlockIdSet.has(block.id),
+      ) ?? null,
+    [effectiveBlocks, handledMissedBlockIdSet],
+  );
+
+  const markMissedBlockHandled = useCallback((blockId: string) => {
+    setHandledMissedBlockIds((current) =>
+      current.includes(blockId) ? current : [...current, blockId],
+    );
+  }, []);
 
   const activeBlockRemainingSeconds = useMemo(() => {
     if (!activeBlock) return 0;
-    const baseRemaining =
-      activeBlock.effectiveRemainingSeconds ?? activeBlock.remainingSeconds ?? activeBlock.durationMin * 60;
+    if (activeBlock.status === "active") {
+      const baseRemaining =
+        activeBlock.effectiveRemainingSeconds ??
+        activeBlock.remainingSeconds ??
+        activeBlock.durationMin * 60;
 
-    if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
-      return Math.max(0, Math.floor(baseRemaining));
+      if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
+        return Math.max(0, Math.floor(baseRemaining));
+      }
+
+      const runningSinceMs = new Date(activeBlock.runningSince).getTime();
+      const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
+      const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
+      return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
     }
 
-    const runningSinceMs = new Date(activeBlock.runningSince).getTime();
-    const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
-    const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
-    return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
+    const nowMinutes = minutesSinceMidnight(new Date(nowMs));
+    const endMinutes = activeBlock.startMinutes + activeBlock.durationMin;
+    return Math.max(0, (endMinutes - nowMinutes) * 60);
   }, [activeBlock, nowMs]);
 
   const focusedMinutes = useMemo(
-    () => blocks.filter((block) => block.status === "done").reduce((sum, block) => sum + block.durationMin, 0),
-    [blocks],
+    () =>
+      effectiveBlocks
+        .filter((block) => block.liveStatus === "completed")
+        .reduce((sum, block) => sum + block.durationMin, 0),
+    [effectiveBlocks],
   );
   const heroStartTime = heroBlock ? toHumanTime(heroBlock.startMinutes) : "";
   const heroEndTime = heroBlock ? toHumanTime(heroBlock.startMinutes + heroBlock.durationMin) : "";
@@ -282,27 +370,79 @@ export default function TodayPage() {
   const progressPct = blocks.length > 0 ? Math.round((doneCount / blocks.length) * 100) : 0;
   const pageTitle = "Your day";
 
-  const handleReplan = useCallback(async () => {
-    if (isPlanning) return;
+  const getReplanOptions = useCallback(() => {
+    const options: Parameters<typeof runAutoPlan>[0] = { today: dayKey };
+    if (isToday) {
+      const now = new Date(nowMs);
+      const currentHour = now.getHours();
+      options.todayCursorMinutes = minutesSinceMidnight(now);
+
+      // Replan should still be useful late in the day:
+      // anchor today's slots from the current hour and allow planning
+      // through 11 PM.
+      if (currentHour < 23) {
+        options.settings = {
+          dayStartHour: currentHour,
+          dayEndHour: 23,
+        };
+      }
+    }
+    return options;
+  }, [dayKey, isToday, nowMs]);
+
+  const handleReplan = useCallback(async (): Promise<boolean> => {
+    if (isPlanning) return false;
     setIsPlanning(true);
     setErrorMessage(null);
     try {
-      await runAutoPlan();
+      await runAutoPlan(getReplanOptions());
       await loadData();
       setSuccessMessage("Plan refreshed.");
+      return true;
     } catch (error) {
       console.error("Re-plan failed", error);
       if (error instanceof AutoPlanError && error.status === 401) {
         redirectToLogin();
-        return;
+        return false;
       }
       const message =
         error instanceof AutoPlanError ? error.message : "Could not refresh the plan.";
       setErrorMessage(message);
+      return false;
     } finally {
       setIsPlanning(false);
     }
-  }, [isPlanning, loadData, redirectToLogin]);
+  }, [getReplanOptions, isPlanning, loadData, redirectToLogin]);
+
+  const handleIgnoreMissedBlock = useCallback(
+    (blockId: string) => {
+      markMissedBlockHandled(blockId);
+      setSuccessMessage("Missed block kept as-is.");
+    },
+    [markMissedBlockHandled],
+  );
+
+  const handleRescheduleMissedBlock = useCallback(
+    (blockId: string) => {
+      markMissedBlockHandled(blockId);
+      // Intentional stub: this is a dedicated entry point for future
+      // reschedule UX without auto-mutating persisted block times.
+      setErrorMessage(
+        "Reschedule flow is coming next. For now, use Replan my day to adjust the schedule.",
+      );
+    },
+    [markMissedBlockHandled],
+  );
+
+  const handleReplanMissedBlock = useCallback(
+    async (blockId: string) => {
+      const didReplan = await handleReplan();
+      if (didReplan) {
+        markMissedBlockHandled(blockId);
+      }
+    },
+    [handleReplan, markMissedBlockHandled],
+  );
 
   const handleSkipBlock = useCallback(
     async (blockId: string) => {
@@ -319,7 +459,7 @@ export default function TodayPage() {
         }
         if (!deleteResponse.ok) throw new Error("Unable to delete block");
 
-        await runAutoPlan();
+        await runAutoPlan(getReplanOptions());
         await loadData();
         setSuccessMessage("Skipped. Plan updated.");
       } catch (error) {
@@ -335,7 +475,7 @@ export default function TodayPage() {
         setSkippingBlockId(null);
       }
     },
-    [loadData, redirectToLogin, skippingBlockId],
+    [getReplanOptions, loadData, redirectToLogin, skippingBlockId],
   );
 
   const handleStartBlock = async (blockId: string) => {
@@ -417,7 +557,7 @@ export default function TodayPage() {
         }
         if (!deleteResponse.ok) throw new Error("Unable to delete block");
 
-        await runAutoPlan();
+        await runAutoPlan(getReplanOptions());
         await loadData();
         setEditPopoverBlockId(null);
         setSuccessMessage("Block deleted.");
@@ -434,7 +574,7 @@ export default function TodayPage() {
         setDeletingBlockId(null);
       }
     },
-    [deletingBlockId, loadData, redirectToLogin],
+    [deletingBlockId, getReplanOptions, loadData, redirectToLogin],
   );
 
   const handleOpenEditPopover = useCallback((block: StudyBlock) => {
@@ -485,6 +625,188 @@ export default function TodayPage() {
     [deletingBlockId, editDraftTitle, editingBlockId, handleCloseEditPopover, loadData, redirectToLogin],
   );
 
+  /**
+   * Snap a candidate start minute to the next available 15-minute slot
+   * that doesn't overlap any existing block. Used as the default for the
+   * "Add a block" button when the user opens it without clicking the
+   * calendar.
+   */
+  const findNextFreeStartMinutes = useCallback(
+    (preferredStart: number, durationMin = 60): number => {
+      const sorted = [...blocks].sort((a, b) => a.startMinutes - b.startMinutes);
+      const horizonEnd = 24 * 60;
+      let cursor = Math.max(0, Math.min(preferredStart, horizonEnd - durationMin));
+      cursor = Math.round(cursor / 15) * 15;
+
+      const fits = (start: number) =>
+        start + durationMin <= horizonEnd &&
+        !sorted.some((block) => start < block.startMinutes + block.durationMin && block.startMinutes < start + durationMin);
+
+      while (cursor + durationMin <= horizonEnd) {
+        if (fits(cursor)) return cursor;
+        const collision = sorted.find(
+          (block) =>
+            cursor < block.startMinutes + block.durationMin &&
+            block.startMinutes < cursor + durationMin,
+        );
+        if (!collision) return cursor;
+        cursor = Math.round((collision.startMinutes + collision.durationMin) / 15) * 15;
+      }
+      return Math.max(0, Math.min(preferredStart, horizonEnd - durationMin));
+    },
+    [blocks],
+  );
+
+  const openAddBlockAt = useCallback(
+    (startMinutes: number) => {
+      setAddBlockStartMinutes(findNextFreeStartMinutes(startMinutes));
+      setCreateBlockError(null);
+      setIsAddBlockOpen(true);
+    },
+    [findNextFreeStartMinutes],
+  );
+
+  const openAddBlockFromHeader = useCallback(() => {
+    const baseline = isToday ? minutesSinceMidnight(new Date(nowMs)) : 9 * 60;
+    openAddBlockAt(baseline);
+  }, [isToday, nowMs, openAddBlockAt]);
+
+  const handleCreateBlock = useCallback(
+    async (payload: BlockFormSubmitPayload) => {
+      if (isCreatingBlock) return;
+      setIsCreatingBlock(true);
+      setCreateBlockError(null);
+      try {
+        const response = await fetch(`/api/blocks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dayKey,
+            title: payload.title,
+            startMinutes: payload.startMinutes,
+            durationMin: payload.durationMin,
+            activeTaskId: payload.activeTaskId,
+          }),
+        });
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!response.ok) {
+          const errorPayload = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
+          if (errorPayload.code === "BLOCK_OVERLAP") {
+            setCreateBlockError("That time overlaps another block. Pick a different start.");
+          } else {
+            setCreateBlockError(errorPayload.error ?? "Could not add block.");
+          }
+          return;
+        }
+        await loadData();
+        setIsAddBlockOpen(false);
+        setSuccessMessage("Block added.");
+      } catch (error) {
+        console.error("Add block failed", error);
+        setCreateBlockError("Could not add block.");
+      } finally {
+        setIsCreatingBlock(false);
+      }
+    },
+    [dayKey, isCreatingBlock, loadData, redirectToLogin],
+  );
+
+  /**
+   * Bulk-delete every block on the current day. Done in parallel against
+   * the existing per-block DELETE endpoint so we don't have to introduce a
+   * dedicated bulk route. The confirm dialog is intentionally explicit
+   * because this is destructive and irreversible.
+   */
+  const handleClearDay = useCallback(async () => {
+    if (isClearingDay || blocks.length === 0) return;
+    const confirmMessage = `Delete all ${blocks.length} block${blocks.length === 1 ? "" : "s"} for ${shortDateLabel}? This cannot be undone.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsClearingDay(true);
+    setErrorMessage(null);
+    try {
+      const results = await Promise.all(
+        blocks.map((block) =>
+          fetch(`/api/blocks/${block.id}`, { method: "DELETE" }).then((response) => ({
+            ok: response.ok || response.status === 404,
+            status: response.status,
+          })),
+        ),
+      );
+      if (results.some((result) => result.status === 401)) {
+        redirectToLogin();
+        return;
+      }
+      if (results.some((result) => !result.ok)) {
+        throw new Error("Some blocks could not be deleted.");
+      }
+      await loadData();
+      setSuccessMessage("All blocks cleared for the day.");
+    } catch (error) {
+      console.error("Clear day failed", error);
+      setErrorMessage("Could not clear all blocks. Please try again.");
+    } finally {
+      setIsClearingDay(false);
+    }
+  }, [blocks, isClearingDay, loadData, redirectToLogin, shortDateLabel]);
+
+  const handleSwapBlocks = useCallback(
+    async (blockAId: string, blockBId: string) => {
+      if (isSwapping || blockAId === blockBId) return;
+      setIsSwapping(true);
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`/api/blocks/swap`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blockAId, blockBId }),
+        });
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!response.ok) {
+          const errorPayload = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(errorPayload.error ?? "Swap failed.");
+        }
+        await loadData();
+        setSuccessMessage("Blocks swapped.");
+      } catch (error) {
+        console.error("Swap blocks failed", error);
+        setErrorMessage(error instanceof Error ? error.message : "Could not swap blocks.");
+      } finally {
+        setIsSwapping(false);
+      }
+    },
+    [isSwapping, loadData, redirectToLogin],
+  );
+
+  const calendarBlocks = useMemo<CalendarBlock[]>(
+    () =>
+      effectiveBlocks.map((block) => ({
+        id: block.id,
+        title: block.title,
+        startMinutes: block.startMinutes,
+        durationMin: block.durationMin,
+        liveStatus: block.liveStatus,
+        isFocusActive: block.status === "active",
+        taskCount: getBlockTasks(block.id).length,
+        isLocked: block.liveStatus === "completed",
+      })),
+    [effectiveBlocks, getBlockTasks],
+  );
+
+  const taskOptionsForForm = useMemo<BlockFormTaskOption[]>(
+    () =>
+      allTasksForDay
+        .filter((task) => task.status !== "done")
+        .map((task) => ({ id: task.id, name: task.name })),
+    [allTasksForDay],
+  );
+
   return (
     <div className="mx-auto w-full max-w-[880px]">
       <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
@@ -493,7 +815,7 @@ export default function TodayPage() {
             className="text-[0.74rem] font-semibold uppercase tracking-[0.08em]"
             style={{ color: "var(--text-3)" }}
           >
-            {isToday ? `Today · ${longDateLabel}` : longDateLabel}
+            {isToday ? `Today · ${longDateLabel} · ${currentTimeLabel}` : longDateLabel}
           </p>
           <h1 className="mt-1.5 text-[2.1rem] font-bold leading-[1.05] tracking-[-0.035em]">{pageTitle}</h1>
           <p className="mt-1.5 max-w-[500px] text-[0.95rem]" style={{ color: "var(--text-2)" }}>
@@ -560,6 +882,60 @@ export default function TodayPage() {
         </p>
       ) : null}
 
+      {missedPromptBlock ? (
+        <section
+          className="mb-4 rounded-[14px] border px-4 py-3"
+          style={{
+            background: "var(--danger-soft)",
+            borderColor: "var(--danger)",
+            boxShadow: "var(--shadow-sm)",
+          }}
+        >
+          <p className="text-[0.86rem] font-semibold" style={{ color: "var(--danger)" }}>
+            You missed this block. Want to adjust your schedule?
+          </p>
+          <p className="mt-1 text-[0.8rem]" style={{ color: "var(--text-2)" }}>
+            {missedPromptBlock.title} · {toHumanTime(missedPromptBlock.startMinutes)} -{" "}
+            {toHumanTime(missedPromptBlock.startMinutes + missedPromptBlock.durationMin)}
+          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleReplanMissedBlock(missedPromptBlock.id)}
+              disabled={isPlanning}
+              className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.79rem] font-semibold text-white disabled:opacity-60"
+              style={{ background: "var(--accent)" }}
+            >
+              {isPlanning ? "Replanning..." : "Replan my day"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRescheduleMissedBlock(missedPromptBlock.id)}
+              className="inline-flex h-[34px] items-center rounded-[9px] border px-3 text-[0.79rem] font-semibold"
+              style={{
+                borderColor: "var(--line)",
+                color: "var(--text-2)",
+                background: "var(--surface-solid)",
+              }}
+            >
+              Reschedule this task
+            </button>
+            <button
+              type="button"
+              onClick={() => handleIgnoreMissedBlock(missedPromptBlock.id)}
+              className="inline-flex h-[34px] items-center rounded-[9px] border px-3 text-[0.79rem] font-semibold"
+              style={{
+                borderColor: "var(--line)",
+                color: "var(--text-2)",
+                background: "transparent",
+              }}
+            >
+              Ignore
+            </button>
+          </div>
+        </section>
+      ) : null}
+
       {!isLoading && blocks.length > 0 ? (
         <section className="anim anim-d1 mb-6">
           <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
@@ -569,7 +945,7 @@ export default function TodayPage() {
               </span>
               <span style={{ color: "var(--text-3)" }}>·</span>
               <span>
-                <strong style={{ color: "var(--accent)" }}>{heroBlock ? 1 : 0}</strong> next
+                <strong style={{ color: "var(--accent)" }}>{nextCount}</strong> next
               </span>
               <span style={{ color: "var(--text-3)" }}>·</span>
               <span>
@@ -584,16 +960,18 @@ export default function TodayPage() {
             className="grid h-2 gap-1"
             style={{ gridTemplateColumns: `repeat(${Math.max(1, blocks.length)}, minmax(0, 1fr))` }}
           >
-            {blocks.map((block) => {
-              const isNext = heroBlock?.id === block.id && block.status !== "done";
+            {effectiveBlocks.map((block) => {
+              const isNext = heroBlock?.id === block.id && block.liveStatus !== "completed";
               return (
                 <span
                   key={`meter-${block.id}`}
                   className="rounded-full"
                   style={{
                     background:
-                      block.status === "done"
+                      block.liveStatus === "completed"
                         ? "var(--done)"
+                        : block.liveStatus === "missed"
+                          ? "var(--danger)"
                         : isNext
                           ? "var(--accent)"
                           : "var(--line)",
@@ -633,12 +1011,16 @@ export default function TodayPage() {
             <div className="relative">
               <p className="inline-flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] opacity-85">
                 <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                {activeBlock ? "In progress" : "Next up"}
+                {activeBlock
+                  ? "In progress"
+                  : heroBlock?.liveStatus === "missed"
+                    ? "Missed"
+                    : "Next up"}
               </p>
             </div>
             <div className="relative mt-[18px]">
               <p className="whitespace-nowrap text-[2.6rem] font-[800] leading-none tracking-[-0.04em] tabular-nums">
-                {activeBlock ? (
+                {hasPersistedActiveBlock ? (
                   formatClock(activeBlockRemainingSeconds)
                 ) : (
                   <>
@@ -648,7 +1030,7 @@ export default function TodayPage() {
                 )}
               </p>
               <p className="mt-1.5 text-[0.86rem] opacity-90">
-                {activeBlock ? (
+                {hasPersistedActiveBlock ? (
                   `${heroStartTime} – ${heroEndTime}`
                 ) : (
                   <>
@@ -659,9 +1041,16 @@ export default function TodayPage() {
             </div>
             <span
               className="relative mt-[18px] inline-block self-start rounded-full px-2.5 py-1 text-[0.74rem] font-semibold"
-              style={{ background: "rgba(255,255,255,0.18)" }}
+              style={{
+                background:
+                  heroBlock.liveStatus === "missed"
+                    ? "rgba(255, 59, 48, 0.18)"
+                    : "rgba(255,255,255,0.18)",
+              }}
             >
-              {activeBlock ? formatDurationLabel(heroBlock.durationMin) : `${formatDurationLabel(heroBlock.durationMin)} block`}
+              {hasPersistedActiveBlock
+                ? formatDurationLabel(heroBlock.durationMin)
+                : `${formatDurationLabel(heroBlock.durationMin)} block`}
             </span>
           </aside>
 
@@ -731,7 +1120,7 @@ export default function TodayPage() {
             </ul>
 
             <div className="relative mt-6 flex flex-wrap items-center gap-4">
-              {activeBlock ? (
+              {hasPersistedActiveBlock ? (
                 <>
                   <button
                     type="button"
@@ -785,6 +1174,34 @@ export default function TodayPage() {
                     {deletingBlockId === heroBlock.id ? "Deleting..." : "Delete"}
                   </button>
                 </>
+              ) : heroBlock.liveStatus === "missed" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleReplanMissedBlock(heroBlock.id)}
+                    disabled={isPlanning}
+                    className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 14px rgba(0,122,255,0.28)" }}
+                  >
+                    {isPlanning ? "Replanning..." : "Replan my day"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRescheduleMissedBlock(heroBlock.id)}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Reschedule this task
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleIgnoreMissedBlock(heroBlock.id)}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Ignore
+                  </button>
+                </>
               ) : (
                 <>
                   <button
@@ -830,7 +1247,7 @@ export default function TodayPage() {
             </div>
           </div>
         </section>
-      ) : blocks.length > 0 ? (
+      ) : blocks.length > 0 && doneCount === blocks.length ? (
         <section
           className="anim anim-d2 mb-8 rounded-[18px] border px-7 py-8 text-center"
           style={{ background: "var(--done-soft)", borderColor: "var(--done)", boxShadow: "var(--shadow-sm)" }}
@@ -861,188 +1278,23 @@ export default function TodayPage() {
         </section>
       )}
 
-      {!isLoading && blocks.length > 0 ? (
-        <section className="anim anim-d3">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h3 className="text-[0.74rem] font-semibold uppercase tracking-[0.08em]" style={{ color: "var(--text-3)" }}>
-              Today&apos;s flow
-            </h3>
-            <button
-              type="button"
-              onClick={() => setHideFinishedBlocks((prev) => !prev)}
-              className="rounded-full border px-2.5 py-1 text-[0.72rem] font-medium transition-colors"
-              style={{
-                borderColor: "var(--line)",
-                background: hideFinishedBlocks ? "var(--surface-hover)" : "transparent",
-                color: "var(--text-2)",
-              }}
-            >
-              {hideFinishedBlocks ? "Show finished" : "Hide finished"}
-            </button>
-          </div>
-          <ol className="relative space-y-1">
-            <span
-              aria-hidden
-              className="pointer-events-none absolute bottom-3 left-[79px] top-3 w-px"
-              style={{ background: "var(--line)" }}
-            />
-            {blocks
-              .filter((block) => !(hideFinishedBlocks && block.status === "done"))
-              .map((block) => {
-              const isDone = block.status === "done";
-              const isNext = heroBlock?.id === block.id && !isDone;
-              const blockTasks = getBlockTasks(block.id);
-              const metaLabel =
-                blockTasks.length > 0
-                  ? `${blockTasks.length} task${blockTasks.length === 1 ? "" : "s"} · ${formatDurationLabel(block.durationMin)}`
-                  : `Flexible block · ${formatDurationLabel(block.durationMin)}`;
-
-              return (
-                <li
-                  key={block.id}
-                  className="grid grid-cols-[72px_16px_1fr] items-center gap-4 py-1.5"
-                >
-                  <span
-                    className="text-right text-[0.84rem] font-semibold tabular-nums"
-                    style={{ color: isNext ? "var(--accent)" : isDone ? "var(--text-3)" : "var(--text-2)" }}
-                  >
-                    {toHumanTime(block.startMinutes)}
-                  </span>
-
-                  <span
-                    className="relative z-[1] grid h-4 w-4 place-items-center rounded-full"
-                    style={{
-                      background: isDone ? "var(--done)" : isNext ? "var(--accent)" : "var(--surface-solid)",
-                      border: isDone || isNext ? "none" : "2px solid var(--line-strong)",
-                      boxShadow: isNext ? "0 0 0 4px var(--accent-soft)" : "none",
-                      color: "#fff",
-                    }}
-                  >
-                    {isDone ? (
-                      <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="currentColor">
-                        <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                      </svg>
-                    ) : null}
-                  </span>
-
-                  <article
-                    className={`group rounded-[14px] border px-4 ${editPopoverBlockId === block.id ? "py-3.5" : "flex items-center justify-between gap-3 py-3"}`}
-                    style={{
-                      background: isDone
-                        ? "transparent"
-                        : isNext
-                          ? "linear-gradient(to right, var(--accent-soft) 0%, var(--surface-solid) 60%)"
-                          : "var(--surface-solid)",
-                      borderColor: editPopoverBlockId === block.id
-                        ? "var(--accent)"
-                        : isDone ? "var(--line)" : isNext ? "var(--accent-soft)" : "var(--line)",
-                      borderStyle: isDone ? "dashed" : "solid",
-                      boxShadow: isDone ? "none" : "var(--shadow-sm)",
-                    }}
-                  >
-                    {editPopoverBlockId === block.id ? (
-                      <div className="w-full">
-                        <input
-                          value={editDraftTitle}
-                          onChange={(e) => setEditDraftTitle(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") void handleEditBlock(block.id);
-                            if (e.key === "Escape") handleCloseEditPopover();
-                          }}
-                          className="w-full rounded-[8px] border px-2.5 py-1.5 text-[0.94rem] font-semibold outline-none"
-                          style={{ borderColor: "var(--accent)", background: "var(--surface-hover)", color: "var(--text)" }}
-                          autoFocus
-                        />
-                        {editErrorMessage ? (
-                          <p className="mt-1 text-[0.72rem]" style={{ color: "var(--danger)" }}>
-                            {editErrorMessage}
-                          </p>
-                        ) : null}
-                        <div className="mt-2 flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void handleEditBlock(block.id)}
-                            disabled={editingBlockId === block.id}
-                            className="h-7 rounded-[7px] px-3 text-[0.76rem] font-semibold text-white disabled:opacity-55"
-                            style={{ background: "var(--accent)" }}
-                          >
-                            {editingBlockId === block.id ? "Saving..." : "Save"}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCloseEditPopover}
-                            className="h-7 rounded-[7px] border px-2.5 text-[0.76rem] font-medium"
-                            style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="min-w-0">
-                          <p
-                            className="truncate text-[0.94rem] font-semibold"
-                            style={{
-                              color: isDone ? "var(--text-2)" : "var(--text)",
-                              textDecoration: isDone ? "line-through" : "none",
-                            }}
-                          >
-                            {block.title}
-                            {isNext ? (
-                              <span
-                                className="ml-2 rounded-full px-2 py-[2px] align-middle text-[0.64rem] font-bold uppercase tracking-[0.06em]"
-                                style={{ color: "var(--accent)", background: "var(--accent-soft)" }}
-                              >
-                                Now next
-                              </span>
-                            ) : null}
-                          </p>
-                          <p className="mt-0.5 text-[0.78rem]" style={{ color: "var(--text-2)" }}>
-                            {metaLabel}
-                          </p>
-                        </div>
-                        {!isDone ? (
-                          <div className="flex items-center gap-2">
-                            {!isNext ? (
-                              <button
-                                type="button"
-                                onClick={() => void handleSkipBlock(block.id)}
-                                disabled={
-                                  isPlanning ||
-                                  skippingBlockId === block.id ||
-                                  deletingBlockId === block.id
-                                }
-                                className="text-[0.78rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
-                              >
-                                {skippingBlockId === block.id ? "Skipping…" : "Skip"}
-                              </button>
-                            ) : null}
-                            <button
-                              type="button"
-                              onClick={() => handleOpenEditPopover(block)}
-                              disabled={editingBlockId === block.id || deletingBlockId === block.id}
-                              className="text-[0.78rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => void handleDeleteBlock(block)}
-                              disabled={deletingBlockId === block.id || editingBlockId === block.id}
-                              className="text-[0.78rem] font-medium text-[var(--text-3)] opacity-0 transition group-hover:opacity-100 disabled:opacity-55"
-                            >
-                              {deletingBlockId === block.id ? "Deleting..." : "Delete"}
-                            </button>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                  </article>
-                </li>
-              );
-            })}
-          </ol>
+      {!isLoading ? (
+        <section className="anim anim-d3 mb-6">
+          <DayCalendar
+            blocks={calendarBlocks}
+            nowMs={nowMs}
+            isToday={isToday}
+            selectedBlockId={editPopoverBlockId}
+            onSelectBlock={(id) => {
+              const target = blocks.find((block) => block.id === id);
+              if (target) handleOpenEditPopover(target);
+            }}
+            onSwapBlocks={handleSwapBlocks}
+            onCreateBlockAt={openAddBlockAt}
+            onAddBlockClick={openAddBlockFromHeader}
+            onClearDay={handleClearDay}
+            isClearingDay={isClearingDay}
+          />
         </section>
       ) : null}
 
@@ -1072,11 +1324,48 @@ export default function TodayPage() {
           </button>
         </span>
       </footer>
+
+      <BlockFormPopover
+        open={isAddBlockOpen}
+        initialStartMinutes={addBlockStartMinutes}
+        initialDurationMin={60}
+        taskOptions={taskOptionsForForm}
+        isSubmitting={isCreatingBlock}
+        errorMessage={createBlockError}
+        onCancel={() => {
+          setIsAddBlockOpen(false);
+          setCreateBlockError(null);
+        }}
+        onSubmit={handleCreateBlock}
+      />
     </div>
   );
 }
 
 function getBlockReason(block: StudyBlock) {
   return block.reason ?? "Planned around your current priority and focus window.";
+}
+
+function deriveLiveBlockStatus(args: {
+  block: StudyBlock;
+  nowMs: number;
+  isToday: boolean;
+}): LiveBlockStatus {
+  const { block, nowMs, isToday } = args;
+  if (block.status === "done") return "completed";
+  if (block.status === "active") return "active";
+  if (!isToday) return "upcoming";
+
+  const nowMinutes = minutesSinceMidnight(new Date(nowMs));
+  const startMinutes = block.startMinutes;
+  const endMinutes = block.startMinutes + block.durationMin;
+
+  if (nowMinutes < startMinutes) return "upcoming";
+  if (nowMinutes >= endMinutes) return "missed";
+  return "active";
+}
+
+function minutesSinceMidnight(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
 }
 

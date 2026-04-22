@@ -62,6 +62,17 @@ function formatEstimate(minutes: number | null | undefined): string | null {
   return remaining ? `${hours}h ${remaining}m` : `${hours}h`;
 }
 
+function toLocalDayKey(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function minutesSinceMidnight(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+
 export default function TasksLibraryPage() {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -238,7 +249,19 @@ export default function TasksLibraryPage() {
     setPlanError(null);
     setErrorMessage(null);
     try {
-      const result = await runAutoPlan();
+      const now = new Date();
+      const currentHour = now.getHours();
+      const result = await runAutoPlan({
+        today: toLocalDayKey(now),
+        todayCursorMinutes: minutesSinceMidnight(now),
+        settings:
+          currentHour < 23
+            ? {
+                dayStartHour: currentHour,
+                dayEndHour: 23,
+              }
+            : undefined,
+      });
       // Sync the local task list to whatever the server persisted so the
       // UI reflects bumps like backlog → planned immediately.
       setTasks(result.tasks);

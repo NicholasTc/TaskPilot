@@ -85,6 +85,15 @@ function parseTodayOverride(body: unknown): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
 }
 
+function parseTodayCursorMinutes(body: unknown): number | undefined {
+  if (!body || typeof body !== "object") return undefined;
+  const raw = (body as { todayCursorMinutes?: unknown }).todayCursorMinutes;
+  if (typeof raw !== "number" || !Number.isFinite(raw)) return undefined;
+  const rounded = Math.floor(raw);
+  if (rounded < 0 || rounded > 1439) return undefined;
+  return rounded;
+}
+
 export async function POST(request: NextRequest) {
   try {
     const userId = await getAuthUserIdFromCookies();
@@ -101,6 +110,7 @@ export async function POST(request: NextRequest) {
 
     const settings = mergeSettings(body);
     const today = parseTodayOverride(body) ?? todayDayKey();
+    const todayCursorMinutes = parseTodayCursorMinutes(body);
     const horizonEnd = addDays(today, Math.max(1, settings.planningHorizonDays) - 1);
 
     await connectToDatabase();
@@ -146,7 +156,13 @@ export async function POST(request: NextRequest) {
     const existingPlan = existingBlocksToGenerated(locked);
 
     // --- Step 3: Run the planner. ---
-    const result = planDay({ today, tasks, settings, existingPlan });
+    const result = planDay({
+      today,
+      tasks,
+      settings,
+      existingPlan,
+      todayCursorMinutes,
+    });
 
     // --- Step 4: Delete stale blocks that the new plan did not re-use. ---
     const deletions = computeDeletions(stalePlanned, result.blocks);
@@ -207,6 +223,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       today,
+      todayCursorMinutes: todayCursorMinutes ?? null,
       planningHorizonEnd: horizonEnd,
       settings,
       plan: persistedResult,

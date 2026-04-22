@@ -16,12 +16,15 @@ export type RunAutoPlanOptions = {
   settings?: Partial<PlannerSettings>;
   /** "YYYY-MM-DD" override for testing. Omit to use the server's local today. */
   today?: string;
+  /** Local minute-of-day cursor for "today" (0-1439). */
+  todayCursorMinutes?: number;
   /** AbortSignal for cancelable requests (e.g. on unmount). */
   signal?: AbortSignal;
 };
 
 export type RunAutoPlanResponse = {
   today: string;
+  todayCursorMinutes: number | null;
   planningHorizonEnd: string;
   settings: PlannerSettings;
   plan: PlanResult;
@@ -50,10 +53,13 @@ export class AutoPlanError extends Error {
 export async function runAutoPlan(
   options: RunAutoPlanOptions = {},
 ): Promise<RunAutoPlanResponse> {
-  const { settings, today, signal } = options;
+  const { settings, today, todayCursorMinutes, signal } = options;
   const body: Record<string, unknown> = {};
   if (settings) body.settings = settings;
   if (today) body.today = today;
+  if (typeof todayCursorMinutes === "number") {
+    body.todayCursorMinutes = Math.max(0, Math.min(1439, Math.floor(todayCursorMinutes)));
+  }
 
   const response = await fetch("/api/plan", {
     method: "POST",

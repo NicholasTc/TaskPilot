@@ -43,6 +43,7 @@ import type {
 export function planDay(input: PlanDayInput): PlanResult {
   const settings = mergeSettings(input.settings);
   const today = input.today;
+  const todayCursorMinutes = normalizeTodayCursorMinutes(input.todayCursorMinutes);
 
   // Step 1 — normalize
   const { workable, skipped, usedDefaultIds } = normalizeTasks(
@@ -106,7 +107,13 @@ export function planDay(input: PlanDayInput): PlanResult {
 
     for (let sIdx = 0; sIdx < sessions.length; sIdx += 1) {
       const sessionLength = sessions[sIdx];
-      const placement = findNextFreeSlot(horizon, takenByDay, slotsTemplate);
+      const placement = findNextFreeSlot({
+        horizon,
+        takenByDay,
+        slotsTemplate,
+        today,
+        todayCursorMinutes,
+      });
       if (!placement) {
         // No remaining capacity anywhere in the horizon for this or
         // subsequent sessions of this task.
@@ -288,14 +295,24 @@ function deriveSlotIndex(startTime: string): number {
   return hhmmToMinutes(startTime);
 }
 
-function findNextFreeSlot(
-  horizon: string[],
-  takenByDay: Map<string, Set<number>>,
-  slotsTemplate: DaySlot[],
-): { date: string; slot: DaySlot } | null {
+function findNextFreeSlot(args: {
+  horizon: string[];
+  takenByDay: Map<string, Set<number>>;
+  slotsTemplate: DaySlot[];
+  today: string;
+  todayCursorMinutes: number | null;
+}): { date: string; slot: DaySlot } | null {
+  const { horizon, takenByDay, slotsTemplate, today, todayCursorMinutes } = args;
   for (const date of horizon) {
     const taken = takenByDay.get(date)!;
     for (const slot of slotsTemplate) {
+      if (
+        todayCursorMinutes !== null &&
+        date === today &&
+        slot.startMinutes < todayCursorMinutes
+      ) {
+        continue;
+      }
       // A slot is free if neither its template index nor its
       // minute-of-day marker is already claimed.
       if (taken.has(slot.slotIndex) || taken.has(slot.startMinutes)) continue;
@@ -303,6 +320,13 @@ function findNextFreeSlot(
     }
   }
   return null;
+}
+
+function normalizeTodayCursorMinutes(value: number | undefined): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  const rounded = Math.floor(value);
+  if (rounded < 0 || rounded > 1439) return null;
+  return rounded;
 }
 
 function groupBy<T, K>(items: T[], key: (t: T) => K): Map<K, T[]> {
