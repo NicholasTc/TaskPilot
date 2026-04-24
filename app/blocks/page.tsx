@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Task } from "@/types/task";
 import { AutoPlanError, runAutoPlan } from "@/lib/plan-client";
@@ -142,7 +142,7 @@ function splitMeridiemLabel(timeLabel: string): { clock: string; meridiem: strin
   return { clock: clock ?? timeLabel, meridiem: meridiem ?? "" };
 }
 
-export default function TodayPage() {
+function BlocksPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requestedDayKey = searchParams.get("day");
@@ -175,6 +175,7 @@ export default function TodayPage() {
   const [createBlockError, setCreateBlockError] = useState<string | null>(null);
   const [isClearingDay, setIsClearingDay] = useState(false);
   const [isSwapping, setIsSwapping] = useState(false);
+  const [heroCarouselBlockId, setHeroCarouselBlockId] = useState<string | null>(null);
 
   const dayKey = useMemo(() => toLocalDayKey(selectedDate), [selectedDate]);
   const todayKey = useMemo(() => toLocalDayKey(new Date(nowMs)), [nowMs]);
@@ -309,8 +310,43 @@ export default function TodayPage() {
     effectiveBlocks.find((block) => block.liveStatus === "upcoming") ?? null;
   const firstMissedBlock =
     effectiveBlocks.find((block) => block.liveStatus === "missed") ?? null;
-  const heroBlock = activeBlock ?? nextUpcomingBlock ?? firstMissedBlock;
-  const hasPersistedActiveBlock = activeBlock?.status === "active";
+  const primaryHeroBlock = activeBlock ?? nextUpcomingBlock ?? firstMissedBlock;
+  const carouselBlocks = useMemo(
+    () => {
+      const incompleteBlocks = effectiveBlocks.filter((block) => block.liveStatus !== "completed");
+      return incompleteBlocks.length > 0 ? incompleteBlocks : effectiveBlocks;
+    },
+    [effectiveBlocks],
+  );
+  const fallbackHeroBlock = primaryHeroBlock ?? carouselBlocks[0] ?? null;
+  /** Prefer user shuffle selection when still valid; otherwise fall back without an effect (lint-safe). */
+  const resolvedHeroCarouselBlockId = useMemo(() => {
+    if (carouselBlocks.length === 0) return null;
+    if (heroCarouselBlockId && carouselBlocks.some((block) => block.id === heroCarouselBlockId)) {
+      return heroCarouselBlockId;
+    }
+    return fallbackHeroBlock?.id ?? carouselBlocks[0]!.id;
+  }, [carouselBlocks, fallbackHeroBlock, heroCarouselBlockId]);
+  const heroBlock = useMemo(() => {
+    if (!resolvedHeroCarouselBlockId) return null;
+    return carouselBlocks.find((block) => block.id === resolvedHeroCarouselBlockId) ?? null;
+  }, [carouselBlocks, resolvedHeroCarouselBlockId]);
+  const hasPersistedActiveBlock = heroBlock?.status === "active";
+  const heroBlockIndex = useMemo(
+    () => (heroBlock ? carouselBlocks.findIndex((block) => block.id === heroBlock.id) : -1),
+    [carouselBlocks, heroBlock],
+  );
+  const canShuffleHeroBlocks = carouselBlocks.length > 1;
+  const shiftHeroBlock = useCallback(
+    (direction: -1 | 1) => {
+      if (!canShuffleHeroBlocks || !heroBlock) return;
+      const currentIndex = heroBlockIndex >= 0 ? heroBlockIndex : 0;
+      const nextIndex = (currentIndex + direction + carouselBlocks.length) % carouselBlocks.length;
+      setHeroCarouselBlockId(carouselBlocks[nextIndex]!.id);
+      setEditPopoverBlockId(null);
+    },
+    [canShuffleHeroBlocks, carouselBlocks, heroBlock, heroBlockIndex],
+  );
   const nextCount = activeBlock || nextUpcomingBlock ? 1 : 0;
 
   const handledMissedBlockIdSet = useMemo(
@@ -961,7 +997,7 @@ export default function TodayPage() {
             style={{ gridTemplateColumns: `repeat(${Math.max(1, blocks.length)}, minmax(0, 1fr))` }}
           >
             {effectiveBlocks.map((block) => {
-              const isNext = heroBlock?.id === block.id && block.liveStatus !== "completed";
+              const isNext = primaryHeroBlock?.id === block.id && block.liveStatus !== "completed";
               return (
                 <span
                   key={`meter-${block.id}`}
@@ -1011,7 +1047,7 @@ export default function TodayPage() {
             <div className="relative">
               <p className="inline-flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] opacity-85">
                 <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                {activeBlock
+                {heroBlock.status === "active"
                   ? "In progress"
                   : heroBlock?.liveStatus === "missed"
                     ? "Missed"
@@ -1055,6 +1091,40 @@ export default function TodayPage() {
           </aside>
 
           <div className="px-7 py-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span
+                className="text-[0.72rem] font-semibold uppercase tracking-[0.08em]"
+                style={{ color: "var(--text-3)" }}
+              >
+                Block {heroBlockIndex + 1} of {carouselBlocks.length}
+              </span>
+              <div className="inline-flex items-center gap-1">
+                <button
+                  type="button"
+                  aria-label="Previous block"
+                  onClick={() => shiftHeroBlock(-1)}
+                  disabled={!canShuffleHeroBlocks}
+                  className="grid h-8 w-8 place-items-center rounded-full border transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-45"
+                  style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 12 6 8l4-4" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Next block"
+                  onClick={() => shiftHeroBlock(1)}
+                  disabled={!canShuffleHeroBlocks}
+                  className="grid h-8 w-8 place-items-center rounded-full border transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-45"
+                  style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                >
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 4 4 4-4 4" />
+                  </svg>
+                </button>
+              </div>
+            </div>
             {editPopoverBlockId === heroBlock.id ? (
               <div className="mb-4">
                 <input
@@ -1138,14 +1208,14 @@ export default function TodayPage() {
                     onClick={() =>
                       void handleTogglePauseBlock(
                         heroBlock.id,
-                        activeBlock.timerState === "running" ? "pause" : "resume",
+                        heroBlock.timerState === "running" ? "pause" : "resume",
                       )
                     }
                     disabled={isUpdatingTimer}
                     className="bg-none border-none text-[0.86rem] font-medium"
                     style={{ color: "var(--text-2)" }}
                   >
-                    {activeBlock.timerState === "running" ? "Pause" : "Resume"}
+                    {heroBlock.timerState === "running" ? "Pause" : "Resume"}
                   </button>
                   <button
                     type="button"
@@ -1339,6 +1409,27 @@ export default function TodayPage() {
         onSubmit={handleCreateBlock}
       />
     </div>
+  );
+}
+
+export default function BlocksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto w-full max-w-[1120px] px-4 py-8">
+          <div
+            className="mb-6 h-10 w-[min(100%,420px)] animate-pulse rounded-[12px] border"
+            style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+          />
+          <div
+            className="h-[min(70vh,520px)] animate-pulse rounded-[18px] border"
+            style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+          />
+        </div>
+      }
+    >
+      <BlocksPageContent />
+    </Suspense>
   );
 }
 
