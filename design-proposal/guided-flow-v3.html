@@ -1615,36 +1615,25 @@
 
     <main class="shell">
       <!-- ============================================================
-           HOME — landing / focus surface (Step 3 = Execute)
-           When idle: shows a clean welcome + Start Day CTA
-           When mid-flow: shows the active focus block hero
+           HOME — mirrors app/page.tsx 1:1
+           Structure preserved exactly:
+             1. Greeting
+             2. Active block hero (gradient) OR no-active-block dashed CTA
+             3. Today's Board snapshot (4 status cards)
+             4. Two-col: Today's blocks list + Reminders
+             5. This week (7-day grid)
            ============================================================ -->
       <section class="page visible" id="page-home">
         <div class="greet">
-          <h1 id="greetTitle">Good afternoon, Nicholas</h1>
-          <p id="greetSub">Sunday, April 19 — let's make it count.</p>
+          <h1 id="greetTitle">Good evening, Nicholas</h1>
+          <p id="greetSub">Plan your day and lock in your focus blocks.</p>
         </div>
 
-        <!-- Idle variant — shown when no focus is active -->
-        <div class="home-idle-cta" id="homeIdle">
-          <h2>Ready to start your day?</h2>
-          <p>
-            Tap <strong>Start Day</strong> to walk through Plan → Commit → Execute → Reflect.
-            We'll guide you through each step.
-          </p>
-          <div class="ctas">
-            <button class="primary" data-goto="board">
-              Start Day →
-            </button>
-            <button class="ghost" data-goto="tasks">Browse tasks</button>
-          </div>
-        </div>
-
-        <!-- Active variant — shown when there's an in-progress task / focus block -->
-        <div class="hero" id="homeActive" style="display: none">
+        <!-- Active variant — gradient hero (when a block is active) -->
+        <div class="hero" id="homeActive" style="display: none; margin-top: 22px">
           <div class="eyebrow">
             <span class="lp"></span>
-            Active block · 1 of 2 today
+            <span id="heroEyebrowText">Active block · 1 of 1 today</span>
           </div>
           <h2 id="heroBlockTitle">Morning focus block</h2>
           <div class="row">
@@ -1652,8 +1641,8 @@
               <div class="now" id="heroNow">Now: Finish CS 200 problem set</div>
             </div>
             <div class="timer">
-              <div class="clock">01:42:18</div>
-              <div class="meta">remaining · 10:00 – 12:00 PM</div>
+              <div class="clock" id="heroClock">01:42:18</div>
+              <div class="meta">remaining · <span id="heroTimeRange">10:00 AM – 12:00 PM</span></div>
             </div>
           </div>
           <div class="ctas">
@@ -1662,10 +1651,48 @@
           </div>
         </div>
 
-        <!-- Snapshot — preserved, but only when there's something to snapshot -->
-        <div class="snapshot" id="homeSnapshot" style="display: none">
+        <!-- Idle variant — dashed "no active block" CTA (matches original) -->
+        <section
+          id="homeIdle"
+          style="
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-top: 22px;
+            margin-bottom: 18px;
+            padding: 14px 18px;
+            border-radius: 14px;
+            background: var(--surface-solid);
+            border: 1px dashed var(--line-strong);
+          "
+        >
+          <span style="font-size: 0.9rem; color: var(--text-2)">
+            No active block right now — start a focused session to begin your deep work.
+          </span>
+          <button
+            data-goto="board"
+            style="
+              height: 30px;
+              padding: 0 14px;
+              border-radius: 8px;
+              background: var(--accent);
+              color: #fff;
+              border: none;
+              font-family: inherit;
+              font-size: 0.8rem;
+              font-weight: 600;
+              cursor: pointer;
+            "
+          >
+            Plan blocks
+          </button>
+        </section>
+
+        <!-- Today's Board snapshot — always shown, like the original -->
+        <div class="snapshot">
           <div class="snapshot-head">
-            <h3>Today's Board <span style="color: var(--text-3); font-weight: 400; font-size: 0.78rem; margin-left: 6px">snapshot</span></h3>
+            <h3>Today's Board <span style="color: var(--text-3); font-weight: 400; font-size: 0.8rem; margin-left: 6px">snapshot</span></h3>
             <a class="snapshot-link" data-goto="board">Open Board →</a>
           </div>
           <div class="snapshot-grid">
@@ -1689,6 +1716,68 @@
               <div class="num" id="snapDone">0</div>
               <div class="tip">today</div>
             </div>
+          </div>
+        </div>
+
+        <!-- Today's blocks + Reminders -->
+        <div class="two-col" style="margin-top: 24px">
+          <div>
+            <h2 style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 12px">
+              Today's blocks
+            </h2>
+            <div class="card">
+              <div id="homeBlocksList">
+                <p style="font-size: 0.86rem; color: var(--text-2); padding: 8px 0">
+                  No blocks planned for today.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <aside>
+            <h2 style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-3); margin-bottom: 12px">
+              Reminders
+            </h2>
+            <div class="card">
+              <article style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line)">
+                <div>
+                  <p style="font-size: 0.9rem; font-weight: 500">Group meeting</p>
+                  <p style="margin-top: 2px; font-size: 0.76rem; color: var(--text-2)">Project sync with team</p>
+                </div>
+                <span style="white-space: nowrap; font-size: 0.76rem; color: var(--text-3)">Today, 6:00 PM</span>
+              </article>
+              <article style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line)">
+                <div>
+                  <p style="font-size: 0.9rem; font-weight: 500">Office hours</p>
+                  <p style="margin-top: 2px; font-size: 0.76rem; color: var(--text-2)">Prof. Nguyen · Bio 102</p>
+                </div>
+                <span style="white-space: nowrap; font-size: 0.76rem; color: var(--text-3)">Thu, 2:00 PM</span>
+              </article>
+              <article style="display: flex; justify-content: space-between; gap: 12px; padding: 12px 0">
+                <div>
+                  <p style="font-size: 0.9rem; font-weight: 500">Dentist</p>
+                  <p style="margin-top: 2px; font-size: 0.76rem; color: var(--text-2)">Yearly cleaning</p>
+                </div>
+                <span style="white-space: nowrap; font-size: 0.76rem; color: var(--text-3)">Sat, 10:00 AM</span>
+              </article>
+            </div>
+          </aside>
+        </div>
+
+        <!-- This week -->
+        <div class="week" style="margin-top: 24px">
+          <div class="week-head">
+            <h3>This week</h3>
+            <span class="range">April 14 – 20</span>
+          </div>
+          <div class="week-grid">
+            <div class="week-day"><div class="wd">Mon</div><div class="bar"><div class="fill" style="height: 60%"></div></div><div class="ratio">3/5</div></div>
+            <div class="week-day"><div class="wd">Tue</div><div class="bar"><div class="fill" style="height: 80%"></div></div><div class="ratio">4/5</div></div>
+            <div class="week-day"><div class="wd">Wed</div><div class="bar"><div class="fill" style="height: 50%"></div></div><div class="ratio">2/4</div></div>
+            <div class="week-day"><div class="wd">Thu</div><div class="bar"><div class="fill" style="height: 100%"></div></div><div class="ratio">3/3</div></div>
+            <div class="week-day"><div class="wd">Fri</div><div class="bar"><div class="fill" style="height: 25%"></div></div><div class="ratio">1/4</div></div>
+            <div class="week-day"><div class="wd">Sat</div><div class="bar"><div class="fill" style="height: 0%"></div></div><div class="ratio">0/2</div></div>
+            <div class="week-day today"><div class="wd">Sun</div><div class="bar"><div class="fill" id="homeTodayFill" style="height: 0%"></div></div><div class="ratio" id="homeTodayRatio">—</div></div>
           </div>
         </div>
       </section>
@@ -2133,19 +2222,50 @@
       function renderHome() {
         const flow = deriveFlow();
         const next = flow.inProgress;
+        const inBlock = state.tasks.filter((t) => t.studyBlockId === state.targetBlockId);
+        const blockHasStarted = !!next;
 
-        // Idle vs active variant
-        $("#homeIdle").style.display = flow.hasStarted ? "none" : "block";
-        $("#homeActive").style.display = next ? "block" : "none";
-        $("#homeSnapshot").style.display = flow.hasStarted ? "block" : "none";
+        // Active hero shows only when there's an in-progress task
+        $("#homeActive").style.display = blockHasStarted ? "block" : "none";
+        $("#homeIdle").style.display = blockHasStarted ? "none" : "flex";
 
         if (next) $("#heroNow").textContent = `Now: ${next.name}`;
 
-        // Snapshot numbers
+        // Snapshot — always visible (matches original)
         $("#snapBacklog").textContent = state.tasks.filter((t) => t.status === "backlog").length;
         $("#snapPlanned").textContent = state.tasks.filter((t) => t.status === "planned").length;
         $("#snapProgress").textContent = state.tasks.filter((t) => t.status === "in_progress").length;
         $("#snapDone").textContent = flow.doneCount;
+
+        // Today's blocks list
+        const blocksList = $("#homeBlocksList");
+        if (inBlock.length === 0 && !blockHasStarted) {
+          blocksList.innerHTML = `<p style="font-size: 0.86rem; color: var(--text-2); padding: 8px 0">No blocks planned for today.</p>`;
+        } else {
+          blocksList.innerHTML = `
+            <article style="display: grid; grid-template-columns: 60px 1fr auto; align-items: center; gap: 14px; padding: 12px 0">
+              <div>
+                <div style="font-size: 0.92rem; font-weight: 600; font-variant-numeric: tabular-nums">10:00 AM</div>
+                <div style="margin-top: 2px; font-size: 0.72rem; color: var(--text-3)">– 12:00 PM</div>
+              </div>
+              <div>
+                <p style="font-size: 0.92rem; font-weight: 500">Morning focus block</p>
+                <p style="margin-top: 2px; font-size: 0.76rem; color: var(--text-2)">120m · ${inBlock.length} task${inBlock.length === 1 ? "" : "s"}</p>
+              </div>
+              <span style="display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; background: ${
+                blockHasStarted ? "var(--warn-soft)" : "var(--accent-soft)"
+              }; color: ${blockHasStarted ? "var(--warn)" : "var(--accent)"}">
+                ${blockHasStarted ? "Active" : "Upcoming"}
+              </span>
+            </article>`;
+        }
+
+        // Today's bar in week grid
+        const total = inBlock.length;
+        const done = flow.doneCount;
+        const pct = total === 0 ? 0 : Math.max(4, Math.round((done / total) * 100));
+        $("#homeTodayFill").style.height = pct + "%";
+        $("#homeTodayRatio").textContent = total > 0 ? `${done}/${total}` : "—";
       }
 
       /* =========================================================

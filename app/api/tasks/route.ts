@@ -3,6 +3,13 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
+import { toTaskResponse } from "@/lib/task-response";
+import {
+  DEFAULT_TASK_PRIORITY,
+  parseDueDate,
+  parseEstimatedMinutes,
+  parseTaskPriority,
+} from "@/lib/task-fields";
 
 const taskSortOrder = { completed: 1 as const, createdAt: -1 as const };
 const dayKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
@@ -28,28 +35,6 @@ function parseTaskStatus(value: unknown) {
 function parseTaskOrder(value: unknown) {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
   return value;
-}
-
-function toTaskResponse(task: {
-  _id: mongoose.Types.ObjectId | string;
-  name: string;
-  meta?: string;
-  completed: boolean;
-  dayKey?: string | null;
-  status?: string;
-  order?: number;
-  studyBlockId?: mongoose.Types.ObjectId | string | null;
-}) {
-  return {
-    id: task._id.toString(),
-    name: task.name,
-    meta: task.meta || "",
-    completed: task.completed,
-    dayKey: task.dayKey ?? null,
-    status: task.status ?? (task.completed ? "done" : "backlog"),
-    order: task.order ?? 0,
-    studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
-  };
 }
 
 export async function GET() {
@@ -83,6 +68,12 @@ export async function POST(request: NextRequest) {
     const dayKey = parseDayKey(body.dayKey);
     const status = parseTaskStatus(body.status) ?? "backlog";
     const order = parseTaskOrder(body.order) ?? 0;
+    const priority = parseTaskPriority(body.priority) ?? DEFAULT_TASK_PRIORITY;
+    // For create, `undefined` (invalid or absent) collapses to null.
+    const dueDateParsed = parseDueDate(body.dueDate);
+    const dueDate = dueDateParsed === undefined ? null : dueDateParsed;
+    const estimateParsed = parseEstimatedMinutes(body.estimatedMinutes);
+    const estimatedMinutes = estimateParsed === undefined ? null : estimateParsed;
 
     if (!name) {
       return NextResponse.json({ error: "Task name is required." }, { status: 400 });
@@ -97,6 +88,9 @@ export async function POST(request: NextRequest) {
       dayKey,
       status,
       order,
+      priority,
+      dueDate,
+      estimatedMinutes,
     });
 
     return NextResponse.json(toTaskResponse(createdTask), { status: 201 });

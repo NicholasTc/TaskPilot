@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { applyElapsedAndPauseIfNeeded } from "@/lib/focus-timer";
+import { normalizeBlockSessionState } from "@/lib/study-block-state";
 import { StudyBlockModel } from "@/models/StudyBlock";
 
 type RouteContext = {
@@ -41,9 +42,7 @@ export async function POST(_request: NextRequest, context: RouteContext) {
 
     applyElapsedAndPauseIfNeeded(block);
     block.status = "done";
-    block.activeTaskId = null;
-    block.timerState = "paused";
-    block.runningSince = null;
+    normalizeBlockSessionState(block);
     await block.save();
 
     return NextResponse.json({

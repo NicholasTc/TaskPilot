@@ -10,6 +10,7 @@ import {
   isValidStartMinutes,
 } from "@/lib/study-blocks";
 import { STUDY_BLOCK_STATUSES, StudyBlockModel } from "@/models/StudyBlock";
+import { normalizeBlockSessionState } from "@/lib/study-block-state";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -147,6 +148,8 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
         existing.remainingSeconds = getDefaultRemainingSeconds(body.durationMin);
       }
     }
+
+    normalizeBlockSessionState(existing);
 
     const noOverlap = await ensureNoBlockOverlap({
       userId: toObjectId(userId),

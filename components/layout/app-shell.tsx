@@ -2,17 +2,24 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { PropsWithChildren, useMemo, useState } from "react";
+import { PropsWithChildren, useState } from "react";
 
-const tabs = [
-  { href: "/", label: "Home" },
-  { href: "/today", label: "Today" },
-  { href: "/board", label: "Board" },
-  { href: "/blocks", label: "Blocks" },
-  { href: "/upcoming", label: "Upcoming" },
-  { href: "/insights", label: "Insights" },
-];
-
+/**
+ * App chrome — intentionally minimal.
+ *
+ * This used to host a sticky 4-step Plan/Schedule/Focus/Reflect stepper
+ * plus a step-counted CTA pill in the nav. Both reinforced a forced-
+ * progression feel that no longer matches the product: the planner
+ * already prepares the day, so the chrome should just navigate, not
+ * narrate where the user "should" be.
+ *
+ * What's left here:
+ *   - Brand mark
+ *   - Plain top-level links (Home / Today / Tasks)
+ *   - Theme toggle + logout
+ *
+ * The page itself answers "what's next?" via its own hero card.
+ */
 export function AppShell({ children }: PropsWithChildren) {
   const pathname = usePathname();
   const isAuthPage = pathname.startsWith("/login") || pathname.startsWith("/signup");
@@ -21,15 +28,9 @@ export function AppShell({ children }: PropsWithChildren) {
     return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   });
 
-  const activeHref = useMemo(() => {
-    if (pathname === "/") return "/";
-    if (pathname.startsWith("/today")) return "/today";
-    if (pathname.startsWith("/board")) return "/board";
-    if (pathname.startsWith("/blocks")) return "/blocks";
-    if (pathname.startsWith("/upcoming")) return "/upcoming";
-    if (pathname.startsWith("/insights")) return "/insights";
-    return "";
-  }, [pathname]);
+  const isHomeActive = pathname === "/";
+  const isTodayActive = pathname.startsWith("/blocks");
+  const isTasksActive = pathname.startsWith("/tasks");
 
   const toggleTheme = () => {
     const nextTheme = theme === "light" ? "dark" : "light";
@@ -56,25 +57,14 @@ export function AppShell({ children }: PropsWithChildren) {
         style={{ background: "var(--surface)", borderColor: "var(--line)" }}
       >
         <div className="mx-auto flex h-14 w-full max-w-[1280px] items-center justify-between px-6">
-          <div className="text-base font-bold tracking-[-0.02em]">TaskPilot</div>
+          <Link href="/" className="text-base font-bold tracking-[-0.02em]">
+            TaskPilot
+          </Link>
 
-          <div className="flex gap-0.5">
-            {tabs.map((tab) => {
-              const isActive = activeHref === tab.href;
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
-                  style={{
-                    color: isActive ? "var(--accent)" : "var(--text-2)",
-                    background: isActive ? "var(--accent-soft)" : "transparent",
-                  }}
-                >
-                  {tab.label}
-                </Link>
-              );
-            })}
+          <div className="flex items-center gap-1">
+            <NavLink href="/" label="Home" active={isHomeActive} />
+            <NavLink href="/blocks" label="Today" active={isTodayActive} primary />
+            <NavLink href="/tasks" label="Tasks" active={isTasksActive} />
           </div>
 
           <div className="flex items-center gap-3">
@@ -109,5 +99,49 @@ export function AppShell({ children }: PropsWithChildren) {
 
       <main className="mx-auto w-full max-w-[1280px] px-6 pb-14 pt-10">{children}</main>
     </>
+  );
+}
+
+/**
+ * One styled nav link. `primary` lifts the "Today" entry visually so the
+ * day-execution page is always one obvious click away — without resorting
+ * to a step-counted progression badge.
+ */
+function NavLink({
+  href,
+  label,
+  active,
+  primary = false,
+}: {
+  href: string;
+  label: string;
+  active: boolean;
+  primary?: boolean;
+}) {
+  if (primary) {
+    return (
+      <Link
+        href={href}
+        className="ml-1 inline-flex h-9 items-center rounded-full px-4 text-[0.84rem] font-semibold transition-colors"
+        style={{
+          background: active ? "var(--accent)" : "var(--accent-soft)",
+          color: active ? "#fff" : "var(--accent)",
+        }}
+      >
+        {label}
+      </Link>
+    );
+  }
+  return (
+    <Link
+      href={href}
+      className="rounded-[10px] px-3.5 py-1.5 text-[0.86rem] font-medium transition-colors hover:text-[var(--text)]"
+      style={{
+        color: active ? "var(--accent)" : "var(--text-2)",
+        background: active ? "var(--accent-soft)" : "transparent",
+      }}
+    >
+      {label}
+    </Link>
   );
 }

@@ -1,11 +1,19 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Task } from "@/types/task";
+import { AutoPlanError, runAutoPlan } from "@/lib/plan-client";
+import { DayCalendar, type CalendarBlock } from "@/components/today/day-calendar";
+import {
+  BlockFormPopover,
+  type BlockFormSubmitPayload,
+  type BlockFormTaskOption,
+} from "@/components/today/block-form-popover";
 
 type BlockStatus = "planned" | "active" | "done";
 type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
+type LiveBlockStatus = "upcoming" | "active" | "completed" | "missed";
 
 type StudyBlock = {
   id: string;
@@ -19,6 +27,11 @@ type StudyBlock = {
   remainingSeconds?: number;
   effectiveRemainingSeconds?: number;
   runningSince?: string | null;
+  reason?: string;
+};
+
+type EffectiveStudyBlock = StudyBlock & {
+  liveStatus: LiveBlockStatus;
 };
 
 type BoardTask = Task & {
@@ -28,7 +41,6 @@ type BoardTask = Task & {
   studyBlockId: string | null;
 };
 
-const durationPresets = [60, 90, 120];
 const boardStatuses: BoardStatus[] = ["backlog", "planned", "in_progress", "done"];
 
 function toLocalDayKey(date: Date) {
@@ -44,18 +56,47 @@ function addDays(date: Date, amount: number) {
   return next;
 }
 
-function formatDateLabel(date: Date) {
+function parseDayKey(dayKey: string | null): Date | null {
+  if (!dayKey) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dayKey);
+  if (!match) return null;
+  const year = Number.parseInt(match[1], 10);
+  const month = Number.parseInt(match[2], 10);
+  const day = Number.parseInt(match[3], 10);
+  const date = new Date(year, month - 1, day);
+  if (
+    Number.isNaN(date.getTime()) ||
+    date.getFullYear() !== year ||
+    date.getMonth() !== month - 1 ||
+    date.getDate() !== day
+  ) {
+    return null;
+  }
+  return date;
+}
+
+function formatLongDate(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
+    weekday: "long",
     month: "long",
     day: "numeric",
   }).format(date);
 }
 
-function toHumanTimeShort(startMinutes: number) {
-  const hour12 = ((Math.floor(startMinutes / 60) + 11) % 12) + 1;
-  const minutes = startMinutes % 60;
-  return `${hour12}:${String(minutes).padStart(2, "0")}`;
+function formatShortDate(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function formatCurrentTime(date: Date) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(date);
 }
 
 function toHumanTime(startMinutes: number) {
@@ -66,8 +107,16 @@ function toHumanTime(startMinutes: number) {
   }).format(new Date(1970, 0, 1, Math.floor(startMinutes / 60), startMinutes % 60));
 }
 
+function formatDurationLabel(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const remainder = minutes % 60;
+  if (hours === 0) return `${remainder}m`;
+  if (remainder === 0) return `${hours}h`;
+  return `${hours}h ${remainder}m`;
+}
+
 function formatClock(seconds: number) {
-  const safeSeconds = Math.max(0, seconds);
+  const safeSeconds = Math.max(0, Math.floor(seconds));
   const hours = Math.floor(safeSeconds / 3600);
   const minutes = Math.floor((safeSeconds % 3600) / 60);
   const remSeconds = safeSeconds % 60;
@@ -75,12 +124,6 @@ function formatClock(seconds: number) {
     return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
   }
   return `${String(minutes).padStart(2, "0")}:${String(remSeconds).padStart(2, "0")}`;
-}
-
-function toMinutesFromTimeInput(value: string) {
-  const [hours, minutes] = value.split(":").map(Number);
-  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
-  return hours * 60 + minutes;
 }
 
 function normalizeTask(task: Task): BoardTask {
@@ -94,17 +137,18 @@ function normalizeTask(task: Task): BoardTask {
   };
 }
 
-function formatDurationLabel(minutes: number) {
-  const hours = Math.floor(minutes / 60);
-  const remainder = minutes % 60;
-  if (hours === 0) return `${remainder}m`;
-  if (remainder === 0) return `${hours}h`;
-  return `${hours}h ${remainder}m`;
+function splitMeridiemLabel(timeLabel: string): { clock: string; meridiem: string } {
+  const [clock, meridiem] = timeLabel.split(" ");
+  return { clock: clock ?? timeLabel, meridiem: meridiem ?? "" };
 }
 
-export default function BlocksPage() {
+function BlocksPageContent() {
   const router = useRouter();
-  const [selectedDate, setSelectedDate] = useState(() => new Date());
+  const searchParams = useSearchParams();
+  const requestedDayKey = searchParams.get("day");
+  const [selectedDate, setSelectedDate] = useState(
+    () => parseDayKey(requestedDayKey) ?? new Date(),
+  );
   const [blocks, setBlocks] = useState<StudyBlock[]>([]);
   const [tasksByStatus, setTasksByStatus] = useState<Record<BoardStatus, BoardTask[]>>({
     backlog: [],
@@ -113,52 +157,33 @@ export default function BlocksPage() {
     done: [],
   });
   const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSavingAssignments, setIsSavingAssignments] = useState(false);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [skippingBlockId, setSkippingBlockId] = useState<string | null>(null);
+  const [deletingBlockId, setDeletingBlockId] = useState<string | null>(null);
   const [isUpdatingTimer, setIsUpdatingTimer] = useState(false);
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [editPopoverBlockId, setEditPopoverBlockId] = useState<string | null>(null);
+  const [editDraftTitle, setEditDraftTitle] = useState("");
+  const [editErrorMessage, setEditErrorMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [handledMissedBlockIds, setHandledMissedBlockIds] = useState<string[]>([]);
   const [nowMs, setNowMs] = useState(() => Date.now());
-  const [openAssignBlockId, setOpenAssignBlockId] = useState<string | null>(null);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [isAddBlockOpen, setIsAddBlockOpen] = useState(false);
-  const [draftTitle, setDraftTitle] = useState("");
-  const [draftStartTime, setDraftStartTime] = useState("10:00");
-  const [draftDuration, setDraftDuration] = useState<number>(120);
+  const [addBlockStartMinutes, setAddBlockStartMinutes] = useState<number>(0);
+  const [isCreatingBlock, setIsCreatingBlock] = useState(false);
+  const [createBlockError, setCreateBlockError] = useState<string | null>(null);
+  const [isClearingDay, setIsClearingDay] = useState(false);
+  const [isSwapping, setIsSwapping] = useState(false);
+  const [heroCarouselBlockId, setHeroCarouselBlockId] = useState<string | null>(null);
 
   const dayKey = useMemo(() => toLocalDayKey(selectedDate), [selectedDate]);
-  const dateLabel = useMemo(() => formatDateLabel(selectedDate), [selectedDate]);
+  const todayKey = useMemo(() => toLocalDayKey(new Date(nowMs)), [nowMs]);
+  const isToday = dayKey === todayKey;
 
-  const activeBlock = useMemo(
-    () => blocks.find((block) => block.status === "active") ?? null,
-    [blocks],
-  );
-
-  const activeBlockRemainingSeconds = useMemo(() => {
-    if (!activeBlock) return 0;
-
-    const baseRemaining =
-      activeBlock.effectiveRemainingSeconds ?? activeBlock.remainingSeconds ?? activeBlock.durationMin * 60;
-
-    if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
-      return Math.max(0, Math.floor(baseRemaining));
-    }
-
-    const runningSinceMs = new Date(activeBlock.runningSince).getTime();
-    const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
-    const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
-    return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
-  }, [activeBlock, nowMs]);
-
-  const allTasksForDay = useMemo(
-    () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
-    [dayKey, tasksByStatus],
-  );
-
-  const assignmentPool = useMemo(
-    () => [...tasksByStatus.backlog, ...tasksByStatus.planned].filter((task) => task.dayKey === dayKey),
-    [dayKey, tasksByStatus],
-  );
+  const longDateLabel = useMemo(() => formatLongDate(selectedDate), [selectedDate]);
+  const shortDateLabel = useMemo(() => formatShortDate(selectedDate), [selectedDate]);
+  const currentTimeLabel = useMemo(() => formatCurrentTime(new Date(nowMs)), [nowMs]);
 
   const redirectToLogin = useCallback(() => {
     router.replace("/login");
@@ -180,7 +205,7 @@ export default function BlocksPage() {
       }
 
       if (!blocksResponse.ok || !boardResponse.ok) {
-        throw new Error("Failed to load blocks data.");
+        throw new Error("Failed to load day data.");
       }
 
       const blocksPayload = (await blocksResponse.json()) as { blocks: StudyBlock[] };
@@ -201,8 +226,8 @@ export default function BlocksPage() {
         done: (boardPayload.tasksByStatus.done ?? []).map(normalizeTask),
       });
     } catch (error) {
-      console.error("Loading blocks page failed", error);
-      setErrorMessage("Could not load blocks. Please try again.");
+      console.error("Loading today page failed", error);
+      setErrorMessage("Could not load your day. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -217,80 +242,277 @@ export default function BlocksPage() {
 
   useEffect(() => {
     if (!successMessage) return;
-    const timer = window.setTimeout(() => setSuccessMessage(null), 2800);
+    const timer = window.setTimeout(() => setSuccessMessage(null), 2400);
     return () => window.clearTimeout(timer);
   }, [successMessage]);
 
-  useEffect(() => {
-    if (!activeBlock || activeBlock.timerState !== "running") return;
-    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
-    return () => window.clearInterval(interval);
-  }, [activeBlock]);
+  const effectiveBlocks = useMemo<EffectiveStudyBlock[]>(
+    () =>
+      blocks.map((block) => ({
+        ...block,
+        liveStatus: deriveLiveBlockStatus({
+          block,
+          nowMs,
+          isToday,
+        }),
+      })),
+    [blocks, nowMs, isToday],
+  );
+
+  const activeBlock = useMemo(
+    () => effectiveBlocks.find((block) => block.liveStatus === "active") ?? null,
+    [effectiveBlocks],
+  );
+
+  const runningPersistedActiveBlock = useMemo(
+    () =>
+      blocks.find(
+        (block) => block.status === "active" && block.timerState === "running",
+      ) ?? null,
+    [blocks],
+  );
 
   useEffect(() => {
-    if (!activeBlock || activeBlock.timerState !== "running") return;
+    if (!isToday) return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(interval);
+  }, [isToday]);
+
+  useEffect(() => {
+    if (!isToday || !activeBlock || activeBlock.liveStatus !== "active") return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [activeBlock, isToday]);
+
+  useEffect(() => {
+    if (!runningPersistedActiveBlock) return;
     const interval = window.setInterval(() => {
       void loadData();
     }, 15000);
     return () => window.clearInterval(interval);
-  }, [activeBlock, loadData]);
+  }, [runningPersistedActiveBlock, loadData]);
 
-  const handleCreateBlock = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!draftTitle.trim() || isSubmitting) return;
+  const allTasksForDay = useMemo(
+    () => boardStatuses.flatMap((status) => tasksByStatus[status]).filter((task) => task.dayKey === dayKey),
+    [dayKey, tasksByStatus],
+  );
 
-    const startMinutes = toMinutesFromTimeInput(draftStartTime);
-    if (startMinutes === null) {
-      setErrorMessage("Invalid start time.");
-      return;
+  const getBlockTasks = useCallback(
+    (blockId: string) =>
+      allTasksForDay
+        .filter((task) => task.studyBlockId === blockId)
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name)),
+    [allTasksForDay],
+  );
+
+  const doneCount = effectiveBlocks.filter((block) => block.liveStatus === "completed").length;
+  const nextUpcomingBlock =
+    effectiveBlocks.find((block) => block.liveStatus === "upcoming") ?? null;
+  const firstMissedBlock =
+    effectiveBlocks.find((block) => block.liveStatus === "missed") ?? null;
+  const primaryHeroBlock = activeBlock ?? nextUpcomingBlock ?? firstMissedBlock;
+  const carouselBlocks = useMemo(
+    () => {
+      const incompleteBlocks = effectiveBlocks.filter((block) => block.liveStatus !== "completed");
+      return incompleteBlocks.length > 0 ? incompleteBlocks : effectiveBlocks;
+    },
+    [effectiveBlocks],
+  );
+  const fallbackHeroBlock = primaryHeroBlock ?? carouselBlocks[0] ?? null;
+  /** Prefer user shuffle selection when still valid; otherwise fall back without an effect (lint-safe). */
+  const resolvedHeroCarouselBlockId = useMemo(() => {
+    if (carouselBlocks.length === 0) return null;
+    if (heroCarouselBlockId && carouselBlocks.some((block) => block.id === heroCarouselBlockId)) {
+      return heroCarouselBlockId;
     }
+    return fallbackHeroBlock?.id ?? carouselBlocks[0]!.id;
+  }, [carouselBlocks, fallbackHeroBlock, heroCarouselBlockId]);
+  const heroBlock = useMemo(() => {
+    if (!resolvedHeroCarouselBlockId) return null;
+    return carouselBlocks.find((block) => block.id === resolvedHeroCarouselBlockId) ?? null;
+  }, [carouselBlocks, resolvedHeroCarouselBlockId]);
+  const hasPersistedActiveBlock = heroBlock?.status === "active";
+  const heroBlockIndex = useMemo(
+    () => (heroBlock ? carouselBlocks.findIndex((block) => block.id === heroBlock.id) : -1),
+    [carouselBlocks, heroBlock],
+  );
+  const canShuffleHeroBlocks = carouselBlocks.length > 1;
+  const shiftHeroBlock = useCallback(
+    (direction: -1 | 1) => {
+      if (!canShuffleHeroBlocks || !heroBlock) return;
+      const currentIndex = heroBlockIndex >= 0 ? heroBlockIndex : 0;
+      const nextIndex = (currentIndex + direction + carouselBlocks.length) % carouselBlocks.length;
+      setHeroCarouselBlockId(carouselBlocks[nextIndex]!.id);
+      setEditPopoverBlockId(null);
+    },
+    [canShuffleHeroBlocks, carouselBlocks, heroBlock, heroBlockIndex],
+  );
+  const nextCount = activeBlock || nextUpcomingBlock ? 1 : 0;
 
-    try {
-      setIsSubmitting(true);
-      setErrorMessage(null);
+  const handledMissedBlockIdSet = useMemo(
+    () => new Set(handledMissedBlockIds),
+    [handledMissedBlockIds],
+  );
+  const missedPromptBlock = useMemo(
+    () =>
+      effectiveBlocks.find(
+        (block) =>
+          block.liveStatus === "missed" && !handledMissedBlockIdSet.has(block.id),
+      ) ?? null,
+    [effectiveBlocks, handledMissedBlockIdSet],
+  );
 
-      const response = await fetch("/api/blocks", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          dayKey,
-          title: draftTitle.trim(),
-          startMinutes,
-          durationMin: draftDuration,
-        }),
-      });
+  const markMissedBlockHandled = useCallback((blockId: string) => {
+    setHandledMissedBlockIds((current) =>
+      current.includes(blockId) ? current : [...current, blockId],
+    );
+  }, []);
 
-      if (response.status === 401) {
-        redirectToLogin();
-        return;
+  const activeBlockRemainingSeconds = useMemo(() => {
+    if (!activeBlock) return 0;
+    if (activeBlock.status === "active") {
+      const baseRemaining =
+        activeBlock.effectiveRemainingSeconds ??
+        activeBlock.remainingSeconds ??
+        activeBlock.durationMin * 60;
+
+      if (activeBlock.timerState !== "running" || !activeBlock.runningSince) {
+        return Math.max(0, Math.floor(baseRemaining));
       }
 
-      if (response.status === 409) {
-        const payload = (await response.json()) as { code?: string; error?: string };
-        if (payload.code === "BLOCK_OVERLAP") {
-          setErrorMessage("This block overlaps another block. Pick a different time.");
+      const runningSinceMs = new Date(activeBlock.runningSince).getTime();
+      const elapsedSeconds = Math.floor((nowMs - runningSinceMs) / 1000);
+      const fallbackRemaining = activeBlock.remainingSeconds ?? baseRemaining;
+      return Math.max(0, Math.floor(fallbackRemaining) - elapsedSeconds);
+    }
+
+    const nowMinutes = minutesSinceMidnight(new Date(nowMs));
+    const endMinutes = activeBlock.startMinutes + activeBlock.durationMin;
+    return Math.max(0, (endMinutes - nowMinutes) * 60);
+  }, [activeBlock, nowMs]);
+
+  const focusedMinutes = useMemo(
+    () =>
+      effectiveBlocks
+        .filter((block) => block.liveStatus === "completed")
+        .reduce((sum, block) => sum + block.durationMin, 0),
+    [effectiveBlocks],
+  );
+  const heroStartTime = heroBlock ? toHumanTime(heroBlock.startMinutes) : "";
+  const heroEndTime = heroBlock ? toHumanTime(heroBlock.startMinutes + heroBlock.durationMin) : "";
+  const heroEndLabel = splitMeridiemLabel(heroEndTime);
+  const heroStartLabel = splitMeridiemLabel(heroStartTime);
+
+  const progressPct = blocks.length > 0 ? Math.round((doneCount / blocks.length) * 100) : 0;
+  const pageTitle = "Your day";
+
+  const getReplanOptions = useCallback(() => {
+    const options: Parameters<typeof runAutoPlan>[0] = { today: dayKey };
+    if (isToday) {
+      const now = new Date(nowMs);
+      const currentHour = now.getHours();
+      options.todayCursorMinutes = minutesSinceMidnight(now);
+
+      // Replan should still be useful late in the day:
+      // anchor today's slots from the current hour and allow planning
+      // through 11 PM.
+      if (currentHour < 23) {
+        options.settings = {
+          dayStartHour: currentHour,
+          dayEndHour: 23,
+        };
+      }
+    }
+    return options;
+  }, [dayKey, isToday, nowMs]);
+
+  const handleReplan = useCallback(async (): Promise<boolean> => {
+    if (isPlanning) return false;
+    setIsPlanning(true);
+    setErrorMessage(null);
+    try {
+      await runAutoPlan(getReplanOptions());
+      await loadData();
+      setSuccessMessage("Plan refreshed.");
+      return true;
+    } catch (error) {
+      console.error("Re-plan failed", error);
+      if (error instanceof AutoPlanError && error.status === 401) {
+        redirectToLogin();
+        return false;
+      }
+      const message =
+        error instanceof AutoPlanError ? error.message : "Could not refresh the plan.";
+      setErrorMessage(message);
+      return false;
+    } finally {
+      setIsPlanning(false);
+    }
+  }, [getReplanOptions, isPlanning, loadData, redirectToLogin]);
+
+  const handleIgnoreMissedBlock = useCallback(
+    (blockId: string) => {
+      markMissedBlockHandled(blockId);
+      setSuccessMessage("Missed block kept as-is.");
+    },
+    [markMissedBlockHandled],
+  );
+
+  const handleRescheduleMissedBlock = useCallback(
+    (blockId: string) => {
+      markMissedBlockHandled(blockId);
+      // Intentional stub: this is a dedicated entry point for future
+      // reschedule UX without auto-mutating persisted block times.
+      setErrorMessage(
+        "Reschedule flow is coming next. For now, use Replan my day to adjust the schedule.",
+      );
+    },
+    [markMissedBlockHandled],
+  );
+
+  const handleReplanMissedBlock = useCallback(
+    async (blockId: string) => {
+      const didReplan = await handleReplan();
+      if (didReplan) {
+        markMissedBlockHandled(blockId);
+      }
+    },
+    [handleReplan, markMissedBlockHandled],
+  );
+
+  const handleSkipBlock = useCallback(
+    async (blockId: string) => {
+      if (skippingBlockId) return;
+      setSkippingBlockId(blockId);
+      setErrorMessage(null);
+      try {
+        const deleteResponse = await fetch(`/api/blocks/${blockId}`, {
+          method: "DELETE",
+        });
+        if (deleteResponse.status === 401) {
+          redirectToLogin();
           return;
         }
-      }
+        if (!deleteResponse.ok) throw new Error("Unable to delete block");
 
-      if (!response.ok) {
-        throw new Error("Unable to create block");
+        await runAutoPlan(getReplanOptions());
+        await loadData();
+        setSuccessMessage("Skipped. Plan updated.");
+      } catch (error) {
+        console.error("Skip block failed", error);
+        if (error instanceof AutoPlanError && error.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        const message =
+          error instanceof AutoPlanError ? error.message : "Could not skip this block.";
+        setErrorMessage(message);
+      } finally {
+        setSkippingBlockId(null);
       }
-
-      const created = (await response.json()) as StudyBlock;
-      setBlocks((prev) =>
-        [...prev, created].sort((a, b) => a.startMinutes - b.startMinutes || a.durationMin - b.durationMin),
-      );
-      setDraftTitle("");
-      setIsAddBlockOpen(false);
-      setSuccessMessage("Block created.");
-    } catch (error) {
-      console.error("Creating block failed", error);
-      setErrorMessage("Could not create block.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+    },
+    [getReplanOptions, loadData, redirectToLogin, skippingBlockId],
+  );
 
   const handleStartBlock = async (blockId: string) => {
     try {
@@ -319,7 +541,7 @@ export default function BlocksPage() {
       }
       if (!response.ok) throw new Error("Unable to end block");
       await loadData();
-      setSuccessMessage("Block ended.");
+      setSuccessMessage("Block finished.");
     } catch (error) {
       console.error("Ending block failed", error);
       setErrorMessage("Could not end block.");
@@ -339,147 +561,347 @@ export default function BlocksPage() {
         redirectToLogin();
         return;
       }
-      if (!response.ok) {
-        throw new Error("Unable to update timer state");
-      }
+      if (!response.ok) throw new Error("Unable to update timer state");
       await loadData();
-      setSuccessMessage(nextAction === "pause" ? "Block paused." : "Block resumed.");
+      setSuccessMessage(nextAction === "pause" ? "Paused." : "Resumed.");
     } catch (error) {
       console.error("Toggling block pause failed", error);
-      setErrorMessage("Could not update block timer state.");
+      setErrorMessage("Could not update timer.");
     } finally {
       setIsUpdatingTimer(false);
     }
   };
 
-  const handleDeleteBlock = async (blockId: string) => {
-    try {
+  const handleDeleteBlock = useCallback(
+    async (block: StudyBlock) => {
+      if (deletingBlockId) return;
+      const confirmMessage =
+        block.status === "active"
+          ? "Delete this live block? Its tasks will be re-planned."
+          : "Delete this block? Its tasks will be re-planned.";
+      if (!window.confirm(confirmMessage)) return;
+
+      setDeletingBlockId(block.id);
       setErrorMessage(null);
-      const response = await fetch(`/api/blocks/${blockId}`, { method: "DELETE" });
-      if (response.status === 401) {
+      try {
+        const deleteResponse = await fetch(`/api/blocks/${block.id}`, {
+          method: "DELETE",
+        });
+        if (deleteResponse.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!deleteResponse.ok) throw new Error("Unable to delete block");
+
+        await runAutoPlan(getReplanOptions());
+        await loadData();
+        setEditPopoverBlockId(null);
+        setSuccessMessage("Block deleted.");
+      } catch (error) {
+        console.error("Delete block failed", error);
+        if (error instanceof AutoPlanError && error.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        const message =
+          error instanceof AutoPlanError ? error.message : "Could not delete this block.";
+        setErrorMessage(message);
+      } finally {
+        setDeletingBlockId(null);
+      }
+    },
+    [deletingBlockId, getReplanOptions, loadData, redirectToLogin],
+  );
+
+  const handleOpenEditPopover = useCallback((block: StudyBlock) => {
+    setEditPopoverBlockId(block.id);
+    setEditDraftTitle(block.title);
+    setEditErrorMessage(null);
+  }, []);
+
+  const handleCloseEditPopover = useCallback(() => {
+    setEditPopoverBlockId(null);
+    setEditDraftTitle("");
+    setEditErrorMessage(null);
+  }, []);
+
+  const handleEditBlock = useCallback(
+    async (blockId: string) => {
+      if (editingBlockId || deletingBlockId) return;
+      const nextTitle = editDraftTitle.trim();
+      if (!nextTitle) {
+        setEditErrorMessage("Title cannot be empty.");
+        return;
+      }
+
+      setEditingBlockId(blockId);
+      setErrorMessage(null);
+      setEditErrorMessage(null);
+      try {
+        const response = await fetch(`/api/blocks/${blockId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: nextTitle }),
+        });
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!response.ok) throw new Error("Unable to update block");
+        await loadData();
+        setSuccessMessage("Block updated.");
+        handleCloseEditPopover();
+      } catch (error) {
+        console.error("Edit block failed", error);
+        setEditErrorMessage("Could not update title.");
+      } finally {
+        setEditingBlockId(null);
+      }
+    },
+    [deletingBlockId, editDraftTitle, editingBlockId, handleCloseEditPopover, loadData, redirectToLogin],
+  );
+
+  /**
+   * Snap a candidate start minute to the next available 15-minute slot
+   * that doesn't overlap any existing block. Used as the default for the
+   * "Add a block" button when the user opens it without clicking the
+   * calendar.
+   */
+  const findNextFreeStartMinutes = useCallback(
+    (preferredStart: number, durationMin = 60): number => {
+      const sorted = [...blocks].sort((a, b) => a.startMinutes - b.startMinutes);
+      const horizonEnd = 24 * 60;
+      let cursor = Math.max(0, Math.min(preferredStart, horizonEnd - durationMin));
+      cursor = Math.round(cursor / 15) * 15;
+
+      const fits = (start: number) =>
+        start + durationMin <= horizonEnd &&
+        !sorted.some((block) => start < block.startMinutes + block.durationMin && block.startMinutes < start + durationMin);
+
+      while (cursor + durationMin <= horizonEnd) {
+        if (fits(cursor)) return cursor;
+        const collision = sorted.find(
+          (block) =>
+            cursor < block.startMinutes + block.durationMin &&
+            block.startMinutes < cursor + durationMin,
+        );
+        if (!collision) return cursor;
+        cursor = Math.round((collision.startMinutes + collision.durationMin) / 15) * 15;
+      }
+      return Math.max(0, Math.min(preferredStart, horizonEnd - durationMin));
+    },
+    [blocks],
+  );
+
+  const openAddBlockAt = useCallback(
+    (startMinutes: number) => {
+      setAddBlockStartMinutes(findNextFreeStartMinutes(startMinutes));
+      setCreateBlockError(null);
+      setIsAddBlockOpen(true);
+    },
+    [findNextFreeStartMinutes],
+  );
+
+  const openAddBlockFromHeader = useCallback(() => {
+    const baseline = isToday ? minutesSinceMidnight(new Date(nowMs)) : 9 * 60;
+    openAddBlockAt(baseline);
+  }, [isToday, nowMs, openAddBlockAt]);
+
+  const handleCreateBlock = useCallback(
+    async (payload: BlockFormSubmitPayload) => {
+      if (isCreatingBlock) return;
+      setIsCreatingBlock(true);
+      setCreateBlockError(null);
+      try {
+        const response = await fetch(`/api/blocks`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            dayKey,
+            title: payload.title,
+            startMinutes: payload.startMinutes,
+            durationMin: payload.durationMin,
+            activeTaskId: payload.activeTaskId,
+          }),
+        });
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!response.ok) {
+          const errorPayload = (await response.json().catch(() => ({}))) as { error?: string; code?: string };
+          if (errorPayload.code === "BLOCK_OVERLAP") {
+            setCreateBlockError("That time overlaps another block. Pick a different start.");
+          } else {
+            setCreateBlockError(errorPayload.error ?? "Could not add block.");
+          }
+          return;
+        }
+        await loadData();
+        setIsAddBlockOpen(false);
+        setSuccessMessage("Block added.");
+      } catch (error) {
+        console.error("Add block failed", error);
+        setCreateBlockError("Could not add block.");
+      } finally {
+        setIsCreatingBlock(false);
+      }
+    },
+    [dayKey, isCreatingBlock, loadData, redirectToLogin],
+  );
+
+  /**
+   * Bulk-delete every block on the current day. Done in parallel against
+   * the existing per-block DELETE endpoint so we don't have to introduce a
+   * dedicated bulk route. The confirm dialog is intentionally explicit
+   * because this is destructive and irreversible.
+   */
+  const handleClearDay = useCallback(async () => {
+    if (isClearingDay || blocks.length === 0) return;
+    const confirmMessage = `Delete all ${blocks.length} block${blocks.length === 1 ? "" : "s"} for ${shortDateLabel}? This cannot be undone.`;
+    if (!window.confirm(confirmMessage)) return;
+
+    setIsClearingDay(true);
+    setErrorMessage(null);
+    try {
+      const results = await Promise.all(
+        blocks.map((block) =>
+          fetch(`/api/blocks/${block.id}`, { method: "DELETE" }).then((response) => ({
+            ok: response.ok || response.status === 404,
+            status: response.status,
+          })),
+        ),
+      );
+      if (results.some((result) => result.status === 401)) {
         redirectToLogin();
         return;
       }
-      if (!response.ok) throw new Error("Unable to delete block");
-
-      const linkedTasks = allTasksForDay.filter((task) => task.studyBlockId === blockId);
-      await Promise.all(
-        linkedTasks.map((task) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studyBlockId: null }),
-          }),
-        ),
-      );
-
+      if (results.some((result) => !result.ok)) {
+        throw new Error("Some blocks could not be deleted.");
+      }
       await loadData();
-      setSuccessMessage("Block deleted.");
+      setSuccessMessage("All blocks cleared for the day.");
     } catch (error) {
-      console.error("Deleting block failed", error);
-      setErrorMessage("Could not delete block.");
-    }
-  };
-
-  const openAssignPanel = (block: StudyBlock) => {
-    setOpenAssignBlockId(block.id);
-    const initiallySelected = assignmentPool
-      .filter((task) => task.studyBlockId === block.id)
-      .map((task) => task.id);
-    setSelectedTaskIds(initiallySelected);
-  };
-
-  const handleSaveAssignments = async (blockId: string) => {
-    try {
-      setIsSavingAssignments(true);
-      setErrorMessage(null);
-      const existingAssignments = assignmentPool.filter((task) => task.studyBlockId === blockId);
-      const existingIds = new Set(existingAssignments.map((task) => task.id));
-      const nextIds = new Set(selectedTaskIds);
-
-      const toAssign = assignmentPool.filter((task) => nextIds.has(task.id) && task.studyBlockId !== blockId);
-      const toUnassign = assignmentPool.filter((task) => existingIds.has(task.id) && !nextIds.has(task.id));
-
-      await Promise.all([
-        ...toAssign.map((task) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studyBlockId: blockId }),
-          }),
-        ),
-        ...toUnassign.map((task) =>
-          fetch(`/api/tasks/${task.id}`, {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ studyBlockId: null }),
-          }),
-        ),
-      ]);
-
-      setOpenAssignBlockId(null);
-      setSelectedTaskIds([]);
-      await loadData();
-      setSuccessMessage("Block tasks updated.");
-    } catch (error) {
-      console.error("Saving assignments failed", error);
-      setErrorMessage("Could not save task assignments.");
+      console.error("Clear day failed", error);
+      setErrorMessage("Could not clear all blocks. Please try again.");
     } finally {
-      setIsSavingAssignments(false);
+      setIsClearingDay(false);
     }
-  };
+  }, [blocks, isClearingDay, loadData, redirectToLogin, shortDateLabel]);
 
-  const getBlockTasks = (blockId: string) =>
-    allTasksForDay
-      .filter((task) => task.studyBlockId === blockId)
-      .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name));
+  const handleSwapBlocks = useCallback(
+    async (blockAId: string, blockBId: string) => {
+      if (isSwapping || blockAId === blockBId) return;
+      setIsSwapping(true);
+      setErrorMessage(null);
+      try {
+        const response = await fetch(`/api/blocks/swap`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ blockAId, blockBId }),
+        });
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
+        if (!response.ok) {
+          const errorPayload = (await response.json().catch(() => ({}))) as { error?: string };
+          throw new Error(errorPayload.error ?? "Swap failed.");
+        }
+        await loadData();
+        setSuccessMessage("Blocks swapped.");
+      } catch (error) {
+        console.error("Swap blocks failed", error);
+        setErrorMessage(error instanceof Error ? error.message : "Could not swap blocks.");
+      } finally {
+        setIsSwapping(false);
+      }
+    },
+    [isSwapping, loadData, redirectToLogin],
+  );
 
-  const totalBlocksToday = blocks.length;
-  const activeBlockIndex = activeBlock
-    ? blocks.findIndex((block) => block.id === activeBlock.id) + 1
-    : 0;
+  const calendarBlocks = useMemo<CalendarBlock[]>(
+    () =>
+      effectiveBlocks.map((block) => ({
+        id: block.id,
+        title: block.title,
+        startMinutes: block.startMinutes,
+        durationMin: block.durationMin,
+        liveStatus: block.liveStatus,
+        isFocusActive: block.status === "active",
+        taskCount: getBlockTasks(block.id).length,
+        isLocked: block.liveStatus === "completed",
+      })),
+    [effectiveBlocks, getBlockTasks],
+  );
+
+  const taskOptionsForForm = useMemo<BlockFormTaskOption[]>(
+    () =>
+      allTasksForDay
+        .filter((task) => task.status !== "done")
+        .map((task) => ({ id: task.id, name: task.name })),
+    [allTasksForDay],
+  );
 
   return (
-    <div className="mx-auto w-full max-w-[1040px]">
-      <header className="anim mb-7 flex flex-wrap items-end justify-between gap-4">
+    <div className="mx-auto w-full max-w-[880px]">
+      <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Study Blocks</h1>
-          <p className="mt-1.5 text-[0.95rem]" style={{ color: "var(--text-2)" }}>
-            Two hours of focused, single-task work. No multitasking.
+          <p
+            className="text-[0.74rem] font-semibold uppercase tracking-[0.08em]"
+            style={{ color: "var(--text-3)" }}
+          >
+            {isToday ? `Today · ${longDateLabel} · ${currentTimeLabel}` : longDateLabel}
           </p>
-          <div
-            className="mt-3.5 inline-flex items-center gap-2 rounded-full px-3.5 py-2 text-[0.82rem] font-medium"
-            style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-          >
-            <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
-              <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0zm3.97 5.97a.75.75 0 0 0-1.06 0L7 9.88 5.09 8a.75.75 0 1 0-1.06 1.06l2.44 2.44a.75.75 0 0 0 1.06 0l4.44-4.44a.75.75 0 0 0 0-1.06z" />
-            </svg>
-            Single-focus mode · 2-hour blocks
-          </div>
+          <h1 className="mt-1.5 text-[2.1rem] font-bold leading-[1.05] tracking-[-0.035em]">{pageTitle}</h1>
+          <p className="mt-1.5 max-w-[500px] text-[0.95rem]" style={{ color: "var(--text-2)" }}>
+            {blocks.length > 0
+              ? "Start with the next block, or adjust your plan if priorities changed."
+              : "Add a few tasks and we will organize your day into focus blocks."}
+          </p>
         </div>
-        <div
-          className="flex items-center gap-1 rounded-[12px] border p-1"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-        >
+
+        <div className="flex items-center gap-1.5">
+          <div
+            className="inline-flex items-center gap-0.5 rounded-full border p-1"
+            style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+          >
+            <button
+              type="button"
+              aria-label="Previous day"
+              onClick={() => setSelectedDate((current) => addDays(current, -1))}
+              className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10 12 6 8l4-4" />
+              </svg>
+            </button>
+            <span className="px-2.5 text-[0.84rem] font-semibold tabular-nums">{isToday ? "Today" : shortDateLabel}</span>
+            <button
+              type="button"
+              aria-label="Next day"
+              onClick={() => setSelectedDate((current) => addDays(current, 1))}
+              className="grid h-7 w-7 place-items-center rounded-full transition-colors hover:bg-[var(--surface-hover)]"
+              style={{ color: "var(--text-2)" }}
+            >
+              <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <path d="m6 4 4 4-4 4" />
+              </svg>
+            </button>
+          </div>
           <button
             type="button"
-            onClick={() => setSelectedDate((current) => addDays(current, -1))}
-            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-            aria-label="Previous day"
+            aria-label="Adjust plan"
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="grid h-[34px] w-[34px] place-items-center rounded-full border transition-colors hover:text-[var(--accent)] disabled:opacity-60"
+            style={{ background: "var(--surface-solid)", borderColor: "var(--line)", color: "var(--text-2)" }}
+            title="Adjust plan"
           >
-            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10 12 6 8l4-4" />
-            </svg>
-          </button>
-          <div className="px-3.5 text-[0.88rem] font-semibold">{dateLabel}</div>
-          <button
-            type="button"
-            onClick={() => setSelectedDate((current) => addDays(current, 1))}
-            className="grid h-8 w-8 place-items-center rounded-[8px] text-[var(--text-2)] transition-[background,color] duration-200 hover:bg-[var(--surface-hover)] hover:text-[var(--text)]"
-            aria-label="Next day"
-          >
-            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m6 4 4 4-4 4" />
+            <svg viewBox="0 0 16 16" className="h-[14px] w-[14px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 3v4h4M13 13V9H9" />
+              <path d="M13 7a5 5 0 0 0-9.5-1M3 9a5 5 0 0 0 9.5 1" />
             </svg>
           </button>
         </div>
@@ -496,443 +918,545 @@ export default function BlocksPage() {
         </p>
       ) : null}
 
-      {activeBlock ? (
+      {missedPromptBlock ? (
         <section
-          className="anim anim-d1 relative mb-8 overflow-hidden rounded-[18px] px-7 py-7 text-white"
+          className="mb-4 rounded-[14px] border px-4 py-3"
           style={{
-            background: "linear-gradient(135deg, #007aff, #5856d6)",
-            boxShadow: "0 8px 24px rgba(0,122,255,0.25)",
+            background: "var(--danger-soft)",
+            borderColor: "var(--danger)",
+            boxShadow: "var(--shadow-sm)",
           }}
         >
-          <span
-            aria-hidden
-            className="pointer-events-none absolute -right-[40px] -top-[40px] h-[200px] w-[200px] rounded-full"
-            style={{ background: "rgba(255,255,255,0.08)" }}
-          />
-          <div className="relative">
-            <div className="mb-2 inline-flex items-center gap-2 text-[0.78rem] font-semibold uppercase tracking-[0.05em] opacity-80">
-              <span className="pulse-dot inline-block h-2 w-2 rounded-full bg-white" />
-              Active block{totalBlocksToday > 0 ? ` · ${activeBlockIndex} of ${totalBlocksToday}` : ""}
-            </div>
-            <h2 className="text-[1.45rem] font-bold tracking-[-0.02em]">{activeBlock.title}</h2>
-            <p className="mt-1 text-[0.92rem] opacity-90">
-              {toHumanTime(activeBlock.startMinutes)} – {toHumanTime(activeBlock.startMinutes + activeBlock.durationMin)} · {formatDurationLabel(activeBlock.durationMin)}
-            </p>
-
-            <div className="mt-5 grid grid-cols-[1fr_auto] items-end gap-6 max-[640px]:grid-cols-1 max-[640px]:items-start">
-              <div className="flex flex-col gap-2 text-[0.92rem]">
-                {getBlockTasks(activeBlock.id).length === 0 ? (
-                  <p className="opacity-85">No tasks linked to this block yet.</p>
-                ) : (
-                  getBlockTasks(activeBlock.id)
-                    .slice(0, 3)
-                    .map((task) => (
-                      <div key={task.id} className="flex items-center gap-2.5">
-                        <span
-                          className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full border-2"
-                          style={{
-                            borderColor: task.completed ? "#fff" : "rgba(255,255,255,0.5)",
-                            background: task.completed ? "#fff" : "transparent",
-                          }}
-                        >
-                          {task.completed ? (
-                            <svg viewBox="0 0 16 16" className="h-2.5 w-2.5" fill="var(--accent)">
-                              <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z" />
-                            </svg>
-                          ) : null}
-                        </span>
-                        <span
-                          style={{
-                            opacity: task.completed ? 0.65 : 1,
-                            textDecoration: task.completed ? "line-through" : "none",
-                          }}
-                        >
-                          {task.name}
-                        </span>
-                      </div>
-                    ))
-                )}
-              </div>
-              <div className="text-right max-[640px]:text-left">
-                <div className="text-[2.4rem] font-bold leading-none tracking-[-0.04em] tabular-nums">
-                  {formatClock(activeBlockRemainingSeconds)}
-                </div>
-                <div className="mt-1 text-[0.8rem] opacity-80">
-                  {activeBlock.timerState === "running" ? "running" : "paused"} · time remaining
-                </div>
-              </div>
-            </div>
-
-            <div className="relative mt-5 flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  void handleTogglePauseBlock(
-                    activeBlock.id,
-                    activeBlock.timerState === "running" ? "pause" : "resume",
-                  )
-                }
-                disabled={isUpdatingTimer || activeBlockRemainingSeconds <= 0}
-                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold"
-                style={{
-                  background: "#fff",
-                  color: "var(--accent)",
-                  opacity: isUpdatingTimer || activeBlockRemainingSeconds <= 0 ? 0.65 : 1,
-                }}
-              >
-                {activeBlock.timerState === "running" ? "Pause" : "Resume"}
-              </button>
-              <button
-                type="button"
-                onClick={() => router.push(`/blocks/${activeBlock.id}/focus`)}
-                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.18)" }}
-              >
-                Open focus mode
-              </button>
-              <button
-                type="button"
-                onClick={() => handleEndBlock(activeBlock.id)}
-                className="h-[38px] rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.18)" }}
-              >
-                End block
-              </button>
-            </div>
+          <p className="text-[0.86rem] font-semibold" style={{ color: "var(--danger)" }}>
+            You missed this block. Want to adjust your schedule?
+          </p>
+          <p className="mt-1 text-[0.8rem]" style={{ color: "var(--text-2)" }}>
+            {missedPromptBlock.title} · {toHumanTime(missedPromptBlock.startMinutes)} -{" "}
+            {toHumanTime(missedPromptBlock.startMinutes + missedPromptBlock.durationMin)}
+          </p>
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void handleReplanMissedBlock(missedPromptBlock.id)}
+              disabled={isPlanning}
+              className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.79rem] font-semibold text-white disabled:opacity-60"
+              style={{ background: "var(--accent)" }}
+            >
+              {isPlanning ? "Replanning..." : "Replan my day"}
+            </button>
+            <button
+              type="button"
+              onClick={() => handleRescheduleMissedBlock(missedPromptBlock.id)}
+              className="inline-flex h-[34px] items-center rounded-[9px] border px-3 text-[0.79rem] font-semibold"
+              style={{
+                borderColor: "var(--line)",
+                color: "var(--text-2)",
+                background: "var(--surface-solid)",
+              }}
+            >
+              Reschedule this task
+            </button>
+            <button
+              type="button"
+              onClick={() => handleIgnoreMissedBlock(missedPromptBlock.id)}
+              className="inline-flex h-[34px] items-center rounded-[9px] border px-3 text-[0.79rem] font-semibold"
+              style={{
+                borderColor: "var(--line)",
+                color: "var(--text-2)",
+                background: "transparent",
+              }}
+            >
+              Ignore
+            </button>
           </div>
         </section>
       ) : null}
 
-      <h3
-        className="anim anim-d2 mb-3 text-[0.78rem] font-semibold uppercase tracking-[0.04em]"
-        style={{ color: "var(--text-3)" }}
-      >
-        Today&apos;s schedule
-      </h3>
+      {!isLoading && blocks.length > 0 ? (
+        <section className="anim anim-d1 mb-6">
+          <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
+            <div className="flex flex-wrap items-baseline gap-2 text-[0.84rem]" style={{ color: "var(--text-2)" }}>
+              <span>
+                <strong style={{ color: "var(--done)" }}>{doneCount}</strong> done
+              </span>
+              <span style={{ color: "var(--text-3)" }}>·</span>
+              <span>
+                <strong style={{ color: "var(--accent)" }}>{nextCount}</strong> next
+              </span>
+              <span style={{ color: "var(--text-3)" }}>·</span>
+              <span>
+                <strong style={{ color: "var(--text)" }}>{Math.max(0, blocks.length - doneCount)}</strong> remaining
+              </span>
+            </div>
+            <div className="text-[0.84rem] tabular-nums" style={{ color: "var(--text-3)" }}>
+              <strong style={{ color: "var(--text)" }}>{progressPct}%</strong> through your day · {focusedMinutes}m focused
+            </div>
+          </div>
+          <div
+            className="grid h-2 gap-1"
+            style={{ gridTemplateColumns: `repeat(${Math.max(1, blocks.length)}, minmax(0, 1fr))` }}
+          >
+            {effectiveBlocks.map((block) => {
+              const isNext = primaryHeroBlock?.id === block.id && block.liveStatus !== "completed";
+              return (
+                <span
+                  key={`meter-${block.id}`}
+                  className="rounded-full"
+                  style={{
+                    background:
+                      block.liveStatus === "completed"
+                        ? "var(--done)"
+                        : block.liveStatus === "missed"
+                          ? "var(--danger)"
+                        : isNext
+                          ? "var(--accent)"
+                          : "var(--line)",
+                    boxShadow: isNext ? "0 0 0 3px var(--accent-soft)" : "none",
+                  }}
+                />
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
 
       {isLoading ? (
-        <div className="space-y-3">
-          {[0, 1, 2].map((skeleton) => (
-            <div
-              key={skeleton}
-              className="h-[120px] animate-pulse rounded-[16px] border"
-              style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
-            />
-          ))}
-        </div>
-      ) : blocks.length === 0 ? (
         <div
-          className="rounded-[16px] border px-4 py-8 text-center text-[0.86rem]"
-          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-3)" }}
-        >
-          No blocks planned for this day.
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {blocks.map((block, index) => {
-            const blockTasks = getBlockTasks(block.id);
-            const isAssignOpen = openAssignBlockId === block.id;
-            const animClass = `anim anim-d${Math.min(4, index + 1)}`;
-            const statusLabel =
-              block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming";
-            const statusBg =
-              block.status === "active"
-                ? "var(--warn-soft)"
-                : block.status === "done"
-                  ? "var(--done-soft)"
-                  : "var(--accent-soft)";
-            const statusColor =
-              block.status === "active"
-                ? "var(--warn)"
-                : block.status === "done"
-                  ? "var(--done)"
-                  : "var(--accent)";
-
-            return (
-              <article
-                key={block.id}
-                className={`${animClass} rounded-[16px] border px-5 py-5 transition-[box-shadow,border-color] duration-200 hover:border-[var(--line-strong)]`}
-                style={{
-                  background: "var(--surface-solid)",
-                  borderColor: "var(--line)",
-                  boxShadow: "var(--shadow-sm)",
-                }}
-              >
-                <div className="grid grid-cols-[auto_1fr_auto] items-center gap-5 max-[700px]:grid-cols-1 max-[700px]:gap-3">
-                  <div
-                    className="min-w-[88px] border-r pr-5 text-center max-[700px]:border-r-0 max-[700px]:pr-0 max-[700px]:text-left"
-                    style={{ borderColor: "var(--line)" }}
-                  >
-                    <div className="text-[1.4rem] font-bold leading-none tracking-[-0.02em] tabular-nums">
-                      {toHumanTimeShort(block.startMinutes)}
-                    </div>
-                    <div className="mt-1 text-[0.78rem]" style={{ color: "var(--text-3)" }}>
-                      – {toHumanTime(block.startMinutes + block.durationMin)}
-                    </div>
-                    <div
-                      className="mt-1.5 inline-block rounded-full px-2 py-[2px] text-[0.72rem] font-semibold"
-                      style={{ background: "var(--accent-soft)", color: "var(--accent)" }}
-                    >
-                      {formatDurationLabel(block.durationMin)}
-                    </div>
-                  </div>
-
-                  <div className="min-w-0">
-                    <h4 className="text-[1.05rem] font-semibold tracking-[-0.01em]">{block.title}</h4>
-                    <p className="mt-1.5 text-[0.82rem]" style={{ color: "var(--text-2)" }}>
-                      {blockTasks.length === 0
-                        ? "No tasks assigned"
-                        : `${blockTasks.length} task${blockTasks.length === 1 ? "" : "s"}`}
-                    </p>
-                    {blockTasks.length > 0 ? (
-                      <div className="mt-2 flex flex-col gap-1">
-                        {blockTasks.slice(0, 3).map((task) => (
-                          <div key={task.id} className="flex items-center gap-2 text-[0.85rem]" style={{ color: "var(--text-2)" }}>
-                            <span
-                              className="h-1.5 w-1.5 rounded-full"
-                              style={{
-                                background:
-                                  task.status === "done"
-                                    ? "var(--done)"
-                                    : task.status === "in_progress"
-                                      ? "var(--warn)"
-                                      : "var(--text-3)",
-                              }}
-                            />
-                            <span
-                              style={{
-                                textDecoration: task.completed ? "line-through" : "none",
-                                opacity: task.completed ? 0.6 : 1,
-                              }}
-                            >
-                              {task.name}
-                            </span>
-                          </div>
-                        ))}
-                        {blockTasks.length > 3 ? (
-                          <span className="text-[0.78rem]" style={{ color: "var(--text-3)" }}>
-                            +{blockTasks.length - 3} more
-                          </span>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  <div className="flex flex-col items-end gap-2 max-[700px]:flex-row max-[700px]:items-center max-[700px]:flex-wrap">
-                    <span
-                      className="rounded-full px-2.5 py-[3px] text-[0.72rem] font-semibold uppercase tracking-[0.04em]"
-                      style={{ background: statusBg, color: statusColor }}
-                    >
-                      {statusLabel}
-                    </span>
-                    <div className="flex flex-wrap justify-end gap-1.5">
-                      {block.status !== "active" && block.status !== "done" ? (
-                        <button
-                          type="button"
-                          onClick={() => void handleStartBlock(block.id)}
-                          className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
-                          style={{ background: "var(--accent)" }}
-                        >
-                          Start
-                        </button>
-                      ) : null}
-                      {block.status === "active" ? (
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/blocks/${block.id}/focus`)}
-                          className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
-                          style={{ background: "var(--accent)" }}
-                        >
-                          Open
-                        </button>
-                      ) : null}
-                      <button
-                        type="button"
-                        onClick={() => (isAssignOpen ? setOpenAssignBlockId(null) : openAssignPanel(block))}
-                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
-                        style={{
-                          borderColor: "var(--line)",
-                          background: "var(--surface-solid)",
-                          color: "var(--text)",
-                        }}
-                      >
-                        {isAssignOpen ? "Close" : "Assign"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteBlock(block.id)}
-                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
-                        style={{ borderColor: "var(--line)", color: "var(--danger)" }}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {isAssignOpen ? (
-                  <div
-                    className="mt-4 rounded-[12px] border px-3.5 py-3"
-                    style={{ background: "var(--surface-hover)", borderColor: "var(--line)" }}
-                  >
-                    <p className="mb-2 text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                      Assign from Backlog + Planned
-                    </p>
-                    {assignmentPool.length === 0 ? (
-                      <p className="text-[0.82rem]" style={{ color: "var(--text-2)" }}>
-                        No eligible tasks. Add tasks in Backlog/Planned on the Board.
-                      </p>
-                    ) : (
-                      <div className="flex flex-col gap-1.5">
-                        {assignmentPool.map((task) => (
-                          <label
-                            key={task.id}
-                            className="flex cursor-pointer items-center gap-2 rounded-md px-1.5 py-1 text-[0.84rem] hover:bg-[var(--surface-solid)]"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedTaskIds.includes(task.id)}
-                              onChange={(event) => {
-                                setSelectedTaskIds((prev) =>
-                                  event.target.checked
-                                    ? [...prev, task.id]
-                                    : prev.filter((itemId) => itemId !== task.id),
-                                );
-                              }}
-                              className="accent-[var(--accent)]"
-                            />
-                            <span>{task.name}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    <div className="mt-3 flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleSaveAssignments(block.id)}
-                        disabled={isSavingAssignments}
-                        className="h-8 rounded-[8px] px-3 text-[0.78rem] font-semibold text-white"
-                        style={{ background: "var(--accent)", opacity: isSavingAssignments ? 0.65 : 1 }}
-                      >
-                        {isSavingAssignments ? "Saving..." : "Save assignments"}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setOpenAssignBlockId(null);
-                          setSelectedTaskIds([]);
-                        }}
-                        className="h-8 rounded-[8px] border px-3 text-[0.78rem] font-medium"
-                        style={{ borderColor: "var(--line)" }}
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
-      )}
-
-      {isAddBlockOpen ? (
+          className="anim anim-d2 mb-8 h-[240px] animate-pulse rounded-[18px] border"
+          style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+        />
+      ) : heroBlock ? (
         <section
-          className="anim mt-4 rounded-[16px] border px-5 py-5"
-          style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+          className="anim anim-d2 relative mb-8 grid overflow-hidden rounded-[18px] border"
+          style={{
+            gridTemplateColumns: "168px 1fr",
+            borderColor: "var(--line)",
+            background: "var(--surface-solid)",
+            boxShadow: "0 10px 30px rgba(0,122,255,0.18)",
+          }}
         >
-          <form className="space-y-3" onSubmit={handleCreateBlock}>
-            <div>
-              <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                Block name
-              </label>
-              <input
-                autoFocus
-                value={draftTitle}
-                onChange={(event) => setDraftTitle(event.target.value)}
-                placeholder="e.g. TypeScript Deep Work"
-                className="h-10 w-full rounded-[10px] border px-3.5 text-[0.9rem] outline-none focus:border-[var(--accent)]"
-                style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-              />
+          <aside
+            className="relative flex flex-col justify-between overflow-hidden px-[22px] py-6 text-white"
+            style={{ background: "linear-gradient(155deg, #007aff, #5856d6)" }}
+          >
+            <span
+              aria-hidden
+              className="pointer-events-none absolute -right-[50px] -top-[50px] h-[160px] w-[160px] rounded-full"
+              style={{ background: "rgba(255,255,255,0.08)" }}
+            />
+            <div className="relative">
+              <p className="inline-flex items-center gap-1.5 text-[0.72rem] font-semibold uppercase tracking-[0.08em] opacity-85">
+                <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                {heroBlock.status === "active"
+                  ? "In progress"
+                  : heroBlock?.liveStatus === "missed"
+                    ? "Missed"
+                    : "Next up"}
+              </p>
             </div>
-            <div className="flex flex-wrap items-end gap-4">
-              <div>
-                <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                  Start
-                </label>
-                <input
-                  type="time"
-                  value={draftStartTime}
-                  onChange={(event) => setDraftStartTime(event.target.value)}
-                  className="h-10 rounded-[10px] border px-3 text-[0.86rem] outline-none focus:border-[var(--accent)]"
-                  style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-                />
-              </div>
-              <div>
-                <label className="mb-1 block text-[0.74rem] font-semibold uppercase tracking-[0.04em]" style={{ color: "var(--text-3)" }}>
-                  Duration
-                </label>
-                <div className="flex flex-wrap items-center gap-1.5">
-                  {durationPresets.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() => setDraftDuration(preset)}
-                      className="h-9 rounded-[8px] px-3 text-[0.8rem] font-semibold transition-colors"
-                      style={{
-                        background: draftDuration === preset ? "var(--accent-soft)" : "var(--surface-hover)",
-                        color: draftDuration === preset ? "var(--accent)" : "var(--text-2)",
-                      }}
-                    >
-                      {preset}m
-                    </button>
-                  ))}
-                  <input
-                    type="number"
-                    min={15}
-                    max={720}
-                    value={draftDuration}
-                    onChange={(event) => setDraftDuration(Number(event.target.value))}
-                    className="h-9 w-[90px] rounded-[8px] border px-2.5 text-[0.8rem] outline-none focus:border-[var(--accent)]"
-                    style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
-                    aria-label="Custom duration in minutes"
-                  />
-                </div>
-              </div>
-              <div className="flex gap-2">
+            <div className="relative mt-[18px]">
+              <p className="whitespace-nowrap text-[2.6rem] font-[800] leading-none tracking-[-0.04em] tabular-nums">
+                {hasPersistedActiveBlock ? (
+                  formatClock(activeBlockRemainingSeconds)
+                ) : (
+                  <>
+                    {heroStartLabel.clock}
+                    <small className="ml-1.5 text-[0.95rem] font-semibold opacity-85">{heroStartLabel.meridiem}</small>
+                  </>
+                )}
+              </p>
+              <p className="mt-1.5 text-[0.86rem] opacity-90">
+                {hasPersistedActiveBlock ? (
+                  `${heroStartTime} – ${heroEndTime}`
+                ) : (
+                  <>
+                    – {heroEndLabel.clock} {heroEndLabel.meridiem}
+                  </>
+                )}
+              </p>
+            </div>
+            <span
+              className="relative mt-[18px] inline-block self-start rounded-full px-2.5 py-1 text-[0.74rem] font-semibold"
+              style={{
+                background:
+                  heroBlock.liveStatus === "missed"
+                    ? "rgba(255, 59, 48, 0.18)"
+                    : "rgba(255,255,255,0.18)",
+              }}
+            >
+              {hasPersistedActiveBlock
+                ? formatDurationLabel(heroBlock.durationMin)
+                : `${formatDurationLabel(heroBlock.durationMin)} block`}
+            </span>
+          </aside>
+
+          <div className="px-7 py-6">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span
+                className="text-[0.72rem] font-semibold uppercase tracking-[0.08em]"
+                style={{ color: "var(--text-3)" }}
+              >
+                Block {heroBlockIndex + 1} of {carouselBlocks.length}
+              </span>
+              <div className="inline-flex items-center gap-1">
                 <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="h-10 rounded-[10px] px-4 text-[0.86rem] font-semibold text-white"
-                  style={{ background: "var(--accent)", opacity: isSubmitting ? 0.65 : 1 }}
+                  type="button"
+                  aria-label="Previous block"
+                  onClick={() => shiftHeroBlock(-1)}
+                  disabled={!canShuffleHeroBlocks}
+                  className="grid h-8 w-8 place-items-center rounded-full border transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-45"
+                  style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
                 >
-                  {isSubmitting ? "Creating..." : "Create block"}
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M10 12 6 8l4-4" />
+                  </svg>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsAddBlockOpen(false)}
-                  className="h-10 rounded-[10px] border px-4 text-[0.86rem] font-medium"
+                  aria-label="Next block"
+                  onClick={() => shiftHeroBlock(1)}
+                  disabled={!canShuffleHeroBlocks}
+                  className="grid h-8 w-8 place-items-center rounded-full border transition-colors hover:bg-[var(--surface-hover)] disabled:cursor-not-allowed disabled:opacity-45"
                   style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
                 >
-                  Cancel
+                  <svg viewBox="0 0 16 16" className="h-3 w-3" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 4 4 4-4 4" />
+                  </svg>
                 </button>
               </div>
             </div>
-          </form>
+            {editPopoverBlockId === heroBlock.id ? (
+              <div className="mb-4">
+                <input
+                  value={editDraftTitle}
+                  onChange={(e) => setEditDraftTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void handleEditBlock(heroBlock.id);
+                    if (e.key === "Escape") handleCloseEditPopover();
+                  }}
+                  className="w-full rounded-[10px] border px-3 py-2 text-[1.45rem] font-bold leading-[1.2] tracking-[-0.02em] outline-none"
+                  style={{ borderColor: "var(--accent)", background: "var(--surface-hover)", color: "var(--text)" }}
+                  autoFocus
+                />
+                {editErrorMessage ? (
+                  <p className="mt-1 text-[0.8rem]" style={{ color: "var(--danger)" }}>
+                    {editErrorMessage}
+                  </p>
+                ) : null}
+                <div className="mt-2.5 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleEditBlock(heroBlock.id)}
+                    disabled={editingBlockId === heroBlock.id}
+                    className="h-8 rounded-[8px] px-3.5 text-[0.82rem] font-semibold text-white disabled:opacity-55"
+                    style={{ background: "var(--accent)" }}
+                  >
+                    {editingBlockId === heroBlock.id ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleCloseEditPopover}
+                    className="h-8 rounded-[8px] border px-3 text-[0.82rem] font-medium"
+                    style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-[1.45rem] font-bold leading-[1.2] tracking-[-0.02em]">{heroBlock.title}</h2>
+                <p className="mt-1 text-[0.84rem] leading-6" style={{ color: "var(--text-2)" }}>
+                  {getBlockReason(heroBlock)}
+                </p>
+              </>
+            )}
+
+            <ul className="mt-4 space-y-2">
+              {getBlockTasks(heroBlock.id).length > 0 ? (
+                getBlockTasks(heroBlock.id)
+                  .slice(0, 3)
+                  .map((task) => (
+                    <li key={task.id} className="flex items-center gap-2.5 text-[0.92rem]">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ background: "var(--text-3)" }} />
+                      <span>{task.name}</span>
+                    </li>
+                  ))
+              ) : (
+                <li className="text-[0.9rem]" style={{ color: "var(--text-2)" }}>
+                  Flexible block you can use as needed.
+                </li>
+              )}
+            </ul>
+
+            <div className="relative mt-6 flex flex-wrap items-center gap-4">
+              {hasPersistedActiveBlock ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/blocks/${heroBlock.id}/focus`)}
+                    className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98]"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 14px rgba(0,122,255,0.28)" }}
+                  >
+                    Open focus mode
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleTogglePauseBlock(
+                        heroBlock.id,
+                        heroBlock.timerState === "running" ? "pause" : "resume",
+                      )
+                    }
+                    disabled={isUpdatingTimer}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {heroBlock.timerState === "running" ? "Pause" : "Resume"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleEndBlock(heroBlock.id)}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Finish block
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditPopover(heroBlock)}
+                    disabled={editingBlockId === heroBlock.id || deletingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteBlock(heroBlock)}
+                    disabled={deletingBlockId === heroBlock.id || editingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {deletingBlockId === heroBlock.id ? "Deleting..." : "Delete"}
+                  </button>
+                </>
+              ) : heroBlock.liveStatus === "missed" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleReplanMissedBlock(heroBlock.id)}
+                    disabled={isPlanning}
+                    className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 14px rgba(0,122,255,0.28)" }}
+                  >
+                    {isPlanning ? "Replanning..." : "Replan my day"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleRescheduleMissedBlock(heroBlock.id)}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Reschedule this task
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleIgnoreMissedBlock(heroBlock.id)}
+                    className="bg-none border-none text-[0.86rem] font-medium"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Ignore
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleStartBlock(heroBlock.id)}
+                    className="inline-flex h-[44px] items-center gap-2 rounded-[12px] px-6 text-[0.92rem] font-semibold text-white transition active:scale-[0.98]"
+                    style={{ background: "var(--accent)", boxShadow: "0 4px 14px rgba(0,122,255,0.28)" }}
+                  >
+                    Start block
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 4l4 4-4 4" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleSkipBlock(heroBlock.id)}
+                    disabled={isPlanning || skippingBlockId === heroBlock.id || deletingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.86rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {skippingBlockId === heroBlock.id ? "Skipping…" : "Skip for now"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditPopover(heroBlock)}
+                    disabled={editingBlockId === heroBlock.id || deletingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDeleteBlock(heroBlock)}
+                    disabled={deletingBlockId === heroBlock.id || editingBlockId === heroBlock.id}
+                    className="bg-none border-none text-[0.82rem] font-medium disabled:opacity-55"
+                    style={{ color: "var(--text-2)" }}
+                  >
+                    {deletingBlockId === heroBlock.id ? "Deleting..." : "Delete"}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : blocks.length > 0 && doneCount === blocks.length ? (
+        <section
+          className="anim anim-d2 mb-8 rounded-[18px] border px-7 py-8 text-center"
+          style={{ background: "var(--done-soft)", borderColor: "var(--done)", boxShadow: "var(--shadow-sm)" }}
+        >
+          <h2 className="text-[1.35rem] font-bold tracking-[-0.02em]">You finished today&apos;s plan.</h2>
+          <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
+            Take a beat. Tomorrow can wait until tomorrow.
+          </p>
         </section>
       ) : (
-        <button
-          type="button"
-          onClick={() => setIsAddBlockOpen(true)}
-          className="mt-4 flex w-full items-center justify-center gap-2 rounded-[16px] border-[1.5px] px-4 py-[18px] text-[0.92rem] font-medium transition-[border-color,color] duration-200 hover:border-[var(--accent)] hover:text-[var(--accent)]"
-          style={{ borderColor: "var(--line-strong)", borderStyle: "dashed", color: "var(--text-2)" }}
+        <section
+          className="anim anim-d2 mb-8 rounded-[18px] border px-7 py-10 text-center"
+          style={{ background: "var(--surface-solid)", borderColor: "var(--line-strong)", borderStyle: "dashed" }}
         >
-          <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-            <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
-          </svg>
-          Add new block
-        </button>
+          <h2 className="text-[1.25rem] font-semibold tracking-[-0.01em]">Nothing planned yet.</h2>
+          <p className="mx-auto mt-2 max-w-[420px] text-[0.9rem]" style={{ color: "var(--text-2)" }}>
+            Add a few tasks, and we&apos;ll organize them into focus blocks for you.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="mt-5 inline-flex h-[40px] items-center gap-2 rounded-[10px] px-5 text-[0.88rem] font-semibold text-white transition active:scale-[0.98] disabled:opacity-60"
+            style={{ background: "var(--accent)" }}
+          >
+            {isPlanning ? "Planning…" : "Plan my day"}
+          </button>
+        </section>
       )}
+
+      {!isLoading ? (
+        <section className="anim anim-d3 mb-6">
+          <DayCalendar
+            blocks={calendarBlocks}
+            nowMs={nowMs}
+            isToday={isToday}
+            selectedBlockId={editPopoverBlockId}
+            onSelectBlock={(id) => {
+              const target = blocks.find((block) => block.id === id);
+              if (target) handleOpenEditPopover(target);
+            }}
+            onSwapBlocks={handleSwapBlocks}
+            onCreateBlockAt={openAddBlockAt}
+            onAddBlockClick={openAddBlockFromHeader}
+            onClearDay={handleClearDay}
+            isClearingDay={isClearingDay}
+          />
+        </section>
+      ) : null}
+
+      <footer
+        className="anim anim-d4 mt-10 flex flex-wrap items-center justify-between gap-3 border-t pt-5"
+        style={{ borderColor: "var(--line)", color: "var(--text-2)" }}
+      >
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.78rem]"
+          style={{ background: "var(--surface-solid)", borderColor: "var(--line)" }}
+        >
+          {doneCount} of {blocks.length} blocks finished
+        </span>
+        <span className="text-[0.84rem]">
+          <button
+            type="button"
+            onClick={() => void handleReplan()}
+            disabled={isPlanning}
+            className="bg-none border-none p-0 text-[0.84rem] font-medium disabled:opacity-60"
+            style={{ color: "var(--text-2)" }}
+          >
+            Adjust plan
+          </button>
+          <span style={{ color: "var(--text-3)" }}> · </span>
+          <button type="button" className="bg-none border-none p-0 text-[0.84rem] font-medium" style={{ color: "var(--text-2)" }}>
+            Tomorrow&apos;s preview
+          </button>
+        </span>
+      </footer>
+
+      <BlockFormPopover
+        open={isAddBlockOpen}
+        initialStartMinutes={addBlockStartMinutes}
+        initialDurationMin={60}
+        taskOptions={taskOptionsForForm}
+        isSubmitting={isCreatingBlock}
+        errorMessage={createBlockError}
+        onCancel={() => {
+          setIsAddBlockOpen(false);
+          setCreateBlockError(null);
+        }}
+        onSubmit={handleCreateBlock}
+      />
     </div>
   );
 }
+
+export default function BlocksPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="mx-auto w-full max-w-[1120px] px-4 py-8">
+          <div
+            className="mb-6 h-10 w-[min(100%,420px)] animate-pulse rounded-[12px] border"
+            style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+          />
+          <div
+            className="h-[min(70vh,520px)] animate-pulse rounded-[18px] border"
+            style={{ borderColor: "var(--line)", background: "var(--surface-solid)" }}
+          />
+        </div>
+      }
+    >
+      <BlocksPageContent />
+    </Suspense>
+  );
+}
+
+function getBlockReason(block: StudyBlock) {
+  return block.reason ?? "Planned around your current priority and focus window.";
+}
+
+function deriveLiveBlockStatus(args: {
+  block: StudyBlock;
+  nowMs: number;
+  isToday: boolean;
+}): LiveBlockStatus {
+  const { block, nowMs, isToday } = args;
+  if (block.status === "done") return "completed";
+  if (block.status === "active") return "active";
+  if (!isToday) return "upcoming";
+
+  const nowMinutes = minutesSinceMidnight(new Date(nowMs));
+  const startMinutes = block.startMinutes;
+  const endMinutes = block.startMinutes + block.durationMin;
+
+  if (nowMinutes < startMinutes) return "upcoming";
+  if (nowMinutes >= endMinutes) return "missed";
+  return "active";
+}
+
+function minutesSinceMidnight(date: Date): number {
+  return date.getHours() * 60 + date.getMinutes();
+}
+

@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Task } from "@/types/task";
+import { NextActionBanner } from "@/components/layout/next-action-banner";
 
 const BOARD_STATUSES = ["backlog", "planned", "in_progress", "done"] as const;
 type BoardStatus = (typeof BOARD_STATUSES)[number];
@@ -25,27 +26,31 @@ const initialBoardTasks: TasksByStatus = {
 
 const statusMeta: Record<
   BoardStatus,
-  { title: string; dot: string; empty: string }
+  { title: string; dot: string; empty: string; question: string }
 > = {
   backlog: {
-    title: "Backlog",
+    title: "Unscheduled",
     dot: "var(--text-3)",
-    empty: "Drop unscheduled tasks here",
+    empty: "Add an unscheduled task",
+    question: "What is not scheduled yet?",
   },
   planned: {
     title: "Planned",
     dot: "var(--accent)",
-    empty: "Drop tasks planned for this day",
+    empty: "Drag unscheduled tasks here",
+    question: "What am I doing today?",
   },
   in_progress: {
     title: "In Progress",
     dot: "var(--warn)",
-    empty: "Drag one task here to focus",
+    empty: "Drag one task here",
+    question: "What's my one focus?",
   },
   done: {
     title: "Done",
     dot: "var(--done)",
     empty: "Completed tasks appear here",
+    question: "What did I finish?",
   },
 };
 
@@ -329,11 +334,27 @@ export default function BoardPage() {
 
   return (
     <div className="mx-auto w-full max-w-[1280px]">
+      <NextActionBanner
+        step={1}
+        eyebrow="Optional view · Manual lifecycle"
+        title="This view is no longer part of the guided flow."
+        description={
+          <>
+            TaskPilot now schedules automatically from your Tasks. Use this
+            board if you want to tweak task statuses by hand — otherwise,
+            head to Tasks and click{" "}
+            <strong style={{ color: "var(--text)" }}>Plan my day</strong>.
+          </>
+        }
+        tone="neutral"
+        ctaLabel="Go to Tasks"
+        ctaHref="/tasks"
+      />
       <header className="anim mb-6 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Today&apos;s Board</h1>
+          <h1 className="text-[1.85rem] font-bold leading-[1.1] tracking-[-0.03em]">Lifecycle Board</h1>
           <p className="mt-1.5 text-[0.92rem]" style={{ color: "var(--text-2)" }}>
-            Plan, focus, and finish — one task at a time.
+            Manual drag-and-drop view of task status. Not required for the auto-planner flow.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -363,17 +384,6 @@ export default function BoardPage() {
               </svg>
             </button>
           </div>
-          <button
-            type="button"
-            onClick={() => openDraft("backlog")}
-            className="inline-flex h-9 items-center gap-1.5 rounded-[10px] px-4 text-[0.86rem] font-semibold text-white transition-colors hover:bg-[var(--accent-hover)]"
-            style={{ background: "var(--accent)", boxShadow: "0 1px 2px rgba(0,122,255,0.25)" }}
-          >
-            <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-              <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
-            </svg>
-            New Task
-          </button>
         </div>
       </header>
 
@@ -454,7 +464,7 @@ export default function BoardPage() {
                   outlineOffset: isOver ? "-2px" : isProgress ? "-1.5px" : "0",
                 }}
               >
-                <header className="mb-3 flex items-center justify-between px-1">
+                <header className="mb-1 flex items-center justify-between px-1">
                   <div className="flex items-center gap-2">
                     <span
                       className="h-2 w-2 rounded-full"
@@ -470,23 +480,13 @@ export default function BoardPage() {
                       {tasksByStatus[status].length}
                     </span>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => (isDrafting ? cancelDraft() : openDraft(status))}
-                    aria-label={isDrafting ? "Cancel add task" : `Add task to ${statusMeta[status].title}`}
-                    className="grid h-6 w-6 place-items-center rounded-md text-[var(--text-3)] transition-[background,color] duration-200 hover:bg-[var(--surface-solid)] hover:text-[var(--accent)]"
-                  >
-                    {isDrafting ? (
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                        <path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z" />
-                      </svg>
-                    ) : (
-                      <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                        <path d="M8 3a.5.5 0 0 1 .5.5v4h4a.5.5 0 0 1 0 1h-4v4a.5.5 0 0 1-1 0v-4h-4a.5.5 0 0 1 0-1h4v-4A.5.5 0 0 1 8 3z" />
-                      </svg>
-                    )}
-                  </button>
                 </header>
+                <p
+                  className="mb-3 px-1 text-[0.72rem]"
+                  style={{ color: "var(--text-3)" }}
+                >
+                  {statusMeta[status].question}
+                </p>
 
                 {isDrafting ? (
                   <form onSubmit={handleCreateTask} className="mb-2 flex flex-col gap-1.5">

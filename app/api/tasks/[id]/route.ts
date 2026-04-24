@@ -3,6 +3,14 @@ import mongoose from "mongoose";
 import { getAuthUserIdFromCookies } from "@/lib/auth";
 import { connectToDatabase } from "@/lib/db";
 import { TASK_STATUSES, TaskModel } from "@/models/Task";
+import { StudyBlockModel } from "@/models/StudyBlock";
+import { resolveTaskState } from "@/lib/task-status";
+import { toTaskResponse } from "@/lib/task-response";
+import {
+  parseDueDate,
+  parseEstimatedMinutes,
+  parseTaskPriority,
+} from "@/lib/task-fields";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -46,28 +54,6 @@ function parseStudyBlockId(value: unknown) {
   return value;
 }
 
-function toTaskResponse(task: {
-  _id: mongoose.Types.ObjectId | string;
-  name: string;
-  meta?: string;
-  completed: boolean;
-  dayKey?: string | null;
-  status?: string;
-  order?: number;
-  studyBlockId?: mongoose.Types.ObjectId | string | null;
-}) {
-  return {
-    id: task._id.toString(),
-    name: task.name,
-    meta: task.meta || "",
-    completed: task.completed,
-    dayKey: task.dayKey ?? null,
-    status: task.status ?? (task.completed ? "done" : "backlog"),
-    order: task.order ?? 0,
-    studyBlockId: task.studyBlockId ? task.studyBlockId.toString() : null,
-  };
-}
-
 export async function DELETE(_request: NextRequest, context: RouteContext) {
   const { id } = await context.params;
   try {
@@ -81,13 +67,38 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     }
 
     await connectToDatabase();
+    const userObjectId = toObjectId(userId);
     const deletedTask = await TaskModel.findOneAndDelete({
       _id: toObjectId(id),
-      userId: toObjectId(userId),
+      userId: userObjectId,
     });
 
     if (!deletedTask) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
+    }
+
+    // If this task belonged to a study block, keep block/task linkage clean:
+    // - remove the whole block when this was its only linked task
+    // - otherwise clear activeTaskId when it pointed at the deleted task
+    if (deletedTask.studyBlockId) {
+      const blockId = deletedTask.studyBlockId;
+      const remainingLinkedTasks = await TaskModel.countDocuments({
+        userId: userObjectId,
+        studyBlockId: blockId,
+        _id: { $ne: deletedTask._id },
+      });
+
+      if (remainingLinkedTasks === 0) {
+        await StudyBlockModel.findOneAndDelete({
+          _id: blockId,
+          userId: userObjectId,
+        });
+      } else {
+        await StudyBlockModel.findOneAndUpdate(
+          { _id: blockId, userId: userObjectId, activeTaskId: deletedTask._id },
+          { $set: { activeTaskId: null } },
+        );
+      }
     }
 
     return NextResponse.json({ success: true });
@@ -115,11 +126,17 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const hasDayKey = body.dayKey !== undefined;
     const hasOrder = body.order !== undefined;
     const hasStudyBlockId = body.studyBlockId !== undefined;
+    const hasPriority = body.priority !== undefined;
+    const hasDueDate = body.dueDate !== undefined;
+    const hasEstimatedMinutes = body.estimatedMinutes !== undefined;
 
     const parsedStatus = parseTaskStatus(body.status);
     const parsedDayKey = parseDayKey(body.dayKey);
     const parsedOrder = parseOrder(body.order);
     const parsedStudyBlockId = parseStudyBlockId(body.studyBlockId);
+    const parsedPriority = parseTaskPriority(body.priority);
+    const parsedDueDate = parseDueDate(body.dueDate);
+    const parsedEstimatedMinutes = parseEstimatedMinutes(body.estimatedMinutes);
 
     if (hasStatus && !parsedStatus) {
       return NextResponse.json({ error: "Invalid task status." }, { status: 400 });
@@ -140,6 +157,27 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Invalid studyBlockId." }, { status: 400 });
     }
 
+    if (hasPriority && parsedPriority === undefined) {
+      return NextResponse.json(
+        { error: "Invalid priority. Expected low | medium | high." },
+        { status: 400 },
+      );
+    }
+
+    if (hasDueDate && parsedDueDate === undefined) {
+      return NextResponse.json(
+        { error: "Invalid dueDate. Expected null or YYYY-MM-DD / ISO string." },
+        { status: 400 },
+      );
+    }
+
+    if (hasEstimatedMinutes && parsedEstimatedMinutes === undefined) {
+      return NextResponse.json(
+        { error: "Invalid estimatedMinutes. Expected a positive integer or null." },
+        { status: 400 },
+      );
+    }
+
     await connectToDatabase();
     const existing = await TaskModel.findOne({
       _id: toObjectId(id),
@@ -150,22 +188,15 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "Task not found." }, { status: 404 });
     }
 
-    const nextCompleted =
-      hasCompleted
-        ? body.completed
-        : hasStatus
-          ? parsedStatus === "done"
-          : !existing.completed;
-    existing.completed = nextCompleted;
-    const nextStatus: (typeof TASK_STATUSES)[number] =
-      hasStatus && parsedStatus
-        ? parsedStatus
-        : nextCompleted
-          ? "done"
-          : existing.status === "done"
-            ? "planned"
-            : existing.status || "backlog";
+    const { status: nextStatus, completed: nextCompleted } = resolveTaskState(
+      { status: existing.status, completed: existing.completed },
+      {
+        status: hasStatus ? parsedStatus : undefined,
+        completed: hasCompleted ? (body.completed as boolean) : undefined,
+      },
+    );
     existing.status = nextStatus;
+    existing.completed = nextCompleted;
 
     if (hasDayKey) {
       existing.dayKey = parsedDayKey ?? null;
@@ -177,6 +208,18 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     if (hasStudyBlockId) {
       existing.studyBlockId = parsedStudyBlockId ? toObjectId(parsedStudyBlockId) : null;
+    }
+
+    if (hasPriority && parsedPriority) {
+      existing.priority = parsedPriority;
+    }
+
+    if (hasDueDate) {
+      existing.dueDate = parsedDueDate ?? null;
+    }
+
+    if (hasEstimatedMinutes) {
+      existing.estimatedMinutes = parsedEstimatedMinutes ?? null;
     }
 
     if (nextCompleted && !existing.meta) {

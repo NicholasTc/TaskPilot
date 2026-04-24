@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Task } from "@/types/task";
+import { NextActionBanner } from "@/components/layout/next-action-banner";
+import { MonthCalendar, MonthCalendarDayStat } from "@/components/home/month-calendar";
 
 type BoardStatus = "backlog" | "planned" | "in_progress" | "done";
 type BlockStatus = "planned" | "active" | "done";
@@ -44,8 +46,9 @@ type WeekStatDay = {
 };
 
 const boardStatuses: BoardStatus[] = ["backlog", "planned", "in_progress", "done"];
+const boardSnapshotStatuses: BoardStatus[] = ["planned", "in_progress", "done"];
 const boardStatusMeta: Record<BoardStatus, { label: string; tip: string; dotColor: string }> = {
-  backlog: { label: "Backlog", tip: "unscheduled", dotColor: "var(--text-3)" },
+  backlog: { label: "Unscheduled", tip: "not yet in a block", dotColor: "var(--text-3)" },
   planned: { label: "Planned", tip: "in upcoming blocks", dotColor: "var(--accent)" },
   in_progress: { label: "In Progress", tip: "single focus", dotColor: "var(--warn)" },
   done: { label: "Done", tip: "today", dotColor: "var(--done)" },
@@ -121,11 +124,25 @@ export default function HomePage() {
   const [blocks, setBlocks] = useState<StudyBlock[]>([]);
   const [reminders, setReminders] = useState<Reminder[]>([]);
   const [weekStats, setWeekStats] = useState<WeekStatDay[]>([]);
+  const [monthStats, setMonthStats] = useState<MonthCalendarDayStat[]>([]);
 
   const today = useMemo(() => new Date(), []);
   const todayKey = useMemo(() => toLocalDayKey(today), [today]);
   const weekStart = useMemo(() => getStartOfWeek(today), [today]);
   const weekRange = useMemo(() => formatWeekRange(weekStart), [weekStart]);
+
+  // Mini-calendar always shows the month containing "today". The visible grid
+  // is Monday-aligned and spans 6 weeks (42 days), so we fetch aggregates for
+  // that exact window to avoid overfetching.
+  const monthGridStart = useMemo(() => {
+    const firstOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    return getStartOfWeek(firstOfMonth);
+  }, [today]);
+  const monthGridEnd = useMemo(() => {
+    const end = new Date(monthGridStart);
+    end.setDate(end.getDate() + 41);
+    return end;
+  }, [monthGridStart]);
 
   const activeBlock = useMemo(
     () => blocks.find((block) => block.status === "active") ?? null,
@@ -173,6 +190,10 @@ export default function HomePage() {
   const totalWeekDone = useMemo(() => weekStats.reduce((sum, day) => sum + day.done, 0), [weekStats]);
   const totalWeekTasks = useMemo(() => weekStats.reduce((sum, day) => sum + day.total, 0), [weekStats]);
 
+  const committedToday = boardCounts.planned + boardCounts.in_progress + boardCounts.done;
+  const isInFlow = committedToday > 0;
+  const allDoneToday = isInFlow && boardCounts.done === committedToday;
+
   const redirectToLogin = useCallback(() => {
     router.replace("/login");
   }, [router]);
@@ -183,23 +204,42 @@ export default function HomePage() {
       setIsLoading(true);
 
       const weekStartKey = toLocalDayKey(getStartOfWeek(new Date()));
+      const monthStartKey = toLocalDayKey(monthGridStart);
+      const monthEndKey = toLocalDayKey(monthGridEnd);
 
-      const [boardResponse, blocksResponse, remindersResponse, weekStatsResponse] = await Promise.all([
+      const [
+        boardResponse,
+        blocksResponse,
+        remindersResponse,
+        weekStatsResponse,
+        monthStatsResponse,
+      ] = await Promise.all([
         fetch(`/api/board?day=${todayKey}`),
         fetch(`/api/blocks?day=${todayKey}`),
         fetch("/api/reminders"),
         fetch(`/api/week-stats?start=${weekStartKey}`),
+        fetch(`/api/range-stats?start=${monthStartKey}&end=${monthEndKey}`),
       ]);
 
-      const hasUnauthorized = [boardResponse, blocksResponse, remindersResponse, weekStatsResponse].some(
-        (response) => response.status === 401,
-      );
+      const hasUnauthorized = [
+        boardResponse,
+        blocksResponse,
+        remindersResponse,
+        weekStatsResponse,
+        monthStatsResponse,
+      ].some((response) => response.status === 401);
       if (hasUnauthorized) {
         redirectToLogin();
         return;
       }
 
-      if (!boardResponse.ok || !blocksResponse.ok || !remindersResponse.ok || !weekStatsResponse.ok) {
+      if (
+        !boardResponse.ok ||
+        !blocksResponse.ok ||
+        !remindersResponse.ok ||
+        !weekStatsResponse.ok ||
+        !monthStatsResponse.ok
+      ) {
         throw new Error("Unable to load home data.");
       }
 
@@ -209,6 +249,9 @@ export default function HomePage() {
       const blocksPayload = (await blocksResponse.json()) as { blocks: StudyBlock[] };
       const remindersPayload = (await remindersResponse.json()) as Reminder[];
       const weekStatsPayload = (await weekStatsResponse.json()) as { days: WeekStatDay[] };
+      const monthStatsPayload = (await monthStatsResponse.json()) as {
+        days: MonthCalendarDayStat[];
+      };
 
       setBoardTasksByStatus({
         backlog: boardPayload.tasksByStatus.backlog ?? [],
@@ -219,13 +262,14 @@ export default function HomePage() {
       setBlocks((blocksPayload.blocks ?? []).sort((a, b) => a.startMinutes - b.startMinutes));
       setReminders(remindersPayload ?? []);
       setWeekStats(weekStatsPayload.days ?? []);
+      setMonthStats(monthStatsPayload.days ?? []);
     } catch (error) {
       console.error("Loading home data failed", error);
       setErrorMessage("Could not load home data. Please refresh or try again.");
     } finally {
       setIsLoading(false);
     }
-  }, [redirectToLogin, todayKey]);
+  }, [monthGridEnd, monthGridStart, redirectToLogin, todayKey]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -268,6 +312,42 @@ export default function HomePage() {
         </div>
       ) : null}
 
+      {!isLoading && isInFlow ? (
+        allDoneToday ? (
+          <NextActionBanner
+            step={4}
+            eyebrow="Step 4 · Reflect"
+            title="You finished today's plan."
+            description="Take a moment to recap, then plan tomorrow."
+            tone="done"
+            ctaLabel="Open Reflect"
+            ctaHref="/today"
+          />
+        ) : activeBlock ? (
+          <NextActionBanner
+            step={3}
+            eyebrow="Step 3 · Execute"
+            title={activeTask ? `Now: ${activeTask.name}` : "Pick the one task to work on."}
+            description={activeTask
+              ? `Open focus mode and protect this block.`
+              : "Choose one task from this block and start the timer."}
+            tone="warn"
+            ctaLabel={activeTask ? "Open focus mode" : "Manage block"}
+            ctaHref={activeTask ? `/blocks/${activeBlock.id}/focus` : "/blocks"}
+          />
+        ) : (
+          <NextActionBanner
+            step={3}
+            eyebrow="Step 3 · Execute"
+            title="Start your next block."
+            description={`${committedToday - boardCounts.done} task${committedToday - boardCounts.done === 1 ? "" : "s"} remaining today.`}
+            tone="accent"
+            ctaLabel="Open Blocks"
+            ctaHref="/blocks"
+          />
+        )
+      ) : null}
+
       {isLoading ? (
         <div
           className="mb-4 h-[180px] animate-pulse rounded-[18px] border"
@@ -295,22 +375,6 @@ export default function HomePage() {
             <p className="mb-3.5 text-[0.92rem] opacity-90">
               {activeTask ? `Now: ${activeTask.name}` : "No active task selected"}
             </p>
-            <div className="flex flex-wrap gap-2">
-              <Link
-                href={`/blocks/${activeBlock.id}/focus`}
-                className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.82rem] font-semibold"
-                style={{ background: "#fff", color: "var(--accent)" }}
-              >
-                Open focus mode
-              </Link>
-              <Link
-                href="/blocks"
-                className="inline-flex h-[34px] items-center rounded-[9px] px-3.5 text-[0.82rem] font-semibold text-white"
-                style={{ background: "rgba(255,255,255,0.18)" }}
-              >
-                Manage blocks
-              </Link>
-            </div>
           </div>
           <div className="relative text-right max-[800px]:text-left">
             <div className="text-[2.2rem] font-bold leading-none tracking-[-0.04em] tabular-nums">
@@ -321,26 +385,19 @@ export default function HomePage() {
             </div>
           </div>
         </section>
-      ) : (
+      ) : !isInFlow ? (
         <section
-          className="anim anim-d1 mb-4 flex items-center justify-between gap-3 rounded-[14px] px-[18px] py-3.5 max-[700px]:flex-col max-[700px]:items-start"
+          className="anim anim-d1 mb-4 rounded-[14px] px-[18px] py-3.5"
           style={{
             background: "var(--surface-solid)",
             border: "1px dashed var(--line-strong)",
           }}
         >
           <span className="text-[0.9rem]" style={{ color: "var(--text-2)" }}>
-            No active block right now — start a focused session to begin your deep work.
+            No active block right now — use Start Day to begin.
           </span>
-          <Link
-            href="/blocks"
-            className="inline-flex h-[30px] items-center rounded-[8px] px-3.5 text-[0.8rem] font-semibold text-white"
-            style={{ background: "var(--accent)" }}
-          >
-            Plan blocks
-          </Link>
         </section>
-      )}
+      ) : null}
 
       <section
         className="anim anim-d2 mb-7 rounded-[16px] border px-5 py-[18px]"
@@ -364,8 +421,8 @@ export default function HomePage() {
             </svg>
           </Link>
         </header>
-        <div className="grid grid-cols-4 gap-2.5 max-[820px]:grid-cols-2">
-          {boardStatuses.map((status) => {
+        <div className="grid grid-cols-3 gap-2.5 max-[820px]:grid-cols-1">
+          {boardSnapshotStatuses.map((status) => {
             const isProgress = status === "in_progress";
             return (
               <Link
@@ -402,109 +459,126 @@ export default function HomePage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-[1.5fr_1fr] gap-5 max-[900px]:grid-cols-1">
-        <section className="anim anim-d3">
-          <h2
-            className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]"
-            style={{ color: "var(--text-3)" }}
-          >
-            Today&apos;s blocks
-          </h2>
-          <div
-            className="rounded-[16px] border px-5 py-[18px]"
-            style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
-          >
-            {blocks.length === 0 ? (
-              <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
-                No blocks planned for today.
-              </p>
-            ) : (
-              blocks.map((block, index) => (
-                <article
-                  key={block.id}
-                  className="grid grid-cols-[60px_1fr_auto] items-center gap-3.5 border-b py-3 last:border-b-0 max-[720px]:grid-cols-1 max-[720px]:gap-1.5"
-                  style={{
-                    borderBottomColor: index === blocks.length - 1 ? "transparent" : "var(--line)",
-                  }}
-                >
-                  <div>
-                    <div className="text-[0.92rem] font-semibold tabular-nums">
-                      {toHumanTime(block.startMinutes)}
-                    </div>
-                    <div className="mt-0.5 text-[0.72rem]" style={{ color: "var(--text-3)" }}>
-                      – {toHumanTime(block.startMinutes + block.durationMin)}
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[0.92rem] font-medium">{block.title}</p>
-                    <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
-                      {block.durationMin}m
-                    </p>
-                  </div>
-                  <span
-                    className="inline-flex items-center rounded-full px-2 py-[3px] text-[0.7rem] font-semibold uppercase tracking-[0.03em]"
+      <div className="grid grid-cols-[1.5fr_1fr] items-start gap-5 max-[900px]:grid-cols-1">
+        <div className="flex min-w-0 flex-col gap-5">
+          <section className="anim anim-d3">
+            <h2
+              className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]"
+              style={{ color: "var(--text-3)" }}
+            >
+              Today&apos;s blocks
+            </h2>
+            <div
+              className="rounded-[16px] border px-5 py-[18px]"
+              style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+            >
+              {blocks.length === 0 ? (
+                <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
+                  No blocks planned for today.
+                </p>
+              ) : (
+                blocks.map((block, index) => (
+                  <article
+                    key={block.id}
+                    className="grid grid-cols-[60px_1fr_auto] items-center gap-3.5 border-b py-3 last:border-b-0 max-[720px]:grid-cols-1 max-[720px]:gap-1.5"
                     style={{
-                      background:
-                        block.status === "active"
-                          ? "var(--warn-soft)"
-                          : block.status === "done"
-                            ? "var(--done-soft)"
-                            : "var(--accent-soft)",
-                      color:
-                        block.status === "active"
-                          ? "var(--warn)"
-                          : block.status === "done"
-                            ? "var(--done)"
-                            : "var(--accent)",
+                      borderBottomColor: index === blocks.length - 1 ? "transparent" : "var(--line)",
                     }}
                   >
-                    {block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming"}
-                  </span>
-                </article>
-              ))
-            )}
-          </div>
-        </section>
+                    <div>
+                      <div className="text-[0.92rem] font-semibold tabular-nums">
+                        {toHumanTime(block.startMinutes)}
+                      </div>
+                      <div className="mt-0.5 text-[0.72rem]" style={{ color: "var(--text-3)" }}>
+                        – {toHumanTime(block.startMinutes + block.durationMin)}
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-[0.92rem] font-medium">{block.title}</p>
+                      <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
+                        {block.durationMin}m
+                      </p>
+                    </div>
+                    <span
+                      className="inline-flex items-center rounded-full px-2 py-[3px] text-[0.7rem] font-semibold uppercase tracking-[0.03em]"
+                      style={{
+                        background:
+                          block.status === "active"
+                            ? "var(--warn-soft)"
+                            : block.status === "done"
+                              ? "var(--done-soft)"
+                              : "var(--accent-soft)",
+                        color:
+                          block.status === "active"
+                            ? "var(--warn)"
+                            : block.status === "done"
+                              ? "var(--done)"
+                              : "var(--accent)",
+                      }}
+                    >
+                      {block.status === "active" ? "Active" : block.status === "done" ? "Done" : "Upcoming"}
+                    </span>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
 
-        <aside className="anim anim-d4">
+          <section className="anim anim-d4">
+            <h2
+              className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]"
+              style={{ color: "var(--text-3)" }}
+            >
+              Reminders
+            </h2>
+            <div
+              className="rounded-[16px] border px-5 py-[18px]"
+              style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
+            >
+              {reminders.length === 0 ? (
+                <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
+                  No reminders yet.
+                </p>
+              ) : (
+                reminders.slice(0, 5).map((reminder, index, list) => (
+                  <article
+                    key={reminder.id}
+                    className="flex items-start justify-between gap-3 border-b py-3 last:border-b-0"
+                    style={{
+                      borderBottomColor: index === list.length - 1 ? "transparent" : "var(--line)",
+                    }}
+                  >
+                    <div className="min-w-0">
+                      <p className="text-[0.9rem] font-medium">{reminder.title}</p>
+                      {reminder.note ? (
+                        <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
+                          {reminder.note}
+                        </p>
+                      ) : null}
+                    </div>
+                    <span className="whitespace-nowrap text-[0.76rem]" style={{ color: "var(--text-3)" }}>
+                      {formatReminderTime(reminder.dueAt)}
+                    </span>
+                  </article>
+                ))
+              )}
+            </div>
+          </section>
+        </div>
+
+        <aside className="anim anim-d3">
           <h2
             className="mb-3 text-[0.72rem] font-semibold uppercase tracking-[0.05em]"
             style={{ color: "var(--text-3)" }}
           >
-            Reminders
+            My calendar
           </h2>
-          <div
-            className="rounded-[16px] border px-5 py-[18px]"
-            style={{ background: "var(--surface-solid)", borderColor: "var(--line)", boxShadow: "var(--shadow-sm)" }}
-          >
-            {reminders.length === 0 ? (
-              <p className="py-2 text-[0.86rem]" style={{ color: "var(--text-2)" }}>
-                No reminders yet.
-              </p>
-            ) : (
-              reminders.slice(0, 5).map((reminder, index, list) => (
-                <article
-                  key={reminder.id}
-                  className="flex items-start justify-between gap-3 border-b py-3 last:border-b-0"
-                  style={{
-                    borderBottomColor: index === list.length - 1 ? "transparent" : "var(--line)",
-                  }}
-                >
-                  <div className="min-w-0">
-                    <p className="text-[0.9rem] font-medium">{reminder.title}</p>
-                    {reminder.note ? (
-                      <p className="mt-0.5 text-[0.76rem]" style={{ color: "var(--text-2)" }}>
-                        {reminder.note}
-                      </p>
-                    ) : null}
-                  </div>
-                  <span className="whitespace-nowrap text-[0.76rem]" style={{ color: "var(--text-3)" }}>
-                    {formatReminderTime(reminder.dueAt)}
-                  </span>
-                </article>
-              ))
-            )}
-          </div>
+          <MonthCalendar
+            monthDate={today}
+            todayKey={todayKey}
+            dayStats={monthStats}
+            isLoading={isLoading}
+          />
         </aside>
       </div>
 

@@ -26,6 +26,7 @@ function toBlockResponse(block: {
   remainingSeconds?: number;
   timerState?: "paused" | "running";
   runningSince?: Date | null;
+  reason?: string | null;
 }) {
   const remainingSeconds = Math.max(0, Math.floor(block.remainingSeconds ?? block.durationMin * 60));
   const timerState = block.timerState ?? "paused";
@@ -47,6 +48,7 @@ function toBlockResponse(block: {
       runningSince,
     }),
     runningSince: runningSince ? runningSince.toISOString() : null,
+    reason: block.reason ?? "",
   };
 }
 
